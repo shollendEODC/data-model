@@ -77,6 +77,17 @@ def _utm_to_wgs84(proj_code: str, utm_bbox: list[float]) -> tuple[float, float, 
     return min(lons), min(lats), max(lons), max(lats)
 
 
+def _bbox_to_geometry(bbox: list[float]) -> dict[str, object]:
+    """A closed rectangular Polygon for a WGS84 [west, south, east, north] bbox."""
+    west, south, east, north = bbox
+    return {
+        "type": "Polygon",
+        "coordinates": [
+            [[west, south], [east, south], [east, north], [west, north], [west, south]]
+        ],
+    }
+
+
 def _open_root(zarr_store: str) -> zarr.Group:
     """Open the cube root, preferring consolidated metadata.
 
@@ -166,12 +177,7 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
     north = max(b[3] for b in wgs84_bboxes)
     wgs84_bbox = [west, south, east, north]
 
-    geometry = {
-        "type": "Polygon",
-        "coordinates": [
-            [[west, south], [east, south], [east, north], [west, north], [west, south]]
-        ],
-    }
+    geometry = _bbox_to_geometry(wgs84_bbox)
 
     # The preferred orbit (ascending if present) drives the single-valued projection fields and the
     # default render/preview; every present orbit gets its own first-class asset below.
@@ -418,11 +424,20 @@ def build_s1_rtc_per_acquisition_items(
         for key in (f"gamma0-rtc-backscatter-{_ORBIT_SHORT[o]}", f"border-mask-{_ORBIT_SHORT[o]}")
     }
 
+    # A per-acquisition item covers only its run orbit's footprint — not the cube's union of both
+    # orbits' extents (which the base item carries). Recompute bbox/geometry/proj:bbox from this orbit.
+    og_attrs = dict(cast("zarr.Group", root[orbit]).attrs)
+    orbit_utm_bbox = cast("list[float]", og_attrs["spatial:bbox"])
+    orbit_wgs84_bbox = list(_utm_to_wgs84(cast("str", og_attrs["proj:code"]), orbit_utm_bbox))
+    orbit_geometry = _bbox_to_geometry(orbit_wgs84_bbox)
+
     items: list[pystac.Item] = []
     for t_ns, platform in zip(times_ns, platforms, strict=True):
         when = dt.datetime.fromtimestamp(t_ns / 1e9, tz=dt.UTC)
         item_dict = {**base_dict}
         item_dict["id"] = acquisition_id(tile_id, when)
+        item_dict["bbox"] = orbit_wgs84_bbox
+        item_dict["geometry"] = orbit_geometry
 
         props = {
             k: v
@@ -432,6 +447,11 @@ def build_s1_rtc_per_acquisition_items(
         props["datetime"] = when.isoformat()
         props["created"] = when.isoformat()
         props["sat:orbit_state"] = orbit
+        props["proj:bbox"] = orbit_utm_bbox
+        props["description"] = (
+            "Radiometric-terrain-corrected (RTC) γ⁰ backscatter from a single Sentinel-1 GRD "
+            "acquisition, reprojected onto the Sentinel-2 MGRS/UTM grid."
+        )
         if platform:
             props["platform"] = str(platform)
         props["renders"] = {"rgb": _rgb_render(orbit)}

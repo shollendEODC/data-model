@@ -256,6 +256,17 @@ def test_datacube_extension(tmp_path: Path) -> None:
     assert variables["vv"]["dimensions"] == ["time", "y", "x"]
 
 
+def test_created_is_earliest_acquisition_not_build_time(tmp_path: Path) -> None:
+    """`created` must be the earliest acquisition (stable across rebuilds), not the build instant —
+    the cube is rebuilt on every append, so a `now()` value would churn the item."""
+    store = _make_s1_store(tmp_path, {"descending": [(T1_NS, "S1A"), (T2_NS, "S1A")]})
+    item = build_s1_rtc_stac_item(str(store), "sentinel-1-grd-rtc-staging")
+
+    assert item.properties["created"] == item.properties["start_datetime"]
+    # `updated` tracks the build, so it must exist and be a valid timestamp (not pinned to a value).
+    assert dt.datetime.fromisoformat(item.properties["updated"])
+
+
 def test_sar_extension_fields(tmp_path: Path) -> None:
     """SAR extension fields must be set with correct values for S1 IW GRD."""
     store = _make_s1_store(tmp_path, {"descending": [(T1_NS, "S1A")]})

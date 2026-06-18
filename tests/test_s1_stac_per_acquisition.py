@@ -12,6 +12,7 @@ import json
 from typing import TYPE_CHECKING
 
 import numpy as np
+import pytest
 import zarr
 
 from eopf_geozarr.stac.s1_rtc import (
@@ -216,6 +217,49 @@ def test_per_slice_platform_and_no_datacube(tmp_path: Path) -> None:
     for item in items:
         assert "cube:dimensions" not in item.properties
         assert DATACUBE_EXT not in item.stac_extensions
+
+
+def test_footprint_is_run_orbit_not_cube_union(tmp_path: Path) -> None:
+    """A per-acq item must carry ITS orbit's footprint, not the cube's union of both orbits' extents."""
+    # ascending shifted east so the cube union bbox is wider than the descending orbit alone.
+    store = str(tmp_path / "s1-rtc-31TCH.zarr")
+    root = zarr.open_group(store, mode="w", zarr_format=3)
+    ny = nx = 4
+    desc_bbox = [300000.0, 4900000.0, 400000.0, 5000000.0]
+    asc_bbox = [400000.0, 4900000.0, 500000.0, 5000000.0]
+    for orbit, bbox in (("descending", desc_bbox), ("ascending", asc_bbox)):
+        og = root.create_group(orbit)
+        og.attrs.update({"proj:code": CRS, "spatial:bbox": bbox})
+        r10m = og.create_group("r10m")
+        r10m.attrs.update(
+            {
+                "spatial:shape": [ny, nx],
+                "spatial:transform": [10.0, 0.0, bbox[0], 0.0, -10.0, bbox[3]],
+            }
+        )
+        r10m.create_array("time", shape=(1,), dtype="int64", chunks=(512,))[:] = [T_EARLY]
+        r10m.create_array("platform", shape=(1,), dtype="<U4", chunks=(512,))[:] = ["S1A"]
+        for name, dtype in (("vv", "float32"), ("vh", "float32"), ("border_mask", "uint8")):
+            r10m.create_array(name, shape=(1, ny, nx), dtype=dtype, chunks=(1, ny, nx))[:] = 0
+    zarr.consolidate_metadata(store, zarr_format=3)
+
+    item = build_s1_rtc_per_acquisition_items(store, orbit="descending", collection_id="acq")[0]
+    # proj:bbox is the descending orbit's UTM extent — not the ascending (preferred) orbit's.
+    assert item.properties["proj:bbox"] == desc_bbox
+    # WGS84 bbox east edge stays within the descending footprint (~2°E), not the union (~3°E+).
+    assert item.bbox[2] < 2.5
+
+
+def test_invalid_orbit_raises(tmp_path: Path) -> None:
+    store = _make_acq_cube(tmp_path, {"descending": [(T_EARLY, "S1A")]})
+    with pytest.raises(ValueError, match="orbit must be one of"):
+        build_s1_rtc_per_acquisition_items(store, orbit="sideways", collection_id="acq")
+
+
+def test_orbit_absent_from_store_raises(tmp_path: Path) -> None:
+    store = _make_acq_cube(tmp_path, {"descending": [(T_EARLY, "S1A")]})
+    with pytest.raises(ValueError, match="not found"):
+        build_s1_rtc_per_acquisition_items(store, orbit="ascending", collection_id="acq")
 
 
 def test_datetime_follows_slice_not_physical_position(tmp_path: Path) -> None:
