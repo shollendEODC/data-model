@@ -181,6 +181,16 @@ def test_acquisition_id_format() -> None:
     assert acquisition_id("31TCH", when) == "s1-rtc-31TCH-20260607t055248"
 
 
+def test_per_acq_title_carries_datetime_and_orbit(tmp_path: Path) -> None:
+    """Per-acq titles must distinguish sibling scenes (not inherit the cube's '— tile {id}' title)."""
+    store = _make_acq_cube(tmp_path, {"descending": [(T_EARLY, "s1a")]})
+    item = build_s1_rtc_per_acquisition_items(store, orbit="descending", collection_id="acq")[0]
+    title = item.properties["title"]
+    assert "2026-06-05T06:09:07Z" in title
+    assert "descending" in title
+    assert title != "Sentinel-1 GRD RTC γ⁰ — tile 31TCH"
+
+
 def test_single_datetime_no_range_and_targets_collection(tmp_path: Path) -> None:
     store = _make_acq_cube(tmp_path, {"descending": [(T_EARLY, "S1A")]})
     item = build_s1_rtc_per_acquisition_items(

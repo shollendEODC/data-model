@@ -294,7 +294,7 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
             href=store_str,
             media_type=ZARR_MEDIA_TYPE,
             roles=["data"],
-            title="S1 GRD RTC Zarr store",
+            title="Sentinel-1 GRD RTC Zarr store",
         ),
     )
 
@@ -327,7 +327,7 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
                 href=group_href,
                 media_type=ZARR_MEDIA_TYPE,
                 roles=["data"],
-                title=f"Valid-data border mask ({orbit})",
+                title=f"Valid-data mask ({orbit})",
                 extra_fields={
                     "bands": [
                         {
@@ -493,6 +493,12 @@ def build_s1_rtc_per_acquisition_items(
         props["datetime"] = when.isoformat()
         props["sat:orbit_state"] = orbit
         props["proj:bbox"] = orbit_utm_bbox
+        # Per-acquisition title carries the datetime + orbit so sibling scenes are distinguishable
+        # (the inherited cube title "… — tile {id}" is identical across all acquisitions).
+        props["title"] = (
+            f"Sentinel-1 GRD RTC γ⁰ — tile {tile_id}, "
+            f"{when.strftime('%Y-%m-%dT%H:%M:%SZ')} ({orbit})"
+        )
         props["description"] = (
             "Radiometric-terrain-corrected (RTC) γ⁰ backscatter from a single Sentinel-1 GRD "
             "acquisition, reprojected onto the Sentinel-2 MGRS/UTM grid."
