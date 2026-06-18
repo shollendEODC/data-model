@@ -229,19 +229,15 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
         properties["sat:orbit_state"] = preferred_orbit
         stac_extensions.append(SAT_EXT)
 
-    # Datacube extension. The time axis is irregularly sampled (S1 acquisitions), so list its discrete
-    # `values` — their count is the number of time steps. The x/y axes are regular grids: extent + step
-    # convey their size (the exact pixel count is also in proj:shape), so listing every coordinate would
-    # be wasteful.
+    # Datacube extension. The time axis is irregularly sampled and grows as the cube is appended, so it
+    # carries only a bounded `extent` — the datacube spec has no element-count field, and enumerating
+    # every acquisition via `values` would not scale. The regular x/y axes carry extent + step (their
+    # element count is derivable, and the exact pixel count is also in proj:shape).
     epsg = int(preferred_proj_code.split(":")[1])
     xmin, ymin, xmax, ymax = preferred_bbox
-    time_values = [
-        dt.datetime.fromtimestamp(t / 1e9, tz=dt.UTC).isoformat() for t in sorted(set(all_times_ns))
-    ]
     time_dim: dict[str, object] = {
         "type": "temporal",
         "extent": [start_dt.isoformat(), end_dt.isoformat()],
-        "values": time_values,
     }
     x_dim: dict[str, object] = {
         "type": "spatial",

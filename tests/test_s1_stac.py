@@ -241,8 +241,9 @@ def test_identity_and_projection_fields(tmp_path: Path) -> None:
 
 
 def test_datacube_extension(tmp_path: Path) -> None:
-    """Cube items carry the datacube extension: temporal `values` give the time-step count; x/y carry
-    extent + step (size derivable; exact pixel count also in proj:shape)."""
+    """Cube items carry the datacube extension. The time axis is a bounded `extent` only (no `values`
+    enumeration — it grows as the cube is appended); x/y carry extent + step (size derivable; the exact
+    pixel count is also in proj:shape)."""
     store = _make_s1_store(tmp_path, {"descending": [(T1_NS, "S1A"), (T2_NS, "S1A")]})
     item = build_s1_rtc_stac_item(str(store), "sentinel-1-grd-rtc-staging")
 
@@ -250,10 +251,11 @@ def test_datacube_extension(tmp_path: Path) -> None:
     dims = item.properties["cube:dimensions"]
     assert dims["time"]["type"] == "temporal"
     assert len(dims["time"]["extent"]) == 2
-    assert len(dims["time"]["values"]) == 2  # two distinct acquisition times -> two steps
+    assert "values" not in dims["time"]  # unbounded growth — no per-acquisition enumeration
     assert dims["x"]["reference_system"] == 32631
     assert dims["x"]["step"] == 10.0
     assert dims["y"]["step"] == -10.0
+    assert item.properties["proj:shape"] == [4, 4]  # exact x/y element count
     variables = item.properties["cube:variables"]
     assert set(variables) == {"vv", "vh", "border_mask"}
     assert variables["vv"]["dimensions"] == ["time", "y", "x"]
