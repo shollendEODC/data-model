@@ -241,9 +241,9 @@ def test_identity_and_projection_fields(tmp_path: Path) -> None:
 
 
 def test_datacube_extension(tmp_path: Path) -> None:
-    """Cube items carry the datacube extension. The time axis is a bounded `extent` only (no `values`
-    enumeration — it grows as the cube is appended); x/y carry extent + step (size derivable; the exact
-    pixel count is also in proj:shape)."""
+    """Cube items carry the datacube extension. The irregular time axis lists its discrete `values`
+    (count = number of acquisitions); the regular x/y axes carry extent + step only (no per-pixel
+    enumeration — the exact pixel count is in proj:shape)."""
     store = _make_s1_store(tmp_path, {"descending": [(T1_NS, "S1A"), (T2_NS, "S1A")]})
     item = build_s1_rtc_stac_item(str(store), "sentinel-1-grd-rtc-staging")
 
@@ -251,14 +251,22 @@ def test_datacube_extension(tmp_path: Path) -> None:
     dims = item.properties["cube:dimensions"]
     assert dims["time"]["type"] == "temporal"
     assert len(dims["time"]["extent"]) == 2
-    assert "values" not in dims["time"]  # unbounded growth — no per-acquisition enumeration
+    assert dims["time"]["values"] == [  # two distinct acquisitions -> two time steps, sorted
+        dt.datetime.fromtimestamp(T1_NS / 1e9, tz=dt.UTC).isoformat(),
+        dt.datetime.fromtimestamp(T2_NS / 1e9, tz=dt.UTC).isoformat(),
+    ]
     assert dims["x"]["reference_system"] == 32631
     assert dims["x"]["step"] == 10.0
     assert dims["y"]["step"] == -10.0
+    assert "values" not in dims["x"]  # regular axis: extent + step, not ~10^4 coordinates
     assert item.properties["proj:shape"] == [4, 4]  # exact x/y element count
     variables = item.properties["cube:variables"]
     assert set(variables) == {"vv", "vh", "border_mask"}
     assert variables["vv"]["dimensions"] == ["time", "y", "x"]
+    # datacube field is `variable_type` (not `type`); the border mask is auxiliary, not data.
+    assert variables["vv"]["variable_type"] == "data"
+    assert variables["border_mask"]["variable_type"] == "auxiliary"
+    assert "type" not in variables["vv"]
 
 
 def test_orbit_state_single_vs_dual(tmp_path: Path) -> None:
@@ -277,14 +285,13 @@ def test_orbit_state_single_vs_dual(tmp_path: Path) -> None:
     assert "https://stac-extensions.github.io/sat/v1.0.0/schema.json" not in item2.stac_extensions
 
 
-def test_created_is_earliest_acquisition_not_build_time(tmp_path: Path) -> None:
-    """`created` must be the earliest acquisition (stable across rebuilds), not the build instant —
-    the cube is rebuilt on every append, so a `now()` value would churn the item."""
+def test_timestamps_updated_only(tmp_path: Path) -> None:
+    """`updated` (build time) is set; `created` is omitted — the store records no item-creation time,
+    so an acquisition time would misuse the field and a build-time value would churn on every append."""
     store = _make_s1_store(tmp_path, {"descending": [(T1_NS, "S1A"), (T2_NS, "S1A")]})
     item = build_s1_rtc_stac_item(str(store), "sentinel-1-grd-rtc-staging")
 
-    assert item.properties["created"] == item.properties["start_datetime"]
-    # `updated` tracks the build, so it must exist and be a valid timestamp (not pinned to a value).
+    assert "created" not in item.properties
     assert dt.datetime.fromisoformat(item.properties["updated"])
 
 

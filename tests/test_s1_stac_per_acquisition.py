@@ -212,13 +212,15 @@ def test_reorients_orbit_metadata_and_keeps_only_run_orbit_asset(tmp_path: Path)
 
 
 def test_per_slice_platform_and_no_datacube(tmp_path: Path) -> None:
-    """Each item gets its own slice's platform; a single acquisition is not a datacube."""
-    store = _make_acq_cube(tmp_path, {"descending": [(T_LATER, "S1A"), (T_EARLY, "S1C")]})
+    """Each item gets its own slice's platform (normalized to the STAC convention); a single
+    acquisition is not a datacube, and `created` is not set."""
+    store = _make_acq_cube(tmp_path, {"descending": [(T_LATER, "s1a"), (T_EARLY, "s1c")]})
     items = build_s1_rtc_per_acquisition_items(store, orbit="descending", collection_id="acq")
-    assert [i.properties["platform"] for i in items] == ["S1A", "S1C"]
+    assert [i.properties["platform"] for i in items] == ["sentinel-1a", "sentinel-1c"]
     for item in items:
         assert "cube:dimensions" not in item.properties
         assert DATACUBE_EXT not in item.stac_extensions
+        assert "created" not in item.properties
 
 
 def test_footprint_is_run_orbit_not_cube_union(tmp_path: Path) -> None:

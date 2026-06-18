@@ -194,9 +194,9 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
             "Radiometric-terrain-corrected (RTC) γ⁰ backscatter datacube from Sentinel-1 GRD, "
             "reprojected onto the Sentinel-2 MGRS/UTM grid."
         ),
-        # `created` is the earliest acquisition (stable across rebuilds); `updated` tracks this build
-        # (the cube is appended over time). See timestamps extension.
-        "created": start_dt.isoformat(),
+        # `updated` (timestamps extension) tracks this metadata build. `created` is intentionally
+        # omitted: it means the item's creation instant, which the store does not record — using an
+        # acquisition time would misuse the field, and a build-time value would churn on every append.
         "updated": dt.datetime.now(tz=dt.UTC).isoformat(),
         # Identity invariants (constant across the cube; platform is per-acquisition so omitted here —
         # a cube can mix S1A and S1C).
@@ -229,15 +229,20 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
         properties["sat:orbit_state"] = preferred_orbit
         stac_extensions.append(SAT_EXT)
 
-    # Datacube extension. The time axis is irregularly sampled and grows as the cube is appended, so it
-    # carries only a bounded `extent` — the datacube spec has no element-count field, and enumerating
-    # every acquisition via `values` would not scale. The regular x/y axes carry extent + step (their
-    # element count is derivable, and the exact pixel count is also in proj:shape).
+    # Datacube extension. The time axis is irregularly sampled, so it lists its discrete `values` (the
+    # acquisition instants across all orbit groups, sorted) — their count is the number of time steps,
+    # and the list stays modest (bounded by the tile's acquisitions). The regular x/y axes instead carry
+    # extent + step (their element count is derivable, and the exact pixel count is in proj:shape);
+    # enumerating their ~10⁴ coordinates would not scale.
     epsg = int(preferred_proj_code.split(":")[1])
     xmin, ymin, xmax, ymax = preferred_bbox
+    time_values = [
+        dt.datetime.fromtimestamp(t / 1e9, tz=dt.UTC).isoformat() for t in sorted(set(all_times_ns))
+    ]
     time_dim: dict[str, object] = {
         "type": "temporal",
         "extent": [start_dt.isoformat(), end_dt.isoformat()],
+        "values": time_values,
     }
     x_dim: dict[str, object] = {
         "type": "spatial",
@@ -256,10 +261,11 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
         x_dim["step"] = transform[0]
         y_dim["step"] = transform[4]
     properties["cube:dimensions"] = {"time": time_dim, "x": x_dim, "y": y_dim}
+    # `variable_type` is the datacube field name (not `type`); the border mask is auxiliary, not data.
     properties["cube:variables"] = {
-        "vv": {"dimensions": ["time", "y", "x"], "type": "data", "unit": GAMMA0_UNIT},
-        "vh": {"dimensions": ["time", "y", "x"], "type": "data", "unit": GAMMA0_UNIT},
-        "border_mask": {"dimensions": ["time", "y", "x"], "type": "data"},
+        "vv": {"dimensions": ["time", "y", "x"], "variable_type": "data", "unit": GAMMA0_UNIT},
+        "vh": {"dimensions": ["time", "y", "x"], "variable_type": "data", "unit": GAMMA0_UNIT},
+        "border_mask": {"dimensions": ["time", "y", "x"], "variable_type": "auxiliary"},
     }
 
     item = pystac.Item(
@@ -389,6 +395,19 @@ def acquisition_id(tile_id: str, when: dt.datetime) -> str:
     return f"s1-rtc-{tile_id}-{when.strftime('%Y%m%dt%H%M%S')}"
 
 
+def _normalize_platform(raw: object) -> str | None:
+    """Map the store's short platform code (e.g. ``s1a``) to the STAC convention (``sentinel-1a``).
+
+    Mirrors the Sentinel-2 reference (``sentinel-2a``). Unknown values are returned lower-cased.
+    """
+    s = str(raw).strip().lower()
+    if not s:
+        return None
+    if len(s) == 3 and s.startswith("s1"):
+        return f"sentinel-1{s[2]}"
+    return s
+
+
 def build_s1_rtc_per_acquisition_items(
     zarr_store: str, *, orbit: str, collection_id: str
 ) -> list[pystac.Item]:
@@ -461,15 +480,15 @@ def build_s1_rtc_per_acquisition_items(
             if k not in ("start_datetime", "end_datetime", "cube:dimensions", "cube:variables")
         }
         props["datetime"] = when.isoformat()
-        props["created"] = when.isoformat()
         props["sat:orbit_state"] = orbit
         props["proj:bbox"] = orbit_utm_bbox
         props["description"] = (
             "Radiometric-terrain-corrected (RTC) γ⁰ backscatter from a single Sentinel-1 GRD "
             "acquisition, reprojected onto the Sentinel-2 MGRS/UTM grid."
         )
-        if platform:
-            props["platform"] = str(platform)
+        normalized = _normalize_platform(platform)
+        if normalized:
+            props["platform"] = normalized
         props["renders"] = {"rgb": _rgb_render(orbit)}
         item_dict["properties"] = props
 
