@@ -276,6 +276,7 @@ def test_orbit_state_single_vs_dual(tmp_path: Path) -> None:
     item1 = build_s1_rtc_stac_item(str(single), "sentinel-1-grd-rtc-staging")
     assert item1.properties["sat:orbit_state"] == "descending"
     assert "https://stac-extensions.github.io/sat/v1.0.0/schema.json" in item1.stac_extensions
+    assert "description" not in item1.properties["cube:dimensions"]["time"]  # single orbit: no note
 
     dual = _make_s1_store(
         tmp_path / "b", {"ascending": [(T1_NS, "S1A")], "descending": [(T1_NS, "S1A")]}
@@ -283,6 +284,8 @@ def test_orbit_state_single_vs_dual(tmp_path: Path) -> None:
     item2 = build_s1_rtc_stac_item(str(dual), "sentinel-1-grd-rtc-staging")
     assert "sat:orbit_state" not in item2.properties
     assert "https://stac-extensions.github.io/sat/v1.0.0/schema.json" not in item2.stac_extensions
+    # dual-orbit cube notes that the merged time axis spans both orbits (orbit is an asset-level split)
+    assert "orbit" in item2.properties["cube:dimensions"]["time"]["description"].lower()
 
 
 def test_timestamps_updated_only(tmp_path: Path) -> None:

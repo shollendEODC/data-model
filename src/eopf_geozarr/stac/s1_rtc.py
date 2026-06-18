@@ -244,6 +244,15 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
         "extent": [start_dt.isoformat(), end_dt.isoformat()],
         "values": time_values,
     }
+    if len(present) > 1:
+        # The cube merges two per-orbit sub-cubes (disjoint time axes) onto a shared grid. Orbit is an
+        # attribute of each acquisition, not an independent axis, so it is conveyed via the per-orbit
+        # assets rather than a (sparse) orbit dimension — note that here to avoid misreading the axis.
+        time_dim["description"] = (
+            "Acquisition instants across both orbit directions (union); each step belongs to a single "
+            "orbit — the ascending/descending groups are exposed as separate assets and as items in "
+            "the per-acquisition collection."
+        )
     x_dim: dict[str, object] = {
         "type": "spatial",
         "axis": "x",
