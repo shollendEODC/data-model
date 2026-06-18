@@ -202,6 +202,8 @@ def test_reorients_orbit_metadata_and_keeps_only_run_orbit_asset(tmp_path: Path)
     )
     item = build_s1_rtc_per_acquisition_items(store, orbit="descending", collection_id="acq")[0]
     assert item.properties["sat:orbit_state"] == "descending"
+    # SAT ext must be declared even though the dual-orbit cube base omitted it.
+    assert "https://stac-extensions.github.io/sat/v1.0.0/schema.json" in item.stac_extensions
     assert item.properties["renders"]["rgb"]["expression"].startswith("/descending:vv")
     assert "gamma0-rtc-backscatter-desc" in item.assets
     assert "gamma0-rtc-backscatter-asc" not in item.assets

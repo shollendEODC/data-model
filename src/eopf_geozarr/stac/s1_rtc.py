@@ -209,12 +209,10 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
         "sar:center_frequency": 5.405,
         "sar:polarizations": ["VV", "VH"],
         "sar:product_type": "GRD",
-        # SAT extension: default orbit for the preview; per-acquisition items override this.
-        "sat:orbit_state": preferred_orbit,
         # Projection extension
         "proj:code": preferred_proj_code,
         "proj:bbox": preferred_bbox,
-        # Render extension: dual-pol RGB composite for previews/tiles
+        # Render extension: dual-pol RGB composite for previews/tiles (defaults to the preferred orbit)
         "renders": {"rgb": _rgb_render(preferred_orbit)},
     }
     if preferred["shape"] is not None:
@@ -222,24 +220,46 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
     if preferred["transform"] is not None:
         properties["proj:transform"] = preferred["transform"]
 
-    stac_extensions = [
-        SAR_EXT,
-        SAT_EXT,
-        PROJ_EXT,
-        RENDER_EXT,
-        DATACUBE_EXT,
-        TIMESTAMPS_EXT,
-    ]
+    stac_extensions = [SAR_EXT, PROJ_EXT, RENDER_EXT, DATACUBE_EXT, TIMESTAMPS_EXT]
 
-    # Datacube extension: temporal extent (not a values list — the cube grows by appending) + spatial
-    # x/y extents on the projected grid, plus the cube variables.
+    # sat:orbit_state is single-valued, so it's only meaningful when the cube holds a single orbit. A
+    # dual-orbit cube would mislabel half its slices — omit it there (per-acquisition items, which are
+    # single-orbit, carry the real value). Only declare the SAT extension when the field is set.
+    if len(present) == 1:
+        properties["sat:orbit_state"] = preferred_orbit
+        stac_extensions.append(SAT_EXT)
+
+    # Datacube extension. The time axis is irregularly sampled (S1 acquisitions), so list its discrete
+    # `values` — their count is the number of time steps. The x/y axes are regular grids: extent + step
+    # convey their size (the exact pixel count is also in proj:shape), so listing every coordinate would
+    # be wasteful.
     epsg = int(preferred_proj_code.split(":")[1])
     xmin, ymin, xmax, ymax = preferred_bbox
-    properties["cube:dimensions"] = {
-        "time": {"type": "temporal", "extent": [start_dt.isoformat(), end_dt.isoformat()]},
-        "x": {"type": "spatial", "axis": "x", "extent": [xmin, xmax], "reference_system": epsg},
-        "y": {"type": "spatial", "axis": "y", "extent": [ymin, ymax], "reference_system": epsg},
+    time_values = [
+        dt.datetime.fromtimestamp(t / 1e9, tz=dt.UTC).isoformat() for t in sorted(set(all_times_ns))
+    ]
+    time_dim: dict[str, object] = {
+        "type": "temporal",
+        "extent": [start_dt.isoformat(), end_dt.isoformat()],
+        "values": time_values,
     }
+    x_dim: dict[str, object] = {
+        "type": "spatial",
+        "axis": "x",
+        "extent": [xmin, xmax],
+        "reference_system": epsg,
+    }
+    y_dim: dict[str, object] = {
+        "type": "spatial",
+        "axis": "y",
+        "extent": [ymin, ymax],
+        "reference_system": epsg,
+    }
+    if preferred["transform"] is not None:
+        transform = cast("list[float]", preferred["transform"])
+        x_dim["step"] = transform[0]
+        y_dim["step"] = transform[4]
+    properties["cube:dimensions"] = {"time": time_dim, "x": x_dim, "y": y_dim}
     properties["cube:variables"] = {
         "vv": {"dimensions": ["time", "y", "x"], "type": "data", "unit": GAMMA0_UNIT},
         "vh": {"dimensions": ["time", "y", "x"], "type": "data", "unit": GAMMA0_UNIT},
@@ -457,9 +477,12 @@ def build_s1_rtc_per_acquisition_items(
         props["renders"] = {"rgb": _rgb_render(orbit)}
         item_dict["properties"] = props
 
-        item_dict["stac_extensions"] = [
-            e for e in base_dict.get("stac_extensions", []) if e != DATACUBE_EXT
-        ]
+        # Drop the datacube ext (a single acquisition is not a cube). Ensure the SAT ext is declared:
+        # a per-acq item always sets sat:orbit_state, but a dual-orbit cube base omits both.
+        exts = [e for e in base_dict.get("stac_extensions", []) if e != DATACUBE_EXT]
+        if SAT_EXT not in exts:
+            exts.append(SAT_EXT)
+        item_dict["stac_extensions"] = exts
         item_dict["assets"] = {
             k: v for k, v in base_dict["assets"].items() if k not in other_assets
         }

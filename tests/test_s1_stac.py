@@ -241,19 +241,38 @@ def test_identity_and_projection_fields(tmp_path: Path) -> None:
 
 
 def test_datacube_extension(tmp_path: Path) -> None:
-    """Cube items carry the datacube extension with a bounded temporal extent (not a values list)."""
+    """Cube items carry the datacube extension: temporal `values` give the time-step count; x/y carry
+    extent + step (size derivable; exact pixel count also in proj:shape)."""
     store = _make_s1_store(tmp_path, {"descending": [(T1_NS, "S1A"), (T2_NS, "S1A")]})
     item = build_s1_rtc_stac_item(str(store), "sentinel-1-grd-rtc-staging")
 
     assert "https://stac-extensions.github.io/datacube/v2.2.0/schema.json" in item.stac_extensions
     dims = item.properties["cube:dimensions"]
     assert dims["time"]["type"] == "temporal"
-    assert "values" not in dims["time"]  # bounded extent only — the cube grows unbounded
     assert len(dims["time"]["extent"]) == 2
+    assert len(dims["time"]["values"]) == 2  # two distinct acquisition times -> two steps
     assert dims["x"]["reference_system"] == 32631
+    assert dims["x"]["step"] == 10.0
+    assert dims["y"]["step"] == -10.0
     variables = item.properties["cube:variables"]
     assert set(variables) == {"vv", "vh", "border_mask"}
     assert variables["vv"]["dimensions"] == ["time", "y", "x"]
+
+
+def test_orbit_state_single_vs_dual(tmp_path: Path) -> None:
+    """sat:orbit_state (single-valued) is set only for a single-orbit cube; a dual-orbit cube omits it
+    (and the SAT extension) rather than mislabel half its slices."""
+    single = _make_s1_store(tmp_path / "a", {"descending": [(T1_NS, "S1A")]})
+    item1 = build_s1_rtc_stac_item(str(single), "sentinel-1-grd-rtc-staging")
+    assert item1.properties["sat:orbit_state"] == "descending"
+    assert "https://stac-extensions.github.io/sat/v1.0.0/schema.json" in item1.stac_extensions
+
+    dual = _make_s1_store(
+        tmp_path / "b", {"ascending": [(T1_NS, "S1A")], "descending": [(T1_NS, "S1A")]}
+    )
+    item2 = build_s1_rtc_stac_item(str(dual), "sentinel-1-grd-rtc-staging")
+    assert "sat:orbit_state" not in item2.properties
+    assert "https://stac-extensions.github.io/sat/v1.0.0/schema.json" not in item2.stac_extensions
 
 
 def test_created_is_earliest_acquisition_not_build_time(tmp_path: Path) -> None:
