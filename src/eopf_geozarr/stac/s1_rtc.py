@@ -234,7 +234,7 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
     # and the list stays modest (bounded by the tile's acquisitions). The regular x/y axes instead carry
     # extent + step (their element count is derivable, and the exact pixel count is in proj:shape);
     # enumerating their ~10⁴ coordinates would not scale.
-    epsg = int(preferred_proj_code.split(":")[1])
+    epsg = pyproj.CRS.from_user_input(preferred_proj_code).to_epsg()
     xmin, ymin, xmax, ymax = preferred_bbox
     time_values = [
         dt.datetime.fromtimestamp(t / 1e9, tz=dt.UTC).isoformat() for t in sorted(set(all_times_ns))
@@ -461,6 +461,8 @@ def build_s1_rtc_per_acquisition_items(
 
     # A per-acquisition item covers only its run orbit's footprint — not the cube's union of both
     # orbits' extents (which the base item carries). Recompute bbox/geometry/proj:bbox from this orbit.
+    # proj:code/shape/transform describe the shared MGRS grid (identical across orbits), so the values
+    # inherited from the base (preferred orbit) are correct and are intentionally not recomputed here.
     og_attrs = dict(cast("zarr.Group", root[orbit]).attrs)
     orbit_utm_bbox = cast("list[float]", og_attrs["spatial:bbox"])
     orbit_wgs84_bbox = list(_utm_to_wgs84(cast("str", og_attrs["proj:code"]), orbit_utm_bbox))
