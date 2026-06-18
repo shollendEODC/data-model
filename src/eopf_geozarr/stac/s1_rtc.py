@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 from pathlib import Path
-from typing import cast
+from typing import NamedTuple, cast
 
 import numpy as np
 import pyproj
@@ -306,3 +306,144 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
         )
 
     return item
+
+
+# ============================================================================
+# Per-acquisition item construction (one queryable item per cube `time` slice)
+# ============================================================================
+
+# Default the cube preview to the most recent acquisition covering most of the tile, so a browser shows
+# fresh near-full data rather than the oldest slice.
+COVERAGE_THRESHOLD = 0.80
+
+
+class Slice(NamedTuple):
+    """One cube time slice: its orbit group, acquisition instant, and tile coverage fraction (0..1)."""
+
+    orbit: str
+    dt: dt.datetime
+    coverage: float
+
+
+def pick_slice(slices: list[Slice]) -> Slice | None:
+    """Choose the slice the cube preview should default to.
+
+    The most recent acquisition with coverage strictly above ``COVERAGE_THRESHOLD``; if none clears it,
+    the highest-coverage slice (ties broken by most recent). Spans both orbit groups. Returns ``None``
+    for an empty cube.
+    """
+    if not slices:
+        return None
+    good = [s for s in slices if s.coverage > COVERAGE_THRESHOLD]
+    if good:
+        return max(good, key=lambda s: s.dt)
+    return max(slices, key=lambda s: (s.coverage, s.dt))
+
+
+def slice_coverages(zarr_store: str) -> list[Slice]:
+    """Per-slice tile coverage from the cube, across both orbit groups.
+
+    Reads ``border_mask`` at the cheap ``r720m`` overview only (~150x150). Coverage is the fraction of
+    **valid** pixels; the S1Tiling border mask is stored with ``fill_value=0`` for the border, so valid
+    = non-zero. ``time`` is raw int64 ns (as :func:`build_s1_rtc_stac_item` reads it) -> UTC datetime.
+    """
+    root = _open_root(zarr_store)
+    out: list[Slice] = []
+    for orbit in _ORBIT_PREFERENCE:
+        if orbit not in root:
+            continue
+        level = cast("zarr.Group", cast("zarr.Group", root[orbit])["r720m"])
+        mask = np.asarray(cast("zarr.Array", level["border_mask"]))  # (time, y, x), uint8
+        times_ns = np.asarray(cast("zarr.Array", level["time"])).tolist()  # int64 ns since epoch
+        for i, t_ns in enumerate(times_ns):
+            sl = mask[i]
+            coverage = float(np.count_nonzero(sl) / sl.size)
+            out.append(Slice(orbit, dt.datetime.fromtimestamp(t_ns / 1e9, tz=dt.UTC), coverage))
+    return out
+
+
+def acquisition_id(tile_id: str, when: dt.datetime) -> str:
+    """Per-acquisition item id, e.g. ``s1-rtc-31TCH-20260607t055248``."""
+    return f"s1-rtc-{tile_id}-{when.strftime('%Y%m%dt%H%M%S')}"
+
+
+def build_s1_rtc_per_acquisition_items(
+    zarr_store: str, *, orbit: str, collection_id: str
+) -> list[pystac.Item]:
+    """Build one queryable STAC item per cube ``time`` slice of a single orbit group.
+
+    Each item is a single-``datetime`` view into the shared cube (no data duplication): it keeps the
+    cube's geometry/SAR/projection metadata and the orbit's γ⁰ asset, drops the temporal range and the
+    datacube structure (a single acquisition is not a cube), and is reoriented to ``orbit``. The item
+    is deployment-agnostic — it carries the render config + datetime, and the registration layer derives
+    the TiTiler links (which point at the cube endpoint with ``sel=time={datetime}``) from it.
+
+    Parameters
+    ----------
+    zarr_store:
+        Local path or ``s3://`` URI to the per-tile cube Zarr store.
+    orbit:
+        Orbit group to emit items for (``"ascending"`` or ``"descending"``).
+    collection_id:
+        Target (per-acquisition) STAC collection ID.
+
+    Raises
+    ------
+    ValueError
+        If the store has no acquisitions, or ``orbit`` is not present in the store.
+    """
+    if orbit not in _ORBIT_PREFERENCE:
+        raise ValueError(f"orbit must be one of {_ORBIT_PREFERENCE}, got {orbit!r}")
+
+    tile_id = Path(zarr_store).name.removeprefix("s1-rtc-").removesuffix(".zarr")
+
+    root = _open_root(zarr_store)
+    if orbit not in root:
+        raise ValueError(f"Orbit group {orbit!r} not found in Zarr store: {zarr_store}")
+    r10m = cast("zarr.Group", cast("zarr.Group", root[orbit])["r10m"])
+    times_ns = np.array(cast("zarr.Array", r10m["time"])).tolist()
+    platforms = np.array(cast("zarr.Array", r10m["platform"])).tolist()
+    if not times_ns:
+        raise ValueError(f"No acquisitions found for orbit {orbit!r} in: {zarr_store}")
+
+    base = build_s1_rtc_stac_item(zarr_store, collection_id)
+    base_dict = base.to_dict(include_self_link=False)
+
+    # Assets to drop from each per-acquisition clone: the *other* orbit's groups (a per-acq item
+    # represents one orbit). The datacube structure is dropped too — a single acquisition is not a cube.
+    other_assets = {
+        key
+        for o in _ORBIT_PREFERENCE
+        if o != orbit
+        for key in (f"gamma0-rtc-backscatter-{_ORBIT_SHORT[o]}", f"border-mask-{_ORBIT_SHORT[o]}")
+    }
+
+    items: list[pystac.Item] = []
+    for t_ns, platform in zip(times_ns, platforms, strict=True):
+        when = dt.datetime.fromtimestamp(t_ns / 1e9, tz=dt.UTC)
+        item_dict = {**base_dict}
+        item_dict["id"] = acquisition_id(tile_id, when)
+
+        props = {
+            k: v
+            for k, v in base_dict["properties"].items()
+            if k not in ("start_datetime", "end_datetime", "cube:dimensions", "cube:variables")
+        }
+        props["datetime"] = when.isoformat()
+        props["created"] = when.isoformat()
+        props["sat:orbit_state"] = orbit
+        if platform:
+            props["platform"] = str(platform)
+        props["renders"] = {"rgb": _rgb_render(orbit)}
+        item_dict["properties"] = props
+
+        item_dict["stac_extensions"] = [
+            e for e in base_dict.get("stac_extensions", []) if e != DATACUBE_EXT
+        ]
+        item_dict["assets"] = {
+            k: v for k, v in base_dict["assets"].items() if k not in other_assets
+        }
+        item_dict["links"] = []
+
+        items.append(pystac.Item.from_dict(item_dict))
+    return items
