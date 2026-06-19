@@ -63,8 +63,10 @@ pyramid's `shard=(1, level_h, level_w)` / inner `(1, aligned, aligned)` is valid
 `gamma_area`/`lia`/`incidence_angle` are **`conditions` arrays** (per-relative-orbit normalization
 factors), **not** part of the multiscale pyramid TiTiler renders (`vv`/`vh`/`border_mask`). So
 sharding them does **not** touch the web-render path; it only changes how a client reads a condition
-array — one ranged shard GET instead of ~900 chunk GETs (strictly better for cloud access). Values
-are byte-identical.
+array — a **windowed** read becomes one ranged GET into the shard instead of many chunk GETs + a
+listing (better for cloud partial access), and the ingest writes **1 object instead of ~900** (the
+upload lever). A full-array sequential read is the same bytes either way (see Benchmark caveat).
+Values are byte-identical.
 
 ## Acceptance criteria
 
@@ -74,9 +76,32 @@ are byte-identical.
       not one per inner chunk; values byte-identical through the shard.
       *(test `test_sharding_collapses_chunk_objects_to_one` — 9 inner chunks → 1 object)*
 - [x] Existing data-integrity / shape / dtype / attr tests stay green (sharding is read-transparent).
-- [ ] **Real-S3 validation** (see Verification): object census of a re-ingested tile drops
-      ~3807 → ~210; condition array reads back byte-identical; one ranged GET vs ~900.
-- [ ] Re-ingest path for existing (unsharded) cubes documented — see Migration.
+- [x] **Real-S3 validation** (laptop→DE, `esa-zarr-sentinel-explorer-tests`, 2026-06-19): see
+      Benchmark below — object collapse 100→1 proven on real S3, byte-identical read-back,
+      divisibility valid at the production 10980². (Full-tile re-ingest census ~3807→~210 still
+      pending an in-cluster run.)
+- [x] Re-ingest path for existing (unsharded) cubes documented — see Migration.
+
+## Benchmark (real OVH S3, 2026-06-19)
+
+A 3660² (= 10×366 → 100 inner 366² chunks) gamma_area-like **smooth/compressible** surface
+(models the real normalization factor, not random noise), sharded vs unsharded, on the live bucket;
+upload via batched `fs.put(batch_size=32)` so concurrency is *already on* for the unsharded case:
+
+| layout | S3 objects | PUT (best of 3) | full-array GET | byte-identical |
+|---|---|---|---|---|
+| unsharded | 100 | 4.43 s | 1.38 s | ✓ |
+| **sharded** | **1** | **2.55 s (1.7×)** | 1.61 s | ✓ |
+
+- **Object count 100 → 1** (production ~900 → 1 per `gamma_area`; cube 3604 → ~4). The core lever.
+- **PUT 1.7× faster** *even with* batched concurrency hiding per-object latency; the ratio grows with
+  object count (900/array ≈ 28 batch-waves → 1), so the production win is far larger than 1.7×.
+- **Divisibility valid at the real 10980²**: `calculate_aligned_chunk_size(10980,512)=366`,
+  `10980 % 366 == 0`, so `shards=(10980,10980)` builds without error.
+- **Honest caveat:** a *full-array* sequential read is **not** faster sharded (1.61 vs 1.38 s) — it is
+  the same bytes in one un-parallelizable object vs many concurrent chunk GETs. T5's win is
+  object-count (upload + S3 listing/metadata overhead) and **windowed/partial** cloud reads (one
+  ranged GET into the shard vs many chunk GETs), not full-read throughput.
 
 ## Verification
 
