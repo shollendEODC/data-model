@@ -986,10 +986,9 @@ def ingest_s1tiling_conditions(
             log.info("Overwrote condition array", array_name=array_name)
         else:
             # Shard like the vv/vh pyramid: one shard over the full (y, x) extent so a 10980²
-            # condition array is a single object, not ~900 tiny 366²-chunk objects (see
-            # claude-docs/specs/s1_gamma_area_sharding.md). calculate_aligned_chunk_size returns a
-            # divisor of the dimension, so (h, w) is a clean multiple of the inner chunk — the
-            # Zarr v3 shard-divisibility requirement.
+            # condition array is a single object, not ~900 tiny 366²-chunk objects.
+            # calculate_aligned_chunk_size returns a divisor of the dimension, so (h, w) is a clean
+            # multiple of the inner chunk — the Zarr v3 shard-divisibility requirement.
             inner_chunks = (
                 calculate_aligned_chunk_size(h, 512),
                 calculate_aligned_chunk_size(w, 512),
