@@ -5,7 +5,7 @@ Main S2 optimization converter.
 from __future__ import annotations
 
 import time
-from typing import Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 import structlog
 import xarray as xr
@@ -19,6 +19,9 @@ from eopf_geozarr.data_api.s1 import Sentinel1Root
 from eopf_geozarr.data_api.s2 import Sentinel2Root
 
 from .s2_multiscale import create_multiscale_from_datatree
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 log = structlog.get_logger()
 
@@ -69,10 +72,10 @@ def initialize_crs_from_dataset(dt_input: xr.DataTree) -> CRS | None:
         # Check if dataset has rio accessor with CRS
         if hasattr(dataset, "rio"):
             try:
-                crs = dataset.rio.crs
-                if crs is not None:
-                    log.info("Initialized CRS from dataset", crs=str(crs))
-                    return crs
+                ds_crs = cast("CRS | None", dataset.rio.crs)
+                if ds_crs is not None:
+                    log.info("Initialized CRS from dataset", crs=str(ds_crs))
+                    return ds_crs
             except Exception:
                 log.debug("Failed to get CRS from dataset rio accessor")
 
@@ -80,10 +83,10 @@ def initialize_crs_from_dataset(dt_input: xr.DataTree) -> CRS | None:
         for var in dataset.data_vars.values():
             if hasattr(var, "rio"):
                 try:
-                    crs = var.rio.crs
-                    if crs is not None:
-                        log.info("Initialized CRS from variable", crs=str(crs))
-                        return crs
+                    var_crs = cast("CRS | None", var.rio.crs)
+                    if var_crs is not None:
+                        log.info("Initialized CRS from variable", crs=str(var_crs))
+                        return var_crs
                 except Exception:
                     log.debug("Failed to get CRS from variable rio accessor")
 
@@ -334,7 +337,7 @@ def write_store_root_bbox(output_path: str) -> None:
 
     def _walk(group: zarr.Group) -> None:
         attrs = dict(group.attrs)
-        bbox = attrs.get("spatial:bbox")
+        bbox = cast("Sequence[float] | None", attrs.get("spatial:bbox"))
         code = attrs.get("proj:code")
         if bbox is not None and len(bbox) == 4:
             if code and code != "EPSG:4326":
@@ -343,7 +346,7 @@ def write_store_root_bbox(output_path: str) -> None:
                 xmax, ymax = transformer.transform(bbox[2], bbox[3])
                 bboxes_4326.append((xmin, ymin, xmax, ymax))
             else:
-                bboxes_4326.append(tuple(float(v) for v in bbox))  # type: ignore[arg-type]
+                bboxes_4326.append((float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])))
         for child in group.groups():
             _walk(child[1])
 

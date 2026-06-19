@@ -172,7 +172,7 @@ warn_required_dynamic_aliases = true
 warn_untyped_fields = true
 
 [[tool.mypy.overrides]]
-module = ["zarr.*", "xarray.*", "rioxarray.*", "rasterio.*", "cf_xarray.*", "dask.*"]
+module = ["zarr.*", "xarray.*", "rioxarray.*", "rasterio.*", "cf_xarray.*", "dask.*", "s3fs.*", "fsspec.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

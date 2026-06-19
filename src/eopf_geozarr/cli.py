@@ -354,7 +354,7 @@ def _generate_optimized_tree_html(dt: xr.DataTree) -> str:
             # Fallback to simple format if xarray HTML fails
             vars_html = []
             for name, var in data_vars.items():
-                dims_str = format_dimensions(dict(zip(var.dims, var.shape, strict=True)))
+                dims_str = format_dimensions(dict(zip(map(str, var.dims), var.shape, strict=True)))
                 dtype_str = str(var.dtype)
                 vars_html.append(
                     f"""
@@ -450,7 +450,7 @@ def _generate_optimized_tree_html(dt: xr.DataTree) -> str:
                 <div class="tree-section">
                     <h4 class="section-title">Variables</h4>
                     <div class="tree-variables">
-                        {format_data_vars(node.ds.data_vars)}
+                        {format_data_vars({str(k): v for k, v in node.ds.data_vars.items()})}
                     </div>
                 </div>
             """

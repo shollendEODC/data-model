@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal, Self
+from typing import TYPE_CHECKING, Any, Literal, Self, cast
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic_zarr.v2 import ArraySpec, GroupSpec, auto_attributes
@@ -10,7 +10,9 @@ from pydantic_zarr.v2 import ArraySpec, GroupSpec, auto_attributes
 from eopf_geozarr.data_api.geozarr.common import (
     BaseDataArrayAttrs,
     DatasetAttrs,
+    DatasetLike,
     GridMappingAttrs,
+    GroupLike,
     check_grid_mapping,
     check_valid_coordinates,
 )
@@ -52,8 +54,11 @@ class DataArray(ArraySpec[DataArrayAttrs]):
     https://github.com/zarr-developers/geozarr-spec/blob/main/geozarr-spec.md#geozarr-dataarray
     """
 
+    # The override intentionally widens the accepted argument types (e.g. plain mappings for
+    # ``attributes``) and adds a ``dimension_names`` parameter, so the signature is not a strict
+    # subtype of the parent's. This is by design and does not change runtime behavior.
     @classmethod
-    def from_array(
+    def from_array(  # type: ignore[override]
         cls,
         array: Any,
         chunks: tuple[int, ...] | Literal["auto"] = "auto",
@@ -71,13 +76,15 @@ class DataArray(ArraySpec[DataArrayAttrs]):
         auto_attrs = dict(auto_attributes(array)) if attributes == "auto" else dict(attributes)
         if dimension_names != "auto":
             auto_attrs = auto_attrs | {XARRAY_DIMS_KEY: tuple(dimension_names)}
-        return super().from_array(  # type: ignore[no-any-return]
+        # ``auto_attrs``/``fill_value``/``filters`` are validated/coerced by pydantic at
+        # construction time; cast to the parent's declared types to satisfy the static checker.
+        return super().from_array(
             array=array,
             chunks=chunks,
-            attributes=auto_attrs,
-            fill_value=fill_value,
+            attributes=cast("Literal['auto'] | DataArrayAttrs", auto_attrs),
+            fill_value=cast("Literal['auto'] | float | None", fill_value),
             order=order,
-            filters=filters,
+            filters=cast("Literal['auto'] | list[dict[str, Any]] | None", filters),
             dimension_separator=dimension_separator,
             compressor=compressor,
         )
@@ -94,7 +101,7 @@ class DataArray(ArraySpec[DataArrayAttrs]):
 
     @property
     def array_dimensions(self) -> tuple[str, ...]:
-        return self.attributes.array_dimensions  # type: ignore[no-any-return]
+        return self.attributes.array_dimensions
 
 
 class GridMappingVariable(ArraySpec[GridMappingAttrs]):
@@ -127,11 +134,17 @@ class Dataset(GroupSpec[DatasetAttrs, DataArray | GridMappingVariable]):
         GroupSpec[Any, Any]
             The validated GeoZarr DataSet.
         """
-        return check_valid_coordinates(self)
+        # ``self`` structurally satisfies the ``GroupLike`` protocol, but mypy cannot bind the
+        # helper's TypeVar to ``Self``; cast through the protocol and back to ``Self`` (the helper
+        # returns the same object).
+        check_valid_coordinates(cast("GroupLike", self))
+        return self
 
     @model_validator(mode="after")
     def check_grid_mapping(self) -> Self:
-        return check_grid_mapping(self)
+        # See note above: ``self`` satisfies ``DatasetLike`` but the TypeVar can't bind to ``Self``.
+        check_grid_mapping(cast("DatasetLike", self))
+        return self
 
 
 class MultiscaleGroup(GroupSpec[MultiscaleGroupAttrs, DataArray | GroupSpec[Any, Any]]):

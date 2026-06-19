@@ -3,7 +3,7 @@
 import json
 import os
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, cast
 from urllib.parse import urlparse
 
 import s3fs
@@ -87,7 +87,7 @@ def sanitize_dataset_attributes(ds: "xr.Dataset") -> "xr.Dataset":
     ds_clean = ds.copy()
 
     # Sanitize dataset attributes
-    ds_clean.attrs = replace_json_invalid_floats(ds_clean.attrs)
+    ds_clean.attrs = cast("dict[str, Any]", replace_json_invalid_floats(ds_clean.attrs))
 
     # Sanitize variable attributes
     for var_name in ds_clean.data_vars:
@@ -95,14 +95,14 @@ def sanitize_dataset_attributes(ds: "xr.Dataset") -> "xr.Dataset":
         # Preserve _FillValue as-is — xarray encodes it via FillValueCoder on write;
         # converting np.nan to the string "NaN" would break FillValueCoder.encode.
         fill_value = var.attrs.get("_FillValue", _MISSING)
-        var.attrs = replace_json_invalid_floats(var.attrs)
+        var.attrs = cast("dict[str, Any]", replace_json_invalid_floats(var.attrs))
         if fill_value is not _MISSING:
             var.attrs["_FillValue"] = fill_value
 
     # Sanitize coordinate attributes
     for coord_name in ds_clean.coords:
         coord = ds_clean[coord_name]
-        coord.attrs = replace_json_invalid_floats(coord.attrs)
+        coord.attrs = cast("dict[str, Any]", replace_json_invalid_floats(coord.attrs))
 
     return ds_clean
 
@@ -405,7 +405,12 @@ def open_s3_zarr_group(s3_path: str, mode: str = "r", **s3_kwargs: Any) -> zarr.
         Zarr group
     """
     storage_options = get_s3_storage_options(s3_path, **s3_kwargs)
-    return zarr.open_group(s3_path, mode=mode, zarr_format=3, storage_options=storage_options)
+    return zarr.open_group(
+        s3_path,
+        mode=cast('Literal["r", "r+", "a", "w", "w-"]', mode),
+        zarr_format=3,
+        storage_options=cast("dict[str, Any]", storage_options),
+    )
 
 
 def get_s3_credentials_info() -> S3Credentials:
@@ -589,4 +594,9 @@ def open_zarr_group(path: str, mode: str = "r", **kwargs: Any) -> zarr.Group:
         Zarr group
     """
     storage_options = get_storage_options(path, **kwargs)
-    return zarr.open_group(path, mode=mode, zarr_format=3, storage_options=storage_options)
+    return zarr.open_group(
+        path,
+        mode=cast('Literal["r", "r+", "a", "w", "w-"]', mode),
+        zarr_format=3,
+        storage_options=cast("dict[str, Any] | None", storage_options),
+    )

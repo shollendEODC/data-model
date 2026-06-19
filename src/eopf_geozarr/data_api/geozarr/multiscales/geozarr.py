@@ -78,7 +78,12 @@ class MultiscaleGroupAttrs(BaseModel):
                 resampling_method=self.multiscales.resampling_method,  # type: ignore[arg-type]
                 tile_matrix_set=self.multiscales.tile_matrix_set,
             )
-        if self._tms_multiscales is None and self._zcm_multiscales is None:
+        # mypy treats the ``is not MISSING`` guards above as always-true (see the
+        # ``comparison-overlap`` ignores), so it wrongly concludes both attributes are always set
+        # and that this branch's right operand is unreachable. The runtime check is required.
+        if (
+            self._tms_multiscales is None and self._zcm_multiscales is None  # type: ignore[unreachable]
+        ):
             raise ValueError("Either ZCM multiscales or TMS multiscales must be present")
         return self
 

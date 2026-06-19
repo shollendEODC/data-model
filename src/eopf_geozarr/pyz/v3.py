@@ -40,9 +40,13 @@ TMembers = TypeVar("TMembers", bound=TBaseMember)
 TArraySpecType = TypeVar("TArraySpecType")
 
 
-class GroupSpec(GroupSpecV3[TAttr, TMembers]):
+class GroupSpec(GroupSpecV3[TAttr, TMembers]):  # type: ignore[type-var]
+    # TMembers is bound to the full members mapping (e.g. a TypedDict) by design,
+    # whereas the parent's second type parameter expects a single member item type.
     attributes: TAttr
-    members: TMembers
+    # members holds the full mapping (TMembers) rather than the parent's
+    # Mapping[str, TItem] | None; this is the intended structure for this subclass.
+    members: TMembers  # type: ignore[assignment]
 
     def __repr__(self) -> str:
         """Return a condensed text representation of the GroupSpec."""
