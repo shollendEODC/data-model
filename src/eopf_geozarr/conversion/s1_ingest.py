@@ -985,13 +985,11 @@ def ingest_s1tiling_conditions(
             conditions[array_name][:, :] = data
             log.info("Overwrote condition array", array_name=array_name)
         else:
-            # Shard the full-resolution condition arrays exactly like the vv/vh display pyramid:
-            # one shard spanning the whole (y, x) extent, with 512-aligned inner chunks. Without
-            # this a 10980² gamma_area is ~900 tiny 366²-chunk objects; sharding collapses each
-            # condition array to a single shard object (~900 → 1), so a cloud client reads it in
-            # one ranged GET and the ingest uploads one object instead of ~900. The inner chunk is
-            # a divisor of the dimension (calculate_aligned_chunk_size), so (h, w) is a clean
-            # multiple of it — the Zarr v3 shard-divisibility requirement.
+            # Shard like the vv/vh pyramid: one shard over the full (y, x) extent so a 10980²
+            # condition array is a single object, not ~900 tiny 366²-chunk objects (see
+            # claude-docs/specs/s1_gamma_area_sharding.md). calculate_aligned_chunk_size returns a
+            # divisor of the dimension, so (h, w) is a clean multiple of the inner chunk — the
+            # Zarr v3 shard-divisibility requirement.
             inner_chunks = (
                 calculate_aligned_chunk_size(h, 512),
                 calculate_aligned_chunk_size(w, 512),
