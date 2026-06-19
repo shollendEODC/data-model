@@ -11,13 +11,15 @@ repos:
         args: ["--fix", "--show-fixes"]
       - id: ruff-format
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.17.0
+  - repo: local
     hooks:
       - id: mypy
-        language_version: python
+        name: mypy
+        entry: uv run mypy
+        language: system
+        types: [python]
         exclude: tests/.*
-        additional_dependencies:
-        - types-attrs
-        - typing-extensions>=4.15.0
-        - pydantic>=2.12
+        # Run from the project's locked environment so mypy sees the real,
+        # py.typed types of every dependency (zarr-cm, pydantic, ...) instead
+        # of treating them as Any. Staged files are passed through, matching
+        # the previous hook's per-file scope.

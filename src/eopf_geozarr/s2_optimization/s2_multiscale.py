@@ -6,7 +6,7 @@ Uses lazy evaluation to minimize memory usage during dataset preparation.
 from __future__ import annotations
 
 from itertools import pairwise
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 import structlog
@@ -139,11 +139,13 @@ def _coarsen_variable(var_name: str, var_data: xr.DataArray, factor: int) -> xr.
     var_type = determine_variable_type(var_name, var_data)
     coarsened = var_data.coarsen({"x": factor, "y": factor}, boundary="trim")
     if var_type in ("reflectance", "probability"):
-        result = coarsened.mean()
+        # xarray stubs omit reduction methods on DataArrayCoarsen.
+        result = coarsened.mean()  # type: ignore[attr-defined]
     elif var_type == "classification":
         result = coarsened.reduce(subsample_2)
     elif var_type == "quality_mask":
-        result = coarsened.max()
+        # xarray stubs omit reduction methods on DataArrayCoarsen.
+        result = coarsened.max()  # type: ignore[attr-defined]
     else:
         raise ValueError(f"Unknown variable type {var_type}")
 
@@ -152,9 +154,9 @@ def _coarsen_variable(var_name: str, var_data: xr.DataArray, factor: int) -> xr.
     # inspects encoding (e.g. to push CF scale-offset into a codec pipeline)
     # would see an empty encoding on every coarsened level.
     encoding = var_data.encoding
-    result = result.astype(var_data.dtype)
-    result.encoding = encoding
-    return result
+    cast_result: xr.DataArray = result.astype(var_data.dtype)
+    cast_result.encoding = encoding
+    return cast_result
 
 
 def inject_missing_bands(
@@ -255,7 +257,7 @@ def create_multiscale_from_datatree(
     Returns:
         Dictionary of processed groups
     """
-    processed_groups = {}
+    processed_groups: dict[str, Any] = {}
     # The scale levels in the output data. 10, 20, 60 already exist in the source data.
 
     # Step 1: Copy all original groups as-is
@@ -409,14 +411,16 @@ def create_multiscale_from_datatree(
     # Step 3: Add multiscales metadata to parent groups
     log.info("Adding multiscales metadata to parent groups")
 
-    # Get the parent group (it was created when writing the resolution groups)
-    parent_group = output_group[base_path]
+    # Get the parent group (it was created when writing the resolution groups).
+    # `base_path` always addresses a group (the reflectance parent), never an
+    # array, so narrow the `Array | Group` result to `Group` for the call below.
+    parent_group = cast("zarr.Group", output_group[base_path])
 
-    dt_multiscale = add_multiscales_metadata_to_parent(
+    add_multiscales_metadata_to_parent(
         parent_group,
         resolution_groups,
     )
-    processed_groups[base_path] = dt_multiscale
+    processed_groups[base_path] = None
 
     return processed_groups
 
@@ -546,13 +550,13 @@ def create_measurements_encoding(
         # otherwise leak into the output).
         is_float = np.issubdtype(var_data.dtype, np.floating)
         var_data.attrs = utils.sanitize_array_attrs(var_data.attrs, is_decoded_float=is_float)
-        encoding[var_name] = var_encoding
+        encoding[str(var_name)] = var_encoding
 
     # Add coordinate encoding and sanitize coord attrs (e.g. drop
     # ``_eopf_attrs`` from datetime coords carried in from the source).
     for coord_name, coord_data in dataset.coords.items():
         coord_data.attrs = utils.sanitize_array_attrs(coord_data.attrs)
-        encoding[coord_name] = {"compressors": []}  # type: ignore[typeddict-item]
+        encoding[str(coord_name)] = {"compressors": []}  # type: ignore[typeddict-item]
 
     return encoding
 
@@ -613,8 +617,12 @@ def calculate_simple_shard_dimensions(
 def add_multiscales_metadata_to_parent(
     group: zarr.Group,
     res_groups: Mapping[str, xr.Dataset],
-) -> xr.DataTree:
-    """Add GeoZarr-compliant multiscales metadata to parent group."""
+) -> None:
+    """Add GeoZarr-compliant multiscales metadata to parent group.
+
+    Returns ``None`` in all cases: metadata is written directly to ``group``
+    via ``group.attrs.update`` rather than returned as a DataTree.
+    """
     # Sort by resolution (finest to coarsest)
     res_order = {
         "r10m": 10,
@@ -632,7 +640,7 @@ def add_multiscales_metadata_to_parent(
             "Skipping {} - only one resolution available",
             base_path=group.path,
         )
-        return None
+        return
 
     # Get CRS and bounds from first available dataset (load from output path)
     first_res = all_resolutions[0]
@@ -642,14 +650,14 @@ def add_multiscales_metadata_to_parent(
     native_crs = first_dataset.rio.crs if hasattr(first_dataset, "rio") else None
     if native_crs is None:
         log.info("No CRS found, skipping multiscales metadata", base_path=group.path)
-        return None
+        return
 
     # Calculate bounds directly from coordinates for consistency with the data arrays
     if "x" not in first_dataset.coords or "y" not in first_dataset.coords:
         log.error(
             "Missing x/y coordinates in dataset, cannot determine bounds", base_path=group.path
         )
-        return None
+        return
 
     x_coords = first_dataset.x.values
     y_coords = first_dataset.y.values
@@ -668,8 +676,10 @@ def add_multiscales_metadata_to_parent(
 
         dataset = res_groups[res_name]
 
+        # Defensive guard retained for runtime safety even though the typed
+        # contract (Mapping[str, xr.Dataset]) means mypy proves it unreachable.
         if dataset is None:
-            continue
+            continue  # type: ignore[unreachable]
 
         # Get first data variable to extract dimensions
         first_var = next(iter(dataset.data_vars.values()))
@@ -771,7 +781,7 @@ def add_multiscales_metadata_to_parent(
 
     if len(overview_levels) < 2:
         log.info("    Could not create overview levels for {}", base_path=group.path)
-        return None
+        return
 
     layout: list[zcm.ScaleLevel] | MISSING = MISSING  # type: ignore[valid-type]
 
@@ -826,28 +836,28 @@ def add_multiscales_metadata_to_parent(
         ),
     )
 
-    # Write multiscale attributes directly to the parent group
+    # Write multiscale attributes directly to the parent group. The multiscales
+    # CMO and the spatial/proj CMOs are declared by MultiscaleGroupAttrs above;
+    # here we add only the validated spatial/proj data keys.
     attrs_to_write = multiscale_attrs.model_dump()
 
     # Add spatial and proj attributes at group level following specifications
     if native_crs and native_bounds:
-        # Add spatial convention attributes
-        attrs_to_write["spatial:dimensions"] = ["y", "x"]  # Required field
-        attrs_to_write["spatial:bbox"] = list(native_bounds)  # [xmin, ymin, xmax, ymax]
-        attrs_to_write["spatial:registration"] = "pixel"  # Default registration type
-
-        # Add proj convention attributes
-        if hasattr(native_crs, "to_epsg") and native_crs.to_epsg():
-            attrs_to_write["proj:code"] = f"EPSG:{native_crs.to_epsg()}"
-        elif hasattr(native_crs, "to_wkt"):
-            attrs_to_write["proj:wkt2"] = native_crs.to_wkt()
+        spatial_proj = utils.build_spatial_proj_attrs(
+            spatial={
+                "spatial:dimensions": ["y", "x"],
+                "spatial:bbox": list(native_bounds),  # [xmin, ymin, xmax, ymax]
+                "spatial:registration": "pixel",
+            },
+            crs=native_crs,
+        )
+        spatial_proj.pop("zarr_conventions", None)  # CMOs come from the model above
+        attrs_to_write.update(spatial_proj)
 
     # Write attributes directly to the zarr group
     group.attrs.update(attrs_to_write)
 
     log.info("Added %s multiscale levels to %s", len(overview_levels), group.path)
-
-    return None  # No DataTree to return since we wrote directly to the group
 
 
 def create_original_encoding(dataset: xr.Dataset) -> dict[str, XarrayDataArrayEncoding]:
@@ -856,7 +866,7 @@ def create_original_encoding(dataset: xr.Dataset) -> dict[str, XarrayDataArrayEn
 
     # Simple encoding that preserves original structure
     compressor = BloscCodec(cname="zstd", clevel=3, shuffle="shuffle", blocksize=0)
-    encoding = {}
+    encoding: dict[str, XarrayDataArrayEncoding] = {}
 
     for var_name in dataset.data_vars:
         # start with the original encoding
@@ -881,11 +891,11 @@ def create_original_encoding(dataset: xr.Dataset) -> dict[str, XarrayDataArrayEn
         # Sanitize source-only attributes (replace dict — ``.update`` cannot
         # remove keys, so stale ``_eopf_attrs`` would otherwise leak through).
         var_data.attrs = utils.sanitize_array_attrs(var_data.attrs)
-        encoding[var_name] = var_encoding
+        encoding[str(var_name)] = var_encoding
 
     for coord_name, coord_data in dataset.coords.items():
         coord_data.attrs = utils.sanitize_array_attrs(coord_data.attrs)
-        encoding[coord_name] = {"compressors": None}
+        encoding[str(coord_name)] = {"compressors": None}
 
     return encoding
 
@@ -912,7 +922,7 @@ def create_downsampled_resolution_group(source_dataset: xr.Dataset, factor: int)
     for var_name, var_data in source_dataset.data_vars.items():
         if var_data.ndim < 2:
             continue
-        lazy_vars[var_name] = _coarsen_variable(var_name, var_data, factor)
+        lazy_vars[var_name] = _coarsen_variable(str(var_name), var_data, factor)
 
     if not lazy_vars:
         return xr.Dataset()
@@ -962,7 +972,7 @@ def create_downsampled_coordinates(
     # Copy any other coordinates that might exist
     coords.update(
         {
-            coord_name: coord_data
+            str(coord_name): coord_data
             for coord_name, coord_data in level_2_dataset.coords.items()
             if coord_name not in ["x", "y"]
         }
@@ -976,9 +986,11 @@ def create_lazy_downsample_operation_from_existing(
 ) -> xr.DataArray:
     """Create lazy downsampling operation from existing data."""
 
-    @delayed  # type: ignore[misc]
+    # `dask.delayed` is untyped, so the decorator would otherwise make
+    # `downsample_operation` untyped under strict mypy.
+    @delayed  # type: ignore[untyped-decorator]
     def downsample_operation() -> Any:
-        var_type = determine_variable_type(source_data.name, source_data)
+        var_type = determine_variable_type(str(source_data.name), source_data)
         return downsample_variable(source_data, target_height, target_width, var_type)
 
     # Create delayed operation
@@ -1040,8 +1052,14 @@ def stream_write_dataset(
             "Level path {} already exists. Skipping write.",
             dataset_path=path,
         )
+        # The zarr backend accepts a zarr `Store` here at runtime, but xarray's
+        # `open_dataset` stub only types the first arg as path/buffer/datastore.
         return xr.open_dataset(
-            group.store, engine="zarr", chunks={}, decode_coords="all", group=path
+            group.store,  # type: ignore[arg-type]
+            engine="zarr",
+            chunks={},
+            decode_coords="all",
+            group=path,
         )
 
     log.info("Streaming computation and write to {}", dataset_path=path)
@@ -1146,9 +1164,11 @@ def write_geo_metadata(
         # TODO : Remove once rioxarray supports writing these conventions directly
         # https://github.com/corteva/rioxarray/pull/883
 
-        # Add spatial convention attributes
-        dataset.attrs["spatial:dimensions"] = ["y", "x"]  # Required field
-        dataset.attrs["spatial:registration"] = "pixel"  # Default registration type
+        # Assemble spatial convention data
+        spatial_data: dict[str, Any] = {
+            "spatial:dimensions": ["y", "x"],  # Required field
+            "spatial:registration": "pixel",  # Default registration type
+        }
 
         # Calculate and add spatial bbox if coordinates are available
         if "x" in dataset.coords and "y" in dataset.coords:
@@ -1156,33 +1176,23 @@ def write_geo_metadata(
             y_coords = dataset.coords["y"].values
             x_min, x_max = float(x_coords.min()), float(x_coords.max())
             y_min, y_max = float(y_coords.min()), float(y_coords.max())
-            dataset.attrs["spatial:bbox"] = [x_min, y_min, x_max, y_max]
+            spatial_data["spatial:bbox"] = [x_min, y_min, x_max, y_max]
 
             spatial_transform = _preferred_spatial_transform(dataset)
 
             # Only add spatial:transform if we have valid transform data (not all zeros)
             if spatial_transform is not None and not all(t == 0 for t in spatial_transform):
-                dataset.attrs["spatial:transform"] = list(spatial_transform)
+                spatial_data["spatial:transform"] = list(spatial_transform)
 
             # Add spatial shape if data variables exist
             if dataset.data_vars:
                 first_var = next(iter(dataset.data_vars.values()))
                 if first_var.ndim >= 2:
                     height, width = first_var.shape[-2:]
-                    dataset.attrs["spatial:shape"] = [height, width]
+                    spatial_data["spatial:shape"] = [height, width]
 
-        # Add proj convention attributes
-        if hasattr(crs, "to_epsg") and crs.to_epsg():
-            dataset.attrs["proj:code"] = f"EPSG:{crs.to_epsg()}"
-        elif hasattr(crs, "to_wkt"):
-            dataset.attrs["proj:wkt2"] = crs.to_wkt()
-
-        # Add zarr convention declarations
-        conventions = [
-            spatial_cm.CMO,
-            geo_proj.CMO,
-        ]
-        dataset.attrs["zarr_conventions"] = conventions
+        # Build validated spatial + proj convention attrs (data + CMOs) via zarr-cm
+        dataset.attrs.update(utils.build_spatial_proj_attrs(spatial=spatial_data, crs=crs))
 
 
 def rechunk_dataset_for_encoding(
@@ -1194,11 +1204,11 @@ def rechunk_dataset_for_encoding(
     When using Zarr v3 sharding, Dask chunks must align with shard dimensions to avoid
     checksum validation errors.
     """
-    rechunked_vars = {}
+    rechunked_vars: dict[Hashable, xr.DataArray] = {}
 
     for var_name, var_data in dataset.data_vars.items():
-        if var_name in encoding:
-            var_encoding = encoding[var_name]
+        if str(var_name) in encoding:
+            var_encoding = encoding[str(var_name)]
 
             # If sharding is enabled, rechunk based on shard dimensions
             if "shards" in var_encoding and var_encoding["shards"] is not None:

@@ -6,8 +6,49 @@ import numpy as np
 import rasterio  # noqa: F401  # Import to enable .rio accessor
 import structlog
 import xarray as xr
+import zarr_cm
 
 log = structlog.get_logger()
+
+
+def proj_attrs_for_crs(crs: Any) -> dict[str, Any]:
+    """Build the ``proj`` convention data keys for a CRS.
+
+    Prefers an EPSG code (``proj:code``) and falls back to WKT2
+    (``proj:wkt2``). Returns an empty dict when *crs* is falsy or exposes
+    neither representation.
+    """
+    if not crs:
+        return {}
+    if hasattr(crs, "to_epsg") and crs.to_epsg():
+        return {"proj:code": f"EPSG:{crs.to_epsg()}"}
+    if hasattr(crs, "to_wkt"):
+        return {"proj:wkt2": crs.to_wkt()}
+    return {}
+
+
+def build_spatial_proj_attrs(
+    *,
+    spatial: dict[str, Any],
+    crs: Any,
+) -> dict[str, Any]:
+    """Build validated ``spatial`` + ``proj`` convention attributes.
+
+    Delegates to :func:`zarr_cm.create_many`, which validates each convention's
+    data and emits the matching convention-metadata objects into a combined
+    ``zarr_conventions`` array (spatial first, then proj). *spatial* holds the
+    ``spatial:*`` keys; the proj keys are derived from *crs* via
+    :func:`proj_attrs_for_crs`.
+
+    The proj convention is only included when *crs* yields a usable CRS
+    representation; otherwise only the spatial convention is emitted (a proj
+    convention with no CRS field is invalid).
+    """
+    conventions: dict[zarr_cm.ConventionName, dict[str, Any]] = {"spatial": spatial}
+    proj = proj_attrs_for_crs(crs)
+    if proj:
+        conventions["geo-proj"] = proj
+    return zarr_cm.create_many(conventions)
 
 
 # Sentinel: distinguish "no explicit fill_value" from a legitimate `None`.

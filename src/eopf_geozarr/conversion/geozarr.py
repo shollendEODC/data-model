@@ -18,7 +18,7 @@ import itertools
 import os
 import time
 from collections.abc import Hashable, Iterable, Mapping, Sequence
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import structlog
@@ -365,7 +365,7 @@ def iterative_copy(
 
             # Write the dataset
             group_param = current_group_path.lstrip("/") if current_group_path else None
-            ds.to_zarr(
+            ds.to_zarr(  # type: ignore[call-overload]  # xarray stubs type storage_options as dict[str, str]
                 output_path,
                 group=group_param,
                 mode="w",
@@ -507,7 +507,7 @@ def write_geozarr_group(
     # Create GeoZarr-spec compliant multiscales
     if _is_sentinel1(dt_input):
         assert gcp_group is not None, "GCP group required for processing Sentinel-1"
-        ds_gcp = dt_input[gcp_group].to_dataset()
+        ds_gcp: xr.Dataset | None = dt_input[gcp_group].to_dataset()
         # For Sentinel-1, ds_gcp is set to None since data is now reprojected and doesn't need GCP handling
         ds_gcp = None
     else:
@@ -585,7 +585,7 @@ def create_geozarr_compliant_multiscales(
     compressor = BloscCodec(cname="zstd", clevel=3, shuffle="shuffle")
 
     # Get spatial information from the first data variable
-    data_vars = [var for var in ds.data_vars if not utils.is_grid_mapping_variable(ds, var)]
+    data_vars = [var for var in ds.data_vars if not utils.is_grid_mapping_variable(ds, str(var))]
     if not data_vars:
         return {}
 
@@ -679,15 +679,20 @@ def create_geozarr_compliant_multiscales(
             resampling_method="average",
         ),
     )
+    # The multiscales/spatial/proj CMOs are declared by MultiscaleGroupAttrs
+    # above; here we add only the validated spatial/proj data keys.
     attrs_to_write = multiscale_attrs.model_dump()
     if native_crs and native_bounds:
-        attrs_to_write["spatial:dimensions"] = ["y", "x"]
-        attrs_to_write["spatial:bbox"] = list(native_bounds)
-        attrs_to_write["spatial:registration"] = "pixel"
-        if hasattr(native_crs, "to_epsg") and native_crs.to_epsg():
-            attrs_to_write["proj:code"] = f"EPSG:{native_crs.to_epsg()}"
-        elif hasattr(native_crs, "to_wkt"):
-            attrs_to_write["proj:wkt2"] = native_crs.to_wkt()
+        spatial_proj = utils.build_spatial_proj_attrs(
+            spatial={
+                "spatial:dimensions": ["y", "x"],
+                "spatial:bbox": list(native_bounds),
+                "spatial:registration": "pixel",
+            },
+            crs=native_crs,
+        )
+        spatial_proj.pop("zarr_conventions", None)  # CMOs come from the model above
+        attrs_to_write.update(spatial_proj)
 
     group_path = fs_utils.normalize_path(f"{output_path}/{group_name.lstrip('/')}")
     zarr_group = fs_utils.open_zarr_group(group_path, mode="r+")
@@ -748,7 +753,7 @@ def create_geozarr_compliant_multiscales(
         overview_ds = sanitize_dataset_attributes(overview_ds)
 
         align_chunks_flag = not enable_sharding
-        overview_ds.to_zarr(
+        overview_ds.to_zarr(  # type: ignore[call-overload]  # xarray stubs type storage_options as dict[str, str]
             output_path,
             group=overview_group,
             mode="w",
@@ -1011,7 +1016,7 @@ def write_dataset_band_by_band_with_validation(
     )
 
     # Get data variables
-    data_vars = [var for var in ds.data_vars if not utils.is_grid_mapping_variable(ds, var)]
+    data_vars = [var for var in ds.data_vars if not utils.is_grid_mapping_variable(ds, str(var))]
 
     successful_vars = []
     failed_vars = []
@@ -1044,9 +1049,10 @@ def write_dataset_band_by_band_with_validation(
     for var in data_vars:
         # Check if this variable already exists and is valid
         if not force_overwrite and store_exists:
-            if utils.validate_existing_band_data(existing_dataset, var, ds):
+            assert existing_dataset is not None  # guaranteed by store_exists
+            if utils.validate_existing_band_data(existing_dataset, str(var), ds):
                 ds.drop_vars(str(var))
-                ds[var] = existing_dataset[var]  # type: ignore[index]
+                ds[var] = existing_dataset[var]
                 log.info("✅ Band %s already exists and is valid, skipping.", var)
                 skipped_vars.append(var)
                 successful_vars.append(var)
@@ -1107,7 +1113,7 @@ def write_dataset_band_by_band_with_validation(
                 # Sanitize NaN values in single variable dataset attributes
                 single_var_ds = sanitize_dataset_attributes(single_var_ds)
 
-                single_var_ds.to_zarr(
+                single_var_ds.to_zarr(  # type: ignore[call-overload]  # xarray stubs type storage_options as dict[str, str]
                     output_path,
                     group=group_name,
                     mode="a",
@@ -1388,6 +1394,7 @@ def _create_encoding(
     for var in ds.data_vars:
         if hasattr(ds[var].data, "chunks"):
             current_chunks = ds[var].chunks
+            assert current_chunks is not None  # guaranteed by hasattr(..., "chunks")
             if len(current_chunks) >= 2:
                 chunking = tuple(
                     current_chunks[i][0] if len(current_chunks[i]) > 0 else ds[var].shape[i]
@@ -1429,7 +1436,7 @@ def _create_geozarr_encoding(
     encoding: dict[Hashable, XarrayEncodingJSON] = {}
     chunks: tuple[int, ...]
     for var in ds.data_vars:
-        if utils.is_grid_mapping_variable(ds, var):
+        if utils.is_grid_mapping_variable(ds, str(var)):
             encoding[var] = {"compressors": None}
         else:
             data_shape = ds[var].shape
@@ -1641,7 +1648,7 @@ def _add_grid_mapping_variable(
     # Ensure all data variables have the grid_mapping attribute
     for var_name in overview_ds.data_vars:
         if (
-            not utils.is_grid_mapping_variable(overview_ds, var_name)
+            not utils.is_grid_mapping_variable(overview_ds, str(var_name))
             and "grid_mapping" not in overview_ds[var_name].attrs
         ):
             overview_ds[var_name].attrs["grid_mapping"] = grid_mapping_var_name
@@ -1695,4 +1702,7 @@ def _is_sentinel1(dt: xr.DataTree) -> bool:
 
 
 def get_zarr_group(data: xr.DataTree) -> zarr.Group:
-    return data._close.__self__.zarr_group
+    # `_close` is a bound method of the backend store on an opened DataTree;
+    # `__self__` retrieves that store, which exposes `zarr_group`. These are
+    # xarray/zarr internals without public type information.
+    return cast("zarr.Group", data._close.__self__.zarr_group)  # type: ignore[union-attr]

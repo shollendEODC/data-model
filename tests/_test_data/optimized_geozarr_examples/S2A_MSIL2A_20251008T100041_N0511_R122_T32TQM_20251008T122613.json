@@ -4218,22 +4218,22 @@
               {
                 "description": "Multiscale layout of zarr datasets",
                 "name": "multiscales",
-                "schema_url": "https://raw.githubusercontent.com/zarr-conventions/multiscales/refs/tags/v1/schema.json",
-                "spec_url": "https://github.com/zarr-conventions/multiscales/blob/v1/README.md",
+                "schema_url": "https://raw.githubusercontent.com/zarr-conventions/multiscales/refs/tags/v0.1/schema.json",
+                "spec_url": "https://github.com/zarr-conventions/multiscales/blob/v0.1/README.md",
                 "uuid": "d35379db-88df-4056-af3a-620245f8e347"
               },
               {
                 "description": "Spatial coordinate information",
                 "name": "spatial:",
-                "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/refs/tags/v1/schema.json",
-                "spec_url": "https://github.com/zarr-conventions/spatial/blob/v1/README.md",
+                "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/54d81b7ced0376e63ee10f34db31db7d08dcc28d/schema.json",
+                "spec_url": "https://github.com/zarr-conventions/spatial/blob/54d81b7ced0376e63ee10f34db31db7d08dcc28d/README.md",
                 "uuid": "689b58e2-cf7b-45e0-9fff-9cfc0883d6b4"
               },
               {
                 "description": "Coordinate reference system information for geospatial data",
                 "name": "proj:",
-                "schema_url": "https://raw.githubusercontent.com/zarr-experimental/geo-proj/refs/tags/v1/schema.json",
-                "spec_url": "https://github.com/zarr-experimental/geo-proj/blob/v1/README.md",
+                "schema_url": "https://raw.githubusercontent.com/zarr-conventions/proj/5ca5b2f92e5c7245f957d9128b289ee535f0720d/schema.json",
+                "spec_url": "https://github.com/zarr-conventions/proj/blob/5ca5b2f92e5c7245f957d9128b289ee535f0720d/README.md",
                 "uuid": "f17cb550-5864-4468-aeb7-f3180cfb622f"
               }
             ]
@@ -4262,15 +4262,15 @@
                   {
                     "description": "Spatial coordinate information",
                     "name": "spatial:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/54d81b7ced0376e63ee10f34db31db7d08dcc28d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/54d81b7ced0376e63ee10f34db31db7d08dcc28d/README.md",
                     "uuid": "689b58e2-cf7b-45e0-9fff-9cfc0883d6b4"
                   },
                   {
                     "description": "Coordinate reference system information for geospatial data",
                     "name": "proj:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-experimental/geo-proj/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-experimental/geo-proj/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/proj/5ca5b2f92e5c7245f957d9128b289ee535f0720d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/proj/blob/5ca5b2f92e5c7245f957d9128b289ee535f0720d/README.md",
                     "uuid": "f17cb550-5864-4468-aeb7-f3180cfb622f"
                   }
                 ]
@@ -4830,15 +4830,15 @@
                   {
                     "description": "Spatial coordinate information",
                     "name": "spatial:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/54d81b7ced0376e63ee10f34db31db7d08dcc28d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/54d81b7ced0376e63ee10f34db31db7d08dcc28d/README.md",
                     "uuid": "689b58e2-cf7b-45e0-9fff-9cfc0883d6b4"
                   },
                   {
                     "description": "Coordinate reference system information for geospatial data",
                     "name": "proj:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-experimental/geo-proj/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-experimental/geo-proj/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/proj/5ca5b2f92e5c7245f957d9128b289ee535f0720d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/proj/blob/5ca5b2f92e5c7245f957d9128b289ee535f0720d/README.md",
                     "uuid": "f17cb550-5864-4468-aeb7-f3180cfb622f"
                   }
                 ]
@@ -6195,15 +6195,15 @@
                   {
                     "description": "Spatial coordinate information",
                     "name": "spatial:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/54d81b7ced0376e63ee10f34db31db7d08dcc28d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/54d81b7ced0376e63ee10f34db31db7d08dcc28d/README.md",
                     "uuid": "689b58e2-cf7b-45e0-9fff-9cfc0883d6b4"
                   },
                   {
                     "description": "Coordinate reference system information for geospatial data",
                     "name": "proj:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-experimental/geo-proj/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-experimental/geo-proj/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/proj/5ca5b2f92e5c7245f957d9128b289ee535f0720d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/proj/blob/5ca5b2f92e5c7245f957d9128b289ee535f0720d/README.md",
                     "uuid": "f17cb550-5864-4468-aeb7-f3180cfb622f"
                   }
                 ]
@@ -7463,15 +7463,15 @@
                   {
                     "description": "Spatial coordinate information",
                     "name": "spatial:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/54d81b7ced0376e63ee10f34db31db7d08dcc28d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/54d81b7ced0376e63ee10f34db31db7d08dcc28d/README.md",
                     "uuid": "689b58e2-cf7b-45e0-9fff-9cfc0883d6b4"
                   },
                   {
                     "description": "Coordinate reference system information for geospatial data",
                     "name": "proj:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-experimental/geo-proj/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-experimental/geo-proj/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/proj/5ca5b2f92e5c7245f957d9128b289ee535f0720d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/proj/blob/5ca5b2f92e5c7245f957d9128b289ee535f0720d/README.md",
                     "uuid": "f17cb550-5864-4468-aeb7-f3180cfb622f"
                   }
                 ]
@@ -8828,15 +8828,15 @@
                   {
                     "description": "Spatial coordinate information",
                     "name": "spatial:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/54d81b7ced0376e63ee10f34db31db7d08dcc28d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/54d81b7ced0376e63ee10f34db31db7d08dcc28d/README.md",
                     "uuid": "689b58e2-cf7b-45e0-9fff-9cfc0883d6b4"
                   },
                   {
                     "description": "Coordinate reference system information for geospatial data",
                     "name": "proj:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-experimental/geo-proj/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-experimental/geo-proj/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/proj/5ca5b2f92e5c7245f957d9128b289ee535f0720d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/proj/blob/5ca5b2f92e5c7245f957d9128b289ee535f0720d/README.md",
                     "uuid": "f17cb550-5864-4468-aeb7-f3180cfb622f"
                   }
                 ]
@@ -10196,15 +10196,15 @@
                   {
                     "description": "Spatial coordinate information",
                     "name": "spatial:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/54d81b7ced0376e63ee10f34db31db7d08dcc28d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/54d81b7ced0376e63ee10f34db31db7d08dcc28d/README.md",
                     "uuid": "689b58e2-cf7b-45e0-9fff-9cfc0883d6b4"
                   },
                   {
                     "description": "Coordinate reference system information for geospatial data",
                     "name": "proj:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-experimental/geo-proj/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-experimental/geo-proj/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/proj/5ca5b2f92e5c7245f957d9128b289ee535f0720d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/proj/blob/5ca5b2f92e5c7245f957d9128b289ee535f0720d/README.md",
                     "uuid": "f17cb550-5864-4468-aeb7-f3180cfb622f"
                   }
                 ]
@@ -11575,15 +11575,15 @@
                   {
                     "description": "Spatial coordinate information",
                     "name": "spatial:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/54d81b7ced0376e63ee10f34db31db7d08dcc28d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/54d81b7ced0376e63ee10f34db31db7d08dcc28d/README.md",
                     "uuid": "689b58e2-cf7b-45e0-9fff-9cfc0883d6b4"
                   },
                   {
                     "description": "Coordinate reference system information for geospatial data",
                     "name": "proj:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-experimental/geo-proj/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-experimental/geo-proj/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/proj/5ca5b2f92e5c7245f957d9128b289ee535f0720d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/proj/blob/5ca5b2f92e5c7245f957d9128b289ee535f0720d/README.md",
                     "uuid": "f17cb550-5864-4468-aeb7-f3180cfb622f"
                   }
                 ]
@@ -11891,15 +11891,15 @@
                   {
                     "description": "Spatial coordinate information",
                     "name": "spatial:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/54d81b7ced0376e63ee10f34db31db7d08dcc28d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/54d81b7ced0376e63ee10f34db31db7d08dcc28d/README.md",
                     "uuid": "689b58e2-cf7b-45e0-9fff-9cfc0883d6b4"
                   },
                   {
                     "description": "Coordinate reference system information for geospatial data",
                     "name": "proj:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-experimental/geo-proj/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-experimental/geo-proj/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/proj/5ca5b2f92e5c7245f957d9128b289ee535f0720d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/proj/blob/5ca5b2f92e5c7245f957d9128b289ee535f0720d/README.md",
                     "uuid": "f17cb550-5864-4468-aeb7-f3180cfb622f"
                   }
                 ]
@@ -12207,15 +12207,15 @@
                   {
                     "description": "Spatial coordinate information",
                     "name": "spatial:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/54d81b7ced0376e63ee10f34db31db7d08dcc28d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/54d81b7ced0376e63ee10f34db31db7d08dcc28d/README.md",
                     "uuid": "689b58e2-cf7b-45e0-9fff-9cfc0883d6b4"
                   },
                   {
                     "description": "Coordinate reference system information for geospatial data",
                     "name": "proj:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-experimental/geo-proj/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-experimental/geo-proj/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/proj/5ca5b2f92e5c7245f957d9128b289ee535f0720d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/proj/blob/5ca5b2f92e5c7245f957d9128b289ee535f0720d/README.md",
                     "uuid": "f17cb550-5864-4468-aeb7-f3180cfb622f"
                   }
                 ]
@@ -12530,15 +12530,15 @@
                   {
                     "description": "Spatial coordinate information",
                     "name": "spatial:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/54d81b7ced0376e63ee10f34db31db7d08dcc28d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/54d81b7ced0376e63ee10f34db31db7d08dcc28d/README.md",
                     "uuid": "689b58e2-cf7b-45e0-9fff-9cfc0883d6b4"
                   },
                   {
                     "description": "Coordinate reference system information for geospatial data",
                     "name": "proj:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-experimental/geo-proj/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-experimental/geo-proj/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/proj/5ca5b2f92e5c7245f957d9128b289ee535f0720d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/proj/blob/5ca5b2f92e5c7245f957d9128b289ee535f0720d/README.md",
                     "uuid": "f17cb550-5864-4468-aeb7-f3180cfb622f"
                   }
                 ]
@@ -13070,15 +13070,15 @@
                   {
                     "description": "Spatial coordinate information",
                     "name": "spatial:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/54d81b7ced0376e63ee10f34db31db7d08dcc28d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/54d81b7ced0376e63ee10f34db31db7d08dcc28d/README.md",
                     "uuid": "689b58e2-cf7b-45e0-9fff-9cfc0883d6b4"
                   },
                   {
                     "description": "Coordinate reference system information for geospatial data",
                     "name": "proj:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-experimental/geo-proj/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-experimental/geo-proj/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/proj/5ca5b2f92e5c7245f957d9128b289ee535f0720d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/proj/blob/5ca5b2f92e5c7245f957d9128b289ee535f0720d/README.md",
                     "uuid": "f17cb550-5864-4468-aeb7-f3180cfb622f"
                   }
                 ]
@@ -13796,15 +13796,15 @@
                   {
                     "description": "Spatial coordinate information",
                     "name": "spatial:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/54d81b7ced0376e63ee10f34db31db7d08dcc28d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/54d81b7ced0376e63ee10f34db31db7d08dcc28d/README.md",
                     "uuid": "689b58e2-cf7b-45e0-9fff-9cfc0883d6b4"
                   },
                   {
                     "description": "Coordinate reference system information for geospatial data",
                     "name": "proj:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-experimental/geo-proj/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-experimental/geo-proj/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/proj/5ca5b2f92e5c7245f957d9128b289ee535f0720d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/proj/blob/5ca5b2f92e5c7245f957d9128b289ee535f0720d/README.md",
                     "uuid": "f17cb550-5864-4468-aeb7-f3180cfb622f"
                   }
                 ]
@@ -14250,15 +14250,15 @@
                   {
                     "description": "Spatial coordinate information",
                     "name": "spatial:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/54d81b7ced0376e63ee10f34db31db7d08dcc28d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/spatial/blob/54d81b7ced0376e63ee10f34db31db7d08dcc28d/README.md",
                     "uuid": "689b58e2-cf7b-45e0-9fff-9cfc0883d6b4"
                   },
                   {
                     "description": "Coordinate reference system information for geospatial data",
                     "name": "proj:",
-                    "schema_url": "https://raw.githubusercontent.com/zarr-experimental/geo-proj/refs/tags/v1/schema.json",
-                    "spec_url": "https://github.com/zarr-experimental/geo-proj/blob/v1/README.md",
+                    "schema_url": "https://raw.githubusercontent.com/zarr-conventions/proj/5ca5b2f92e5c7245f957d9128b289ee535f0720d/schema.json",
+                    "spec_url": "https://github.com/zarr-conventions/proj/blob/5ca5b2f92e5c7245f957d9128b289ee535f0720d/README.md",
                     "uuid": "f17cb550-5864-4468-aeb7-f3180cfb622f"
                   }
                 ]
