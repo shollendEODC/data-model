@@ -15,11 +15,8 @@ repos:
     hooks:
       - id: mypy
         name: mypy
-        entry: uv run mypy
         language: system
-        types: [python]
-        exclude: tests/.*
-        # Run from the project's locked environment so mypy sees the real,
-        # py.typed types of every dependency (zarr-cm, pydantic, ...) instead
-        # of treating them as Any. Staged files are passed through, matching
-        # the previous hook's per-file scope.
+        entry: uv run --frozen mypy
+        pass_filenames: false
+        always_run: true
+        types_or: [python, pyi]
