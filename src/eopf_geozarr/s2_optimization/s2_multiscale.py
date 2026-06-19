@@ -16,15 +16,11 @@ from dask.array import from_delayed
 from pydantic.experimental.missing_sentinel import MISSING
 from pyproj import CRS
 from zarr.codecs import CastValue
-from zarr_cm import geo_proj
-from zarr_cm import multiscales as multiscales_cm
-from zarr_cm import spatial as spatial_cm
 
 from eopf_geozarr.conversion import utils
 from eopf_geozarr.conversion.fs_utils import sanitize_dataset_attributes
 from eopf_geozarr.data_api.geozarr.multiscales import zcm
 from eopf_geozarr.data_api.geozarr.multiscales.geozarr import (
-    MultiscaleGroupAttrs,
     MultiscaleMeta,
 )
 from eopf_geozarr.data_api.geozarr.types import (
@@ -41,6 +37,8 @@ if TYPE_CHECKING:
     from collections.abc import Hashable, Mapping
 
     import zarr
+    from zarr_cm import MultiscalesAttrs
+    from zarr_cm import spatial as spatial_cm
 
     from eopf_geozarr.types import OverviewLevelJSON
 
@@ -823,36 +821,29 @@ def add_multiscales_metadata_to_parent(
 
         scale_level = zcm.ScaleLevel(**scale_level_data)
         layout.append(scale_level)
-    # Create convention metadata for all three conventions
-    multiscale_attrs = MultiscaleGroupAttrs(
-        zarr_conventions=(
-            multiscales_cm.CMO,
-            spatial_cm.CMO,
-            geo_proj.CMO,
-        ),
-        multiscales=MultiscaleMeta(
-            layout=layout,
-            resampling_method="average",
-        ),
+
+    # Validate + serialize the multiscales block via the project model (which
+    # also covers the ZCM/TMS duality), then hand all three conventions to
+    # zarr-cm, which validates each and emits the matching CMOs in order
+    # (multiscales, spatial, proj).
+    multiscales_data = cast(
+        "MultiscalesAttrs",
+        MultiscaleMeta(layout=layout, resampling_method="average").model_dump(),
     )
 
-    # Write multiscale attributes directly to the parent group. The multiscales
-    # CMO and the spatial/proj CMOs are declared by MultiscaleGroupAttrs above;
-    # here we add only the validated spatial/proj data keys.
-    attrs_to_write = multiscale_attrs.model_dump()
-
-    # Add spatial and proj attributes at group level following specifications
+    attrs_to_write: dict[str, Any] = {}
     if native_crs and native_bounds:
-        spatial_proj = utils.build_spatial_proj_attrs(
-            spatial={
-                "spatial:dimensions": ["y", "x"],
-                "spatial:bbox": list(native_bounds),  # [xmin, ymin, xmax, ymax]
-                "spatial:registration": "pixel",
-            },
-            crs=native_crs,
+        attrs_to_write.update(
+            utils.build_convention_attrs(
+                multiscales=multiscales_data,
+                spatial={
+                    "spatial:dimensions": ["y", "x"],
+                    "spatial:bbox": list(native_bounds),  # [xmin, ymin, xmax, ymax]
+                    "spatial:registration": "pixel",
+                },
+                crs=native_crs,
+            )
         )
-        spatial_proj.pop("zarr_conventions", None)  # CMOs come from the model above
-        attrs_to_write.update(spatial_proj)
 
     # Write attributes directly to the zarr group
     group.attrs.update(attrs_to_write)
@@ -1165,7 +1156,7 @@ def write_geo_metadata(
         # https://github.com/corteva/rioxarray/pull/883
 
         # Assemble spatial convention data
-        spatial_data: dict[str, Any] = {
+        spatial_data: spatial_cm.SpatialAttrs = {
             "spatial:dimensions": ["y", "x"],  # Required field
             "spatial:registration": "pixel",  # Default registration type
         }
@@ -1192,7 +1183,7 @@ def write_geo_metadata(
                     spatial_data["spatial:shape"] = [height, width]
 
         # Build validated spatial + proj convention attrs (data + CMOs) via zarr-cm
-        dataset.attrs.update(utils.build_spatial_proj_attrs(spatial=spatial_data, crs=crs))
+        dataset.attrs.update(utils.build_convention_attrs(spatial=spatial_data, crs=crs))
 
 
 def rechunk_dataset_for_encoding(

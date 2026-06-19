@@ -1,54 +1,72 @@
 """Utility functions for GeoZarr conversion."""
 
-from typing import Any
+from typing import Any, Protocol, cast, runtime_checkable
 
 import numpy as np
 import rasterio  # noqa: F401  # Import to enable .rio accessor
 import structlog
 import xarray as xr
 import zarr_cm
+from zarr_cm import GeoProjAttrs, MultiConventionAttrs, MultiscalesAttrs, SpatialAttrs
 
 log = structlog.get_logger()
 
 
-def proj_attrs_for_crs(crs: Any) -> dict[str, Any]:
+@runtime_checkable
+class CRSLike(Protocol):
+    """A coordinate reference system that can serialize to EPSG/WKT2.
+
+    Both ``pyproj.CRS`` and ``rasterio.crs.CRS`` satisfy this; the conversion
+    code accepts either, so we depend on the shared interface rather than a
+    concrete class.
+    """
+
+    def to_epsg(self) -> int | None: ...
+
+    def to_wkt(self) -> str: ...
+
+
+def proj_attrs_for_crs(crs: CRSLike | None) -> GeoProjAttrs:
     """Build the ``proj`` convention data keys for a CRS.
 
     Prefers an EPSG code (``proj:code``) and falls back to WKT2
-    (``proj:wkt2``). Returns an empty dict when *crs* is falsy or exposes
-    neither representation.
+    (``proj:wkt2``). Returns an empty mapping when *crs* is ``None`` or exposes
+    no EPSG code.
     """
-    if not crs:
-        return {}
-    if hasattr(crs, "to_epsg") and crs.to_epsg():
-        return {"proj:code": f"EPSG:{crs.to_epsg()}"}
-    if hasattr(crs, "to_wkt"):
-        return {"proj:wkt2": crs.to_wkt()}
-    return {}
+    if crs is None:
+        return GeoProjAttrs()
+    epsg = crs.to_epsg()
+    if epsg:
+        return GeoProjAttrs({"proj:code": f"EPSG:{epsg}"})
+    return GeoProjAttrs({"proj:wkt2": crs.to_wkt()})
 
 
-def build_spatial_proj_attrs(
+def build_convention_attrs(
     *,
-    spatial: dict[str, Any],
-    crs: Any,
-) -> dict[str, Any]:
-    """Build validated ``spatial`` + ``proj`` convention attributes.
+    spatial: SpatialAttrs,
+    crs: CRSLike | None,
+    multiscales: MultiscalesAttrs | None = None,
+) -> MultiConventionAttrs:
+    """Build validated multiscales + ``spatial`` + ``proj`` convention attributes.
 
     Delegates to :func:`zarr_cm.create_many`, which validates each convention's
     data and emits the matching convention-metadata objects into a combined
-    ``zarr_conventions`` array (spatial first, then proj). *spatial* holds the
-    ``spatial:*`` keys; the proj keys are derived from *crs* via
-    :func:`proj_attrs_for_crs`.
+    ``zarr_conventions`` array. The CMOs are ordered multiscales (if present),
+    then spatial, then proj. *spatial* holds the ``spatial:*`` keys; the proj
+    keys are derived from *crs* via :func:`proj_attrs_for_crs`.
 
     The proj convention is only included when *crs* yields a usable CRS
-    representation; otherwise only the spatial convention is emitted (a proj
+    representation; otherwise only the other conventions are emitted (a proj
     convention with no CRS field is invalid).
     """
-    conventions: dict[zarr_cm.ConventionName, dict[str, Any]] = {"spatial": spatial}
+    conventions: dict[zarr_cm.ConventionName, dict[str, Any]] = {}
+    if multiscales is not None:
+        conventions["multiscales"] = dict(multiscales)
+    conventions["spatial"] = dict(spatial)
     proj = proj_attrs_for_crs(crs)
     if proj:
-        conventions["geo-proj"] = proj
-    return zarr_cm.create_many(conventions)
+        conventions["geo-proj"] = dict(proj)
+    return cast("MultiConventionAttrs", zarr_cm.create_many(conventions))
 
 
 # Sentinel: distinguish "no explicit fill_value" from a legitimate `None`.

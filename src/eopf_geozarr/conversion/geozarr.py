@@ -18,7 +18,7 @@ import itertools
 import os
 import time
 from collections.abc import Hashable, Iterable, Mapping, Sequence
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import structlog
@@ -30,13 +30,9 @@ from zarr.codecs import BloscCodec
 from zarr.core.sync import sync
 from zarr.storage import StoreLike
 from zarr.storage._common import make_store_path
-from zarr_cm import geo_proj
-from zarr_cm import multiscales as multiscales_cm
-from zarr_cm import spatial as spatial_cm
 
 from eopf_geozarr.data_api.geozarr.multiscales import zcm
 from eopf_geozarr.data_api.geozarr.multiscales.geozarr import (
-    MultiscaleGroupAttrs,
     MultiscaleMeta,
 )
 from eopf_geozarr.types import (
@@ -51,6 +47,9 @@ from eopf_geozarr.types import (
 from . import fs_utils, utils
 from .fs_utils import sanitize_dataset_attributes
 from .sentinel1_reprojection import reproject_sentinel1_with_gcps
+
+if TYPE_CHECKING:
+    from zarr_cm import MultiscalesAttrs
 
 log = structlog.get_logger()
 
@@ -672,31 +671,27 @@ def create_geozarr_compliant_multiscales(
             scale_level_data["spatial:transform"] = spatial_tf
         layout.append(zcm.ScaleLevel(**scale_level_data))
 
-    multiscale_attrs = MultiscaleGroupAttrs(
-        zarr_conventions=(multiscales_cm.CMO, spatial_cm.CMO, geo_proj.CMO),
-        multiscales=MultiscaleMeta(
-            layout=layout,
-            resampling_method="average",
-        ),
+    # Validate + serialize the multiscales block via the project model (which
+    # also covers the ZCM/TMS duality), then hand all conventions to zarr-cm,
+    # which validates each and emits the matching CMOs in order (multiscales,
+    # spatial, proj). proj is included only when a CRS is available.
+    multiscales_data = cast(
+        "MultiscalesAttrs",
+        MultiscaleMeta(layout=layout, resampling_method="average").model_dump(),
     )
-    # The multiscales/spatial/proj CMOs are declared by MultiscaleGroupAttrs
-    # above; here we add only the validated spatial/proj data keys.
-    attrs_to_write = multiscale_attrs.model_dump()
-    if native_crs and native_bounds:
-        spatial_proj = utils.build_spatial_proj_attrs(
-            spatial={
-                "spatial:dimensions": ["y", "x"],
-                "spatial:bbox": list(native_bounds),
-                "spatial:registration": "pixel",
-            },
-            crs=native_crs,
-        )
-        spatial_proj.pop("zarr_conventions", None)  # CMOs come from the model above
-        attrs_to_write.update(spatial_proj)
+    attrs_to_write = utils.build_convention_attrs(
+        multiscales=multiscales_data,
+        spatial={
+            "spatial:dimensions": ["y", "x"],
+            "spatial:bbox": list(native_bounds),
+            "spatial:registration": "pixel",
+        },
+        crs=native_crs or None,
+    )
 
     group_path = fs_utils.normalize_path(f"{output_path}/{group_name.lstrip('/')}")
     zarr_group = fs_utils.open_zarr_group(group_path, mode="r+")
-    zarr_group.attrs.update(attrs_to_write)
+    zarr_group.attrs.update(cast("dict[str, Any]", attrs_to_write))
 
     log.info("Added multiscales metadata to group %s", group_name)
 
