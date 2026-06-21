@@ -37,4 +37,4 @@ def test_scale_offset_from_cf_round_trip() -> None:
     )
 
     arr[:] = unpacked_values
-    np.testing.assert_array_almost_equal(arr[:], unpacked_values)
+    np.testing.assert_array_almost_equal(np.asarray(arr[:]), unpacked_values)

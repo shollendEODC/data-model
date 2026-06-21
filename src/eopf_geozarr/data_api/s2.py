@@ -222,7 +222,7 @@ ResolutionLevel = Literal["r10m", "r20m", "r60m", "r120m", "r360m", "r720m"]
 
 
 # Resolution-level members for probability data arrays
-class ProbabilityArrayMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class ProbabilityArrayMembers(TypedDict, closed=True, total=False):
     """Members for probability arrays at a specific resolution (r10m, r20m, r60m).
 
     Closed TypedDict - contains probability arrays (cld, snw) and per-band/coordinate arrays.
@@ -237,20 +237,20 @@ class ProbabilityArrayMembers(TypedDict, closed=True, total=False):  # type: ign
 
 
 # Probability resolution groups (r10m, r20m, r60m)
-class ProbabilityResolutionMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class ProbabilityResolutionMembers(TypedDict, closed=True, total=False):
     """Members for probability data containing resolution-level groups (r10m, r20m, r60m).
 
     Closed TypedDict - contains resolution groups as subgroups.
     All fields are optional since not all resolutions are always present.
     """
 
-    r10m: GroupSpec[Any, ProbabilityArrayMembers]  # type: ignore[type-var]
-    r20m: GroupSpec[Any, ProbabilityArrayMembers]  # type: ignore[type-var]
-    r60m: GroupSpec[Any, ProbabilityArrayMembers]  # type: ignore[type-var]
+    r10m: GroupSpec[Any, ProbabilityArrayMembers]
+    r20m: GroupSpec[Any, ProbabilityArrayMembers]
+    r60m: GroupSpec[Any, ProbabilityArrayMembers]
 
 
 # Resolution-level members for quicklook data arrays
-class QuicklookArrayMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class QuicklookArrayMembers(TypedDict, closed=True, total=False):
     """Members for quicklook arrays at a specific resolution.
 
     Closed TypedDict - typically contains TCI (True Color Image) and optional band/coordinate arrays.
@@ -264,20 +264,20 @@ class QuicklookArrayMembers(TypedDict, closed=True, total=False):  # type: ignor
 
 
 # Quicklook resolution groups (r10m, r20m, r60m)
-class QuicklookResolutionMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class QuicklookResolutionMembers(TypedDict, closed=True, total=False):
     """Members for quicklook data containing resolution-level groups (r10m, r20m, r60m).
 
     Closed TypedDict - contains resolution groups as subgroups.
     All fields are optional since not all resolutions are always present.
     """
 
-    r10m: GroupSpec[Any, QuicklookArrayMembers]  # type: ignore[type-var]
-    r20m: GroupSpec[Any, QuicklookArrayMembers]  # type: ignore[type-var]
-    r60m: GroupSpec[Any, QuicklookArrayMembers]  # type: ignore[type-var]
+    r10m: GroupSpec[Any, QuicklookArrayMembers]
+    r20m: GroupSpec[Any, QuicklookArrayMembers]
+    r60m: GroupSpec[Any, QuicklookArrayMembers]
 
 
 # Mask members - contains resolution-level groups or various classification/detector groups
-class ConditionsMaskMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class ConditionsMaskMembers(TypedDict, closed=True, total=False):
     """Members for mask subgroup in conditions.
 
     Closed TypedDict - can contain either:
@@ -297,7 +297,7 @@ class ConditionsMaskMembers(TypedDict, closed=True, total=False):  # type: ignor
 
 
 # Geometry members - contains angle and orientation groups/arrays
-class GeometryMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class GeometryMembers(TypedDict, closed=True, total=False):
     """Members for geometry group containing sun and viewing angles.
 
     Closed TypedDict - contains angle and geometry groups/arrays with flexible internal structure.
@@ -321,7 +321,7 @@ class GeometryMembers(TypedDict, closed=True, total=False):  # type: ignore[call
 
 
 # Meteorology members - contains CAMS and ECMWF atmospheric data
-class MeteorologyMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class MeteorologyMembers(TypedDict, closed=True, total=False):
     """Members for meteorology group containing CAMS and ECMWF atmospheric data.
 
     Closed TypedDict - contains subgroups for different meteorological data sources.
@@ -458,7 +458,7 @@ class Sentinel2CoordinateArray(ArraySpec[Sentinel2DataArrayAttrs]):
 
 
 # TypedDict definitions for members structure
-class Sentinel2ResolutionMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel2ResolutionMembers(TypedDict, closed=True, total=False):
     """Members dict for a resolution dataset (r10m, r20m, r60m).
 
     Closed TypedDict - no extra keys are allowed beyond those explicitly defined.
@@ -483,11 +483,11 @@ class Sentinel2ResolutionMembers(TypedDict, closed=True, total=False):  # type: 
     b12: ArraySpec[Any]
 
 
-class Sentinel2ResolutionDataset(GroupSpec[DatasetAttrs, Sentinel2ResolutionMembers]):  # type: ignore[type-var]
+class Sentinel2ResolutionDataset(GroupSpec[DatasetAttrs, Sentinel2ResolutionMembers]):
     """A single resolution dataset within reflectance (r10m, r20m, r60m)."""
 
 
-class Sentinel2ReflectanceMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel2ReflectanceMembers(TypedDict, closed=True, total=False):
     """Members for reflectance group.
 
     Closed TypedDict - only r10m, r20m, r60m keys are allowed.
@@ -498,11 +498,11 @@ class Sentinel2ReflectanceMembers(TypedDict, closed=True, total=False):  # type:
     r60m: Sentinel2ResolutionDataset
 
 
-class Sentinel2ReflectanceGroup(GroupSpec[DatasetAttrs, Sentinel2ReflectanceMembers]):  # type: ignore[type-var]
+class Sentinel2ReflectanceGroup(GroupSpec[DatasetAttrs, Sentinel2ReflectanceMembers]):
     """Reflectance data organized by resolution."""
 
 
-class Sentinel2MeasurementsMembers(TypedDict, closed=True):  # type: ignore[call-arg]
+class Sentinel2MeasurementsMembers(TypedDict, closed=True):
     """Members for measurements group.
 
     Closed TypedDict - only 'reflectance' key is allowed.
@@ -511,7 +511,7 @@ class Sentinel2MeasurementsMembers(TypedDict, closed=True):  # type: ignore[call
     reflectance: Sentinel2ReflectanceGroup
 
 
-class Sentinel2MeasurementsGroup(GroupSpec[DatasetAttrs, Sentinel2MeasurementsMembers]):  # type: ignore[type-var]
+class Sentinel2MeasurementsGroup(GroupSpec[DatasetAttrs, Sentinel2MeasurementsMembers]):
     """Measurements group containing reflectance data."""
 
     @property
@@ -523,7 +523,7 @@ class Sentinel2MeasurementsGroup(GroupSpec[DatasetAttrs, Sentinel2MeasurementsMe
 # Quality data groups - need resolution-level typed groups
 
 
-class Sentinel2AtmosphereResolutionMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel2AtmosphereResolutionMembers(TypedDict, closed=True, total=False):
     """Members for atmosphere data at a specific resolution.
 
     Closed TypedDict - may contain aot and/or wvp arrays depending on available data.
@@ -537,12 +537,12 @@ class Sentinel2AtmosphereResolutionMembers(TypedDict, closed=True, total=False):
 
 
 class Sentinel2AtmosphereResolutionDataset(
-    GroupSpec[DatasetAttrs, Sentinel2AtmosphereResolutionMembers]  # type: ignore[type-var]
+    GroupSpec[DatasetAttrs, Sentinel2AtmosphereResolutionMembers]
 ):
     """Atmosphere data at a single resolution."""
 
 
-class Sentinel2AtmosphereMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel2AtmosphereMembers(TypedDict, closed=True, total=False):
     """Members for atmosphere group containing resolution datasets."""
 
     r10m: Sentinel2AtmosphereResolutionDataset
@@ -550,25 +550,23 @@ class Sentinel2AtmosphereMembers(TypedDict, closed=True, total=False):  # type: 
     r60m: Sentinel2AtmosphereResolutionDataset
 
 
-class Sentinel2AtmosphereDataset(GroupSpec[DatasetAttrs, Sentinel2AtmosphereMembers]):  # type: ignore[type-var]
+class Sentinel2AtmosphereDataset(GroupSpec[DatasetAttrs, Sentinel2AtmosphereMembers]):
     """Atmosphere quality data (AOT, WVP) at multiple resolutions."""
 
 
-class Sentinel2ProbabilityDataset(
-    GroupSpec[DatasetAttrs, ProbabilityResolutionMembers]  # type: ignore[type-var]
-):
+class Sentinel2ProbabilityDataset(GroupSpec[DatasetAttrs, ProbabilityResolutionMembers]):
     """Probability data (cloud, snow) at multiple resolutions."""
 
 
-class Sentinel2QuicklookDataset(GroupSpec[DatasetAttrs, QuicklookResolutionMembers]):  # type: ignore[type-var]
+class Sentinel2QuicklookDataset(GroupSpec[DatasetAttrs, QuicklookResolutionMembers]):
     """True Color Image (TCI) quicklook data at multiple resolutions."""
 
 
-class Sentinel2MaskDataset(GroupSpec[DatasetAttrs, ConditionsMaskMembers]):  # type: ignore[type-var]
+class Sentinel2MaskDataset(GroupSpec[DatasetAttrs, ConditionsMaskMembers]):
     """Mask data containing classification and detector footprints."""
 
 
-class Sentinel2QualityMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel2QualityMembers(TypedDict, closed=True, total=False):
     """Members for quality group.
 
     Closed TypedDict with optional fields to accommodate different product levels:
@@ -583,7 +581,7 @@ class Sentinel2QualityMembers(TypedDict, closed=True, total=False):  # type: ign
     mask: Sentinel2MaskDataset
 
 
-class Sentinel2QualityGroup(GroupSpec[DatasetAttrs, Sentinel2QualityMembers]):  # type: ignore[type-var]
+class Sentinel2QualityGroup(GroupSpec[DatasetAttrs, Sentinel2QualityMembers]):
     """Quality group containing atmosphere, probability, classification, and quicklook data.
 
     Supports both L2A products (Sentinel-2A, 2C) and L1C products (Sentinel-2B).
@@ -607,19 +605,19 @@ class Sentinel2QualityGroup(GroupSpec[DatasetAttrs, Sentinel2QualityMembers]):  
 
 
 # Conditions groups
-class Sentinel2GeometryGroup(GroupSpec[DatasetAttrs, GeometryMembers]):  # type: ignore[type-var]
+class Sentinel2GeometryGroup(GroupSpec[DatasetAttrs, GeometryMembers]):
     """Geometry group containing sun and viewing angles."""
 
 
-class Sentinel2MeteorologyGroup(GroupSpec[DatasetAttrs, MeteorologyMembers]):  # type: ignore[type-var]
+class Sentinel2MeteorologyGroup(GroupSpec[DatasetAttrs, MeteorologyMembers]):
     """Meteorology group containing CAMS and ECMWF atmospheric data."""
 
 
-class Sentinel2ConditionsMaskGroup(GroupSpec[DatasetAttrs, ConditionsMaskMembers]):  # type: ignore[type-var]
+class Sentinel2ConditionsMaskGroup(GroupSpec[DatasetAttrs, ConditionsMaskMembers]):
     """Mask subgroup in conditions."""
 
 
-class Sentinel2ConditionsMembers(TypedDict, closed=True):  # type: ignore[call-arg]
+class Sentinel2ConditionsMembers(TypedDict, closed=True):
     """Members for conditions group.
 
     Closed TypedDict - only geometry, mask, meteorology keys are allowed.
@@ -630,7 +628,7 @@ class Sentinel2ConditionsMembers(TypedDict, closed=True):  # type: ignore[call-a
     meteorology: Sentinel2MeteorologyGroup
 
 
-class Sentinel2ConditionsGroup(GroupSpec[DatasetAttrs, Sentinel2ConditionsMembers]):  # type: ignore[type-var]
+class Sentinel2ConditionsGroup(GroupSpec[DatasetAttrs, Sentinel2ConditionsMembers]):
     """Conditions group containing geometry and meteorology data."""
 
     def geometry(self) -> Sentinel2GeometryGroup | None:
@@ -647,7 +645,7 @@ class Sentinel2ConditionsGroup(GroupSpec[DatasetAttrs, Sentinel2ConditionsMember
 
 
 # Root model
-class Sentinel2RootMembers(TypedDict, closed=True):  # type: ignore[call-arg]
+class Sentinel2RootMembers(TypedDict, closed=True):
     """Members for Sentinel-2 root group.
 
     Closed TypedDict - only measurements, quality, conditions keys are allowed.
@@ -658,7 +656,7 @@ class Sentinel2RootMembers(TypedDict, closed=True):  # type: ignore[call-arg]
     conditions: Sentinel2ConditionsGroup
 
 
-class Sentinel2Root(GroupSpec[Sentinel2RootAttrs, Sentinel2RootMembers]):  # type: ignore[type-var]
+class Sentinel2Root(GroupSpec[Sentinel2RootAttrs, Sentinel2RootMembers]):
     """Complete Sentinel-2 EOPF Zarr hierarchy.
 
     The hierarchy follows EOPF organization:

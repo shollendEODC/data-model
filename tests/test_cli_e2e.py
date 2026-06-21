@@ -140,7 +140,7 @@ def test_cli_convert_real_sentinel2_data(s2_group_example: Path, tmp_path: Path)
         GroupSpec.from_zarr(zarr.open_group(output_path)).model_dump()
     )
     assert expected_structure_json == observed_structure_json, view_json_diff(
-        expected_structure_json, observed_structure_json
+        dict(expected_structure_json), dict(observed_structure_json)
     )
 
 
@@ -206,7 +206,7 @@ def test_cli_crs_groups_option() -> None:
     assert "Groups that need CRS information added" in result.stdout, "Help text should be present"
 
 
-def test_cli_convert_with_crs_groups(s2_group_example, tmp_path: Path) -> None:
+def test_cli_convert_with_crs_groups(s2_group_example: Path, tmp_path: Path) -> None:
     """
     Test CLI conversion with --crs-groups option using real Sentinel-2 data.
 

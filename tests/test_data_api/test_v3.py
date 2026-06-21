@@ -1,4 +1,5 @@
-from typing import Any
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import pytest
@@ -11,6 +12,9 @@ from eopf_geozarr.data_api.geozarr.v3 import (
     MultiscaleGroup,
     check_valid_coordinates,
 )
+
+if TYPE_CHECKING:
+    from eopf_geozarr.data_api.geozarr.common import GroupLike
 
 
 class TestCheckValidCoordinates:
@@ -29,10 +33,13 @@ class TestCheckValidCoordinates:
             f"dim_{idx}": DataArray.from_array(np.arange(s), dimension_names=(f"dim_{idx}",))
             for idx, s in enumerate(data_shape)
         }
-        group = GroupSpec[Any, DataArray](
+        group = GroupSpec[Mapping[str, object], DataArray](
             attributes={}, members={"base": base_array, **coords_arrays}
         )
-        assert check_valid_coordinates(group) == group
+        # ``group`` structurally satisfies ``GroupLike``, but mypy cannot bind the
+        # invariant ``Mapping`` value type, mirroring the cast used in the source.
+        group_like = cast("GroupLike", group)
+        assert check_valid_coordinates(group_like) == group_like
 
     @staticmethod
     @pytest.mark.parametrize("data_shape", [(10,), (10, 12)])
@@ -53,19 +60,19 @@ class TestCheckValidCoordinates:
             f"dim_{idx}": DataArray.from_array(np.arange(s + 1), dimension_names=(f"dim_{idx}",))
             for idx, s in enumerate(data_shape)
         }
-        group = GroupSpec[Any, DataArray](
+        group = GroupSpec[Mapping[str, object], DataArray](
             attributes={}, members={"base": base_array, **coords_arrays}
         )
         msg = "Dimension .* for array 'base' has a shape mismatch:"
         with pytest.raises(ValueError, match=msg):
-            check_valid_coordinates(group)
+            check_valid_coordinates(cast("GroupLike", group))
 
 
-def test_dataarray_round_trip(s2_geozarr_group_example: Any) -> None:
+def test_dataarray_round_trip(s2_geozarr_group_example: zarr.Group) -> None:
     """
     Ensure that we can round-trip dataarray attributes through the `Multiscales` model.
     """
-    source_untyped = GroupSpec.from_zarr(s2_geozarr_group_example)
+    source_untyped: GroupSpec = GroupSpec.from_zarr(s2_geozarr_group_example)
     flat = source_untyped.to_flat()
     for val in flat.values():
         if isinstance(val, ArraySpec) and val.dimension_names is not None:
@@ -73,7 +80,7 @@ def test_dataarray_round_trip(s2_geozarr_group_example: Any) -> None:
             assert DataArray(**model_json).model_dump() == model_json
 
 
-def test_multiscale_attrs_round_trip(s2_geozarr_group_example: Any) -> None:
+def test_multiscale_attrs_round_trip(s2_geozarr_group_example: zarr.Group) -> None:
     """
     Test that multiscale datasets round-trip through the `Multiscales` model
     """

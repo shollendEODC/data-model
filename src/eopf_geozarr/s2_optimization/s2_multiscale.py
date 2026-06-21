@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 import numpy as np
 import structlog
 import xarray as xr
-from dask import delayed
 from dask.array import from_delayed
+from dask.delayed import delayed
 from pydantic.experimental.missing_sentinel import MISSING
 from pyproj import CRS
 from zarr.codecs import CastValue
@@ -105,7 +105,9 @@ def _preferred_spatial_transform(
             rio_value = dataset.rio.transform
             if callable(rio_value):
                 rio_value = rio_value()
-            rio_values = tuple(float(value) for value in tuple(rio_value)[:6])
+            # rio transform value is dynamically typed; it is iterable at runtime.
+            rio_iter = cast("tuple[float, ...]", tuple(rio_value))  # pyright: ignore[reportArgumentType]
+            rio_values = tuple(float(value) for value in rio_iter[:6])
             if len(rio_values) == 6:
                 rio_transform = (
                     rio_values[0],
@@ -535,7 +537,7 @@ def create_measurements_encoding(
 
         for key in keep_keys:
             if key in var_data.encoding:
-                var_encoding[key] = var_data.encoding[key]  # type: ignore[literal-required]
+                var_encoding[key] = var_data.encoding[key]
 
         if len(set(var_data.encoding.keys()) - XARRAY_ENCODING_KEYS) > 0:
             log.warning(
@@ -677,7 +679,7 @@ def add_multiscales_metadata_to_parent(
         # Defensive guard retained for runtime safety even though the typed
         # contract (Mapping[str, xr.Dataset]) means mypy proves it unreachable.
         if dataset is None:
-            continue  # type: ignore[unreachable]
+            continue
 
         # Get first data variable to extract dimensions
         first_var = next(iter(dataset.data_vars.values()))
@@ -781,7 +783,7 @@ def add_multiscales_metadata_to_parent(
         log.info("    Could not create overview levels for {}", base_path=group.path)
         return
 
-    layout: list[zcm.ScaleLevel] | MISSING = MISSING  # type: ignore[valid-type]
+    layout: list[zcm.ScaleLevel] | MISSING = MISSING
 
     layout = []
 
@@ -812,6 +814,7 @@ def add_multiscales_metadata_to_parent(
             scale_level_data["transform"] = multiscale_transform
 
         # Add spatial properties
+        assert "spatial_shape" in overview_level  # always populated by the producer above
         scale_level_data["spatial:shape"] = overview_level["spatial_shape"]
         if "spatial_transform" in overview_level:
             spatial_transform = overview_level["spatial_transform"]
@@ -828,7 +831,7 @@ def add_multiscales_metadata_to_parent(
     # (multiscales, spatial, proj).
     multiscales_data = cast(
         "MultiscalesAttrs",
-        MultiscaleMeta(layout=layout, resampling_method="average").model_dump(),
+        MultiscaleMeta(layout=tuple(layout), resampling_method="average").model_dump(),
     )
 
     attrs_to_write: dict[str, Any] = {}
@@ -866,7 +869,7 @@ def create_original_encoding(dataset: xr.Dataset) -> dict[str, XarrayDataArrayEn
         var_encoding["compressors"] = (compressor,)
         for key in XARRAY_ENCODING_KEYS - {"compressors", "fill_value"}:
             if key in var_data.encoding:
-                var_encoding[key] = var_data.encoding[key]  # type: ignore[literal-required]
+                var_encoding[key] = var_data.encoding[key]
         # Set the zarr-level `fill_value` explicitly rather than letting xarray
         # decide — different xarray versions infer different defaults from the
         # variable's `_FillValue`. See `explicit_fill_value` for the rationale.
@@ -977,9 +980,7 @@ def create_lazy_downsample_operation_from_existing(
 ) -> xr.DataArray:
     """Create lazy downsampling operation from existing data."""
 
-    # `dask.delayed` is untyped, so the decorator would otherwise make
-    # `downsample_operation` untyped under strict mypy.
-    @delayed  # type: ignore[untyped-decorator]
+    @delayed
     def downsample_operation() -> Any:
         var_type = determine_variable_type(str(source_data.name), source_data)
         return downsample_variable(source_data, target_height, target_width, var_type)
@@ -1089,7 +1090,7 @@ def stream_write_dataset(
             try:
                 client = distributed.Client.current()
                 # Use client.compute to get a proper Future with status
-                future = client.compute(write_job)
+                future = cast("distributed.Future", client.compute(write_job))
                 log.info("Using distributed client for write job monitoring")
 
                 try:

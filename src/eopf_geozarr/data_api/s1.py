@@ -47,7 +47,7 @@ class Sentinel1DataArray(ArraySpec[Sentinel1DataArrayAttrs]):
 
 
 # Conditions groups
-class Sentinel1AntennaPatternMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel1AntennaPatternMembers(TypedDict, closed=True, total=False):
     """Members for antenna_pattern group.
 
     All fields are optional to support different product variants.
@@ -64,53 +64,75 @@ class Sentinel1AntennaPatternMembers(TypedDict, closed=True, total=False):  # ty
     terrain_height: ArraySpec[Any]
 
 
-class Sentinel1AntennaPatternGroup(
-    GroupSpec[DatasetAttrs, Sentinel1AntennaPatternMembers]  # type: ignore[type-var]
-):
+class Sentinel1AntennaPatternGroup(GroupSpec[DatasetAttrs, Sentinel1AntennaPatternMembers]):
     """Antenna pattern group containing antenna characteristics."""
 
     @property
     def azimuth_time(self) -> ArraySpec[Any]:
         """Get azimuth_time array."""
-        return self.members["azimuth_time"]
+        value = self.members.get("azimuth_time")
+        if value is None:
+            raise KeyError("azimuth_time")
+        return value
 
     @property
     def count(self) -> ArraySpec[Any]:
         """Get count array."""
-        return self.members["count"]
+        value = self.members.get("count")
+        if value is None:
+            raise KeyError("count")
+        return value
 
     @property
     def elevation_angle(self) -> ArraySpec[Any]:
         """Get elevation_angle array."""
-        return self.members["elevation_angle"]
+        value = self.members.get("elevation_angle")
+        if value is None:
+            raise KeyError("elevation_angle")
+        return value
 
     @property
     def incidence_angle(self) -> ArraySpec[Any]:
         """Get incidence_angle array."""
-        return self.members["incidence_angle"]
+        value = self.members.get("incidence_angle")
+        if value is None:
+            raise KeyError("incidence_angle")
+        return value
 
     @property
     def roll(self) -> ArraySpec[Any]:
         """Get roll array."""
-        return self.members["roll"]
+        value = self.members.get("roll")
+        if value is None:
+            raise KeyError("roll")
+        return value
 
     @property
     def slant_range_time_ap(self) -> ArraySpec[Any]:
         """Get slant_range_time_ap array."""
-        return self.members["slant_range_time_ap"]
+        value = self.members.get("slant_range_time_ap")
+        if value is None:
+            raise KeyError("slant_range_time_ap")
+        return value
 
     @property
     def swath(self) -> ArraySpec[Any]:
         """Get swath array."""
-        return self.members["swath"]
+        value = self.members.get("swath")
+        if value is None:
+            raise KeyError("swath")
+        return value
 
     @property
     def terrain_height(self) -> ArraySpec[Any]:
         """Get terrain_height array."""
-        return self.members["terrain_height"]
+        value = self.members.get("terrain_height")
+        if value is None:
+            raise KeyError("terrain_height")
+        return value
 
 
-class Sentinel1AttitudeMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel1AttitudeMembers(TypedDict, closed=True, total=False):
     """Members for attitude group."""
 
     azimuth_time: ArraySpec[Any]
@@ -126,66 +148,99 @@ class Sentinel1AttitudeMembers(TypedDict, closed=True, total=False):  # type: ig
     yaw: ArraySpec[Any]
 
 
-class Sentinel1AttitudeGroup(GroupSpec[DatasetAttrs, Sentinel1AttitudeMembers]):  # type: ignore[type-var]
+class Sentinel1AttitudeGroup(GroupSpec[DatasetAttrs, Sentinel1AttitudeMembers]):
     """Attitude group containing spacecraft attitude data."""
 
     @property
     def azimuth_time(self) -> ArraySpec[Any]:
         """Get azimuth_time array."""
-        return self.members["azimuth_time"]
+        value = self.members.get("azimuth_time")
+        if value is None:
+            raise KeyError("azimuth_time")
+        return value
 
     @property
     def pitch(self) -> ArraySpec[Any]:
         """Get pitch array."""
-        return self.members["pitch"]
+        value = self.members.get("pitch")
+        if value is None:
+            raise KeyError("pitch")
+        return value
 
     @property
     def q0(self) -> ArraySpec[Any]:
         """Get q0 array."""
-        return self.members["q0"]
+        value = self.members.get("q0")
+        if value is None:
+            raise KeyError("q0")
+        return value
 
     @property
     def q1(self) -> ArraySpec[Any]:
         """Get q1 array."""
-        return self.members["q1"]
+        value = self.members.get("q1")
+        if value is None:
+            raise KeyError("q1")
+        return value
 
     @property
     def q2(self) -> ArraySpec[Any]:
         """Get q2 array."""
-        return self.members["q2"]
+        value = self.members.get("q2")
+        if value is None:
+            raise KeyError("q2")
+        return value
 
     @property
     def q3(self) -> ArraySpec[Any]:
         """Get q3 array."""
-        return self.members["q3"]
+        value = self.members.get("q3")
+        if value is None:
+            raise KeyError("q3")
+        return value
 
     @property
     def roll(self) -> ArraySpec[Any]:
         """Get roll array."""
-        return self.members["roll"]
+        value = self.members.get("roll")
+        if value is None:
+            raise KeyError("roll")
+        return value
 
     @property
     def wx(self) -> ArraySpec[Any]:
         """Get wx array."""
-        return self.members["wx"]
+        value = self.members.get("wx")
+        if value is None:
+            raise KeyError("wx")
+        return value
 
     @property
     def wy(self) -> ArraySpec[Any]:
         """Get wy array."""
-        return self.members["wy"]
+        value = self.members.get("wy")
+        if value is None:
+            raise KeyError("wy")
+        return value
 
     @property
     def wz(self) -> ArraySpec[Any]:
         """Get wz array."""
-        return self.members["wz"]
+        value = self.members.get("wz")
+        if value is None:
+            raise KeyError("wz")
+        return value
 
     @property
     def yaw(self) -> ArraySpec[Any]:
         """Get yaw array."""
-        return self.members["yaw"]
+        value = self.members.get("yaw")
+        if value is None:
+            raise KeyError("yaw")
+        return value
 
 
-class Sentinel1AzimuthFmRateMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel1AzimuthFmRateMembers(TypedDict, closed=True, total=False):
     """Members for azimuth_fm_rate group."""
 
     azimuth_fm_rate_polynomial: ArraySpec[Any]
@@ -193,28 +248,35 @@ class Sentinel1AzimuthFmRateMembers(TypedDict, closed=True, total=False):  # typ
     t0: ArraySpec[Any]
 
 
-class Sentinel1AzimuthFmRateGroup(
-    GroupSpec[DatasetAttrs, Sentinel1AzimuthFmRateMembers]  # type: ignore[type-var]
-):
+class Sentinel1AzimuthFmRateGroup(GroupSpec[DatasetAttrs, Sentinel1AzimuthFmRateMembers]):
     """Azimuth FM rate group."""
 
     @property
     def azimuth_fm_rate_polynomial(self) -> ArraySpec[Any]:
         """Get azimuth_fm_rate_polynomial array."""
-        return self.members["azimuth_fm_rate_polynomial"]
+        value = self.members.get("azimuth_fm_rate_polynomial")
+        if value is None:
+            raise KeyError("azimuth_fm_rate_polynomial")
+        return value
 
     @property
     def azimuth_time(self) -> ArraySpec[Any]:
         """Get azimuth_time array."""
-        return self.members["azimuth_time"]
+        value = self.members.get("azimuth_time")
+        if value is None:
+            raise KeyError("azimuth_time")
+        return value
 
     @property
     def t0(self) -> ArraySpec[Any]:
         """Get t0 array."""
-        return self.members["t0"]
+        value = self.members.get("t0")
+        if value is None:
+            raise KeyError("t0")
+        return value
 
 
-class Sentinel1CoordinateConversionMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel1CoordinateConversionMembers(TypedDict, closed=True, total=False):
     """Members for coordinate_conversion group."""
 
     azimuth_time: ArraySpec[Any]
@@ -226,42 +288,60 @@ class Sentinel1CoordinateConversionMembers(TypedDict, closed=True, total=False):
 
 
 class Sentinel1CoordinateConversionGroup(
-    GroupSpec[DatasetAttrs, Sentinel1CoordinateConversionMembers]  # type: ignore[type-var]
+    GroupSpec[DatasetAttrs, Sentinel1CoordinateConversionMembers]
 ):
     """Coordinate conversion group."""
 
     @property
     def azimuth_time(self) -> ArraySpec[Any]:
         """Get azimuth_time array."""
-        return self.members["azimuth_time"]
+        value = self.members.get("azimuth_time")
+        if value is None:
+            raise KeyError("azimuth_time")
+        return value
 
     @property
     def gr0(self) -> ArraySpec[Any]:
         """Get gr0 array."""
-        return self.members["gr0"]
+        value = self.members.get("gr0")
+        if value is None:
+            raise KeyError("gr0")
+        return value
 
     @property
     def grsr_coefficients(self) -> ArraySpec[Any]:
         """Get grsr_coefficients array."""
-        return self.members["grsr_coefficients"]
+        value = self.members.get("grsr_coefficients")
+        if value is None:
+            raise KeyError("grsr_coefficients")
+        return value
 
     @property
     def slant_range_time(self) -> ArraySpec[Any]:
         """Get slant_range_time array."""
-        return self.members["slant_range_time"]
+        value = self.members.get("slant_range_time")
+        if value is None:
+            raise KeyError("slant_range_time")
+        return value
 
     @property
     def sr0(self) -> ArraySpec[Any]:
         """Get sr0 array."""
-        return self.members["sr0"]
+        value = self.members.get("sr0")
+        if value is None:
+            raise KeyError("sr0")
+        return value
 
     @property
     def srgr_coefficients(self) -> ArraySpec[Any]:
         """Get srgr_coefficients array."""
-        return self.members["srgr_coefficients"]
+        value = self.members.get("srgr_coefficients")
+        if value is None:
+            raise KeyError("srgr_coefficients")
+        return value
 
 
-class Sentinel1DopplerCentroidMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel1DopplerCentroidMembers(TypedDict, closed=True, total=False):
     """Members for doppler_centroid group."""
 
     azimuth_time: ArraySpec[Any]
@@ -275,58 +355,83 @@ class Sentinel1DopplerCentroidMembers(TypedDict, closed=True, total=False):  # t
     t0: ArraySpec[Any]
 
 
-class Sentinel1DopplerCentroidGroup(
-    GroupSpec[DatasetAttrs, Sentinel1DopplerCentroidMembers]  # type: ignore[type-var]
-):
+class Sentinel1DopplerCentroidGroup(GroupSpec[DatasetAttrs, Sentinel1DopplerCentroidMembers]):
     """Doppler centroid group."""
 
     @property
     def azimuth_time(self) -> ArraySpec[Any]:
         """Get azimuth_time array."""
-        return self.members["azimuth_time"]
+        value = self.members.get("azimuth_time")
+        if value is None:
+            raise KeyError("azimuth_time")
+        return value
 
     @property
     def data_dc_polynomial(self) -> ArraySpec[Any]:
         """Get data_dc_polynomial array."""
-        return self.members["data_dc_polynomial"]
+        value = self.members.get("data_dc_polynomial")
+        if value is None:
+            raise KeyError("data_dc_polynomial")
+        return value
 
     @property
     def data_dc_rms_error(self) -> ArraySpec[Any]:
         """Get data_dc_rms_error array."""
-        return self.members["data_dc_rms_error"]
+        value = self.members.get("data_dc_rms_error")
+        if value is None:
+            raise KeyError("data_dc_rms_error")
+        return value
 
     @property
     def data_dc_rms_error_above_threshold(self) -> ArraySpec[Any]:
         """Get data_dc_rms_error_above_threshold array."""
-        return self.members["data_dc_rms_error_above_threshold"]
+        value = self.members.get("data_dc_rms_error_above_threshold")
+        if value is None:
+            raise KeyError("data_dc_rms_error_above_threshold")
+        return value
 
     @property
     def degree(self) -> ArraySpec[Any]:
         """Get degree array."""
-        return self.members["degree"]
+        value = self.members.get("degree")
+        if value is None:
+            raise KeyError("degree")
+        return value
 
     @property
     def fine_dce_azimuth_start_time(self) -> ArraySpec[Any]:
         """Get fine_dce_azimuth_start_time array."""
-        return self.members["fine_dce_azimuth_start_time"]
+        value = self.members.get("fine_dce_azimuth_start_time")
+        if value is None:
+            raise KeyError("fine_dce_azimuth_start_time")
+        return value
 
     @property
     def fine_dce_azimuth_stop_time(self) -> ArraySpec[Any]:
         """Get fine_dce_azimuth_stop_time array."""
-        return self.members["fine_dce_azimuth_stop_time"]
+        value = self.members.get("fine_dce_azimuth_stop_time")
+        if value is None:
+            raise KeyError("fine_dce_azimuth_stop_time")
+        return value
 
     @property
     def geometry_dc_polynomial(self) -> ArraySpec[Any]:
         """Get geometry_dc_polynomial array."""
-        return self.members["geometry_dc_polynomial"]
+        value = self.members.get("geometry_dc_polynomial")
+        if value is None:
+            raise KeyError("geometry_dc_polynomial")
+        return value
 
     @property
     def t0(self) -> ArraySpec[Any]:
         """Get t0 array."""
-        return self.members["t0"]
+        value = self.members.get("t0")
+        if value is None:
+            raise KeyError("t0")
+        return value
 
 
-class Sentinel1GcpMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel1GcpMembers(TypedDict, closed=True, total=False):
     """Members for GCP (Ground Control Points) group.
 
     All fields are optional to support different product variants (S1A, S1C).
@@ -346,66 +451,99 @@ class Sentinel1GcpMembers(TypedDict, closed=True, total=False):  # type: ignore[
     slant_range_time_gcp: ArraySpec[Any]
 
 
-class Sentinel1GcpGroup(GroupSpec[DatasetAttrs, Sentinel1GcpMembers]):  # type: ignore[type-var]
+class Sentinel1GcpGroup(GroupSpec[DatasetAttrs, Sentinel1GcpMembers]):
     """Ground Control Points (GCP) group."""
 
     @property
     def azimuth_time(self) -> ArraySpec[Any]:
         """Get azimuth_time array."""
-        return self.members["azimuth_time"]
+        value = self.members.get("azimuth_time")
+        if value is None:
+            raise KeyError("azimuth_time")
+        return value
 
     @property
     def azimuth_time_gcp(self) -> ArraySpec[Any]:
         """Get azimuth_time_gcp array."""
-        return self.members["azimuth_time_gcp"]
+        value = self.members.get("azimuth_time_gcp")
+        if value is None:
+            raise KeyError("azimuth_time_gcp")
+        return value
 
     @property
     def elevation_angle(self) -> ArraySpec[Any]:
         """Get elevation_angle array."""
-        return self.members["elevation_angle"]
+        value = self.members.get("elevation_angle")
+        if value is None:
+            raise KeyError("elevation_angle")
+        return value
 
     @property
     def ground_range(self) -> ArraySpec[Any]:
         """Get ground_range array."""
-        return self.members["ground_range"]
+        value = self.members.get("ground_range")
+        if value is None:
+            raise KeyError("ground_range")
+        return value
 
     @property
     def height(self) -> ArraySpec[Any]:
         """Get height array."""
-        return self.members["height"]
+        value = self.members.get("height")
+        if value is None:
+            raise KeyError("height")
+        return value
 
     @property
     def incidence_angle(self) -> ArraySpec[Any]:
         """Get incidence_angle array."""
-        return self.members["incidence_angle"]
+        value = self.members.get("incidence_angle")
+        if value is None:
+            raise KeyError("incidence_angle")
+        return value
 
     @property
     def latitude(self) -> ArraySpec[Any]:
         """Get latitude array."""
-        return self.members["latitude"]
+        value = self.members.get("latitude")
+        if value is None:
+            raise KeyError("latitude")
+        return value
 
     @property
     def line(self) -> ArraySpec[Any]:
         """Get line array."""
-        return self.members["line"]
+        value = self.members.get("line")
+        if value is None:
+            raise KeyError("line")
+        return value
 
     @property
     def longitude(self) -> ArraySpec[Any]:
         """Get longitude array."""
-        return self.members["longitude"]
+        value = self.members.get("longitude")
+        if value is None:
+            raise KeyError("longitude")
+        return value
 
     @property
     def pixel(self) -> ArraySpec[Any]:
         """Get pixel array."""
-        return self.members["pixel"]
+        value = self.members.get("pixel")
+        if value is None:
+            raise KeyError("pixel")
+        return value
 
     @property
     def slant_range_time_gcp(self) -> ArraySpec[Any]:
         """Get slant_range_time_gcp array."""
-        return self.members["slant_range_time_gcp"]
+        value = self.members.get("slant_range_time_gcp")
+        if value is None:
+            raise KeyError("slant_range_time_gcp")
+        return value
 
 
-class Sentinel1OrbitMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel1OrbitMembers(TypedDict, closed=True, total=False):
     """Members for orbit group."""
 
     axis: ArraySpec[Any]
@@ -414,31 +552,43 @@ class Sentinel1OrbitMembers(TypedDict, closed=True, total=False):  # type: ignor
     velocity: ArraySpec[Any]
 
 
-class Sentinel1OrbitGroup(GroupSpec[DatasetAttrs, Sentinel1OrbitMembers]):  # type: ignore[type-var]
+class Sentinel1OrbitGroup(GroupSpec[DatasetAttrs, Sentinel1OrbitMembers]):
     """Orbit group containing spacecraft position and velocity."""
 
     @property
     def axis(self) -> ArraySpec[Any]:
         """Get axis array."""
-        return self.members["axis"]
+        value = self.members.get("axis")
+        if value is None:
+            raise KeyError("axis")
+        return value
 
     @property
     def azimuth_time(self) -> ArraySpec[Any]:
         """Get azimuth_time array."""
-        return self.members["azimuth_time"]
+        value = self.members.get("azimuth_time")
+        if value is None:
+            raise KeyError("azimuth_time")
+        return value
 
     @property
     def position(self) -> ArraySpec[Any]:
         """Get position array."""
-        return self.members["position"]
+        value = self.members.get("position")
+        if value is None:
+            raise KeyError("position")
+        return value
 
     @property
     def velocity(self) -> ArraySpec[Any]:
         """Get velocity array."""
-        return self.members["velocity"]
+        value = self.members.get("velocity")
+        if value is None:
+            raise KeyError("velocity")
+        return value
 
 
-class Sentinel1ReferenceReplicaMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel1ReferenceReplicaMembers(TypedDict, closed=True, total=False):
     """Members for reference_replica group.
 
     Closed TypedDict - only reference replica coefficient array keys are allowed.
@@ -450,28 +600,35 @@ class Sentinel1ReferenceReplicaMembers(TypedDict, closed=True, total=False):  # 
     reference_replica_phase_coefficients: ArraySpec[Any]
 
 
-class Sentinel1ReferenceReplicaGroup(
-    GroupSpec[DatasetAttrs, Sentinel1ReferenceReplicaMembers]  # type: ignore[type-var]
-):
+class Sentinel1ReferenceReplicaGroup(GroupSpec[DatasetAttrs, Sentinel1ReferenceReplicaMembers]):
     """Reference replica group."""
 
     @property
     def azimuth_time(self) -> ArraySpec[Any]:
         """Get azimuth_time array."""
-        return self.members["azimuth_time"]
+        value = self.members.get("azimuth_time")
+        if value is None:
+            raise KeyError("azimuth_time")
+        return value
 
     @property
     def reference_replica_amplitude_coefficients(self) -> ArraySpec[Any]:
         """Get reference_replica_amplitude_coefficients array."""
-        return self.members["reference_replica_amplitude_coefficients"]
+        value = self.members.get("reference_replica_amplitude_coefficients")
+        if value is None:
+            raise KeyError("reference_replica_amplitude_coefficients")
+        return value
 
     @property
     def reference_replica_phase_coefficients(self) -> ArraySpec[Any]:
         """Get reference_replica_phase_coefficients array."""
-        return self.members["reference_replica_phase_coefficients"]
+        value = self.members.get("reference_replica_phase_coefficients")
+        if value is None:
+            raise KeyError("reference_replica_phase_coefficients")
+        return value
 
 
-class Sentinel1ReplicaMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel1ReplicaMembers(TypedDict, closed=True, total=False):
     """Members for replica group.
 
     Closed TypedDict - only pulse replica data array keys are allowed.
@@ -491,89 +648,126 @@ class Sentinel1ReplicaMembers(TypedDict, closed=True, total=False):  # type: ign
     relative_pg_product_valid_flag: ArraySpec[Any]
 
 
-class Sentinel1ReplicaGroup(GroupSpec[DatasetAttrs, Sentinel1ReplicaMembers]):  # type: ignore[type-var]
+class Sentinel1ReplicaGroup(GroupSpec[DatasetAttrs, Sentinel1ReplicaMembers]):
     """Replica group containing pulse replica data."""
 
     @property
     def absolute_pg_product_valid_flag(self) -> ArraySpec[Any]:
         """Get absolute_pg_product_valid_flag array."""
-        return self.members["absolute_pg_product_valid_flag"]
+        value = self.members.get("absolute_pg_product_valid_flag")
+        if value is None:
+            raise KeyError("absolute_pg_product_valid_flag")
+        return value
 
     @property
     def azimuth_time(self) -> ArraySpec[Any]:
         """Get azimuth_time array."""
-        return self.members["azimuth_time"]
+        value = self.members.get("azimuth_time")
+        if value is None:
+            raise KeyError("azimuth_time")
+        return value
 
     @property
     def cross_correlation_peak_location(self) -> ArraySpec[Any]:
         """Get cross_correlation_peak_location array."""
-        return self.members["cross_correlation_peak_location"]
+        value = self.members.get("cross_correlation_peak_location")
+        if value is None:
+            raise KeyError("cross_correlation_peak_location")
+        return value
 
     @property
     def cross_correlation_pslr(self) -> ArraySpec[Any]:
         """Get cross_correlation_pslr array."""
-        return self.members["cross_correlation_pslr"]
+        value = self.members.get("cross_correlation_pslr")
+        if value is None:
+            raise KeyError("cross_correlation_pslr")
+        return value
 
     @property
     def internal_time_delay(self) -> ArraySpec[Any]:
         """Get internal_time_delay array."""
-        return self.members["internal_time_delay"]
+        value = self.members.get("internal_time_delay")
+        if value is None:
+            raise KeyError("internal_time_delay")
+        return value
 
     @property
     def model_pg_product_amplitude(self) -> ArraySpec[Any]:
         """Get model_pg_product_amplitude array."""
-        return self.members["model_pg_product_amplitude"]
+        value = self.members.get("model_pg_product_amplitude")
+        if value is None:
+            raise KeyError("model_pg_product_amplitude")
+        return value
 
     @property
     def model_pg_product_phase(self) -> ArraySpec[Any]:
         """Get model_pg_product_phase array."""
-        return self.members["model_pg_product_phase"]
+        value = self.members.get("model_pg_product_phase")
+        if value is None:
+            raise KeyError("model_pg_product_phase")
+        return value
 
     @property
     def pg_product_amplitude(self) -> ArraySpec[Any]:
         """Get pg_product_amplitude array."""
-        return self.members["pg_product_amplitude"]
+        value = self.members.get("pg_product_amplitude")
+        if value is None:
+            raise KeyError("pg_product_amplitude")
+        return value
 
     @property
     def pg_product_phase(self) -> ArraySpec[Any]:
         """Get pg_product_phase array."""
-        return self.members["pg_product_phase"]
+        value = self.members.get("pg_product_phase")
+        if value is None:
+            raise KeyError("pg_product_phase")
+        return value
 
     @property
     def reconstructed_replica_valid_flag(self) -> ArraySpec[Any]:
         """Get reconstructed_replica_valid_flag array."""
-        return self.members["reconstructed_replica_valid_flag"]
+        value = self.members.get("reconstructed_replica_valid_flag")
+        if value is None:
+            raise KeyError("reconstructed_replica_valid_flag")
+        return value
 
     @property
     def relative_pg_product_valid_flag(self) -> ArraySpec[Any]:
         """Get relative_pg_product_valid_flag array."""
-        return self.members["relative_pg_product_valid_flag"]
+        value = self.members.get("relative_pg_product_valid_flag")
+        if value is None:
+            raise KeyError("relative_pg_product_valid_flag")
+        return value
 
 
-class Sentinel1TerrainHeightMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel1TerrainHeightMembers(TypedDict, closed=True, total=False):
     """Members for terrain_height group."""
 
     azimuth_time: ArraySpec[Any]
     terrain_height: ArraySpec[Any]
 
 
-class Sentinel1TerrainHeightGroup(
-    GroupSpec[DatasetAttrs, Sentinel1TerrainHeightMembers]  # type: ignore[type-var]
-):
+class Sentinel1TerrainHeightGroup(GroupSpec[DatasetAttrs, Sentinel1TerrainHeightMembers]):
     """Terrain height group."""
 
     @property
     def azimuth_time(self) -> ArraySpec[Any]:
         """Get azimuth_time array."""
-        return self.members["azimuth_time"]
+        value = self.members.get("azimuth_time")
+        if value is None:
+            raise KeyError("azimuth_time")
+        return value
 
     @property
     def terrain_height(self) -> ArraySpec[Any]:
         """Get terrain_height array."""
-        return self.members["terrain_height"]
+        value = self.members.get("terrain_height")
+        if value is None:
+            raise KeyError("terrain_height")
+        return value
 
 
-class Sentinel1ConditionsMembers(TypedDict, closed=True):  # type: ignore[call-arg]
+class Sentinel1ConditionsMembers(TypedDict, closed=True):
     """Members for conditions group.
 
     Closed TypedDict - only antenna_pattern, attitude, azimuth_fm_rate, etc. keys are allowed.
@@ -591,7 +785,7 @@ class Sentinel1ConditionsMembers(TypedDict, closed=True):  # type: ignore[call-a
     terrain_height: Sentinel1TerrainHeightGroup
 
 
-class Sentinel1ConditionsGroup(GroupSpec[DatasetAttrs, Sentinel1ConditionsMembers]):  # type: ignore[type-var]
+class Sentinel1ConditionsGroup(GroupSpec[DatasetAttrs, Sentinel1ConditionsMembers]):
     """Conditions group containing acquisition and processing metadata."""
 
     def get_antenna_pattern(self) -> Sentinel1AntennaPatternGroup | None:
@@ -636,7 +830,7 @@ class Sentinel1ConditionsGroup(GroupSpec[DatasetAttrs, Sentinel1ConditionsMember
 
 
 # Quality groups
-class Sentinel1CalibrationMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel1CalibrationMembers(TypedDict, closed=True, total=False):
     """Members for calibration group."""
 
     azimuth_time: ArraySpec[Any]
@@ -649,51 +843,75 @@ class Sentinel1CalibrationMembers(TypedDict, closed=True, total=False):  # type:
     sigma_nought: ArraySpec[Any]
 
 
-class Sentinel1CalibrationGroup(GroupSpec[DatasetAttrs, Sentinel1CalibrationMembers]):  # type: ignore[type-var]
+class Sentinel1CalibrationGroup(GroupSpec[DatasetAttrs, Sentinel1CalibrationMembers]):
     """Calibration group containing radiometric calibration data."""
 
     @property
     def azimuth_time(self) -> ArraySpec[Any]:
         """Get azimuth_time array."""
-        return self.members["azimuth_time"]
+        value = self.members.get("azimuth_time")
+        if value is None:
+            raise KeyError("azimuth_time")
+        return value
 
     @property
     def beta_nought(self) -> ArraySpec[Any]:
         """Get beta_nought array."""
-        return self.members["beta_nought"]
+        value = self.members.get("beta_nought")
+        if value is None:
+            raise KeyError("beta_nought")
+        return value
 
     @property
     def dn(self) -> ArraySpec[Any]:
         """Get dn array."""
-        return self.members["dn"]
+        value = self.members.get("dn")
+        if value is None:
+            raise KeyError("dn")
+        return value
 
     @property
     def gamma(self) -> ArraySpec[Any]:
         """Get gamma array."""
-        return self.members["gamma"]
+        value = self.members.get("gamma")
+        if value is None:
+            raise KeyError("gamma")
+        return value
 
     @property
     def ground_range(self) -> ArraySpec[Any]:
         """Get ground_range array."""
-        return self.members["ground_range"]
+        value = self.members.get("ground_range")
+        if value is None:
+            raise KeyError("ground_range")
+        return value
 
     @property
     def line(self) -> ArraySpec[Any]:
         """Get line array."""
-        return self.members["line"]
+        value = self.members.get("line")
+        if value is None:
+            raise KeyError("line")
+        return value
 
     @property
     def pixel(self) -> ArraySpec[Any]:
         """Get pixel array."""
-        return self.members["pixel"]
+        value = self.members.get("pixel")
+        if value is None:
+            raise KeyError("pixel")
+        return value
 
     @property
     def sigma_nought(self) -> ArraySpec[Any]:
         """Get sigma_nought array."""
-        return self.members["sigma_nought"]
+        value = self.members.get("sigma_nought")
+        if value is None:
+            raise KeyError("sigma_nought")
+        return value
 
 
-class Sentinel1NoiseMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel1NoiseMembers(TypedDict, closed=True, total=False):
     """Members for noise group."""
 
     azimuth_time: ArraySpec[Any]
@@ -701,26 +919,35 @@ class Sentinel1NoiseMembers(TypedDict, closed=True, total=False):  # type: ignor
     number_of_noise_lines: ArraySpec[Any]
 
 
-class Sentinel1NoiseGroup(GroupSpec[DatasetAttrs, Sentinel1NoiseMembers]):  # type: ignore[type-var]
+class Sentinel1NoiseGroup(GroupSpec[DatasetAttrs, Sentinel1NoiseMembers]):
     """Noise group containing noise estimation data."""
 
     @property
     def azimuth_time(self) -> ArraySpec[Any]:
         """Get azimuth_time array."""
-        return self.members["azimuth_time"]
+        value = self.members.get("azimuth_time")
+        if value is None:
+            raise KeyError("azimuth_time")
+        return value
 
     @property
     def noise_power_correction_factor(self) -> ArraySpec[Any]:
         """Get noise_power_correction_factor array."""
-        return self.members["noise_power_correction_factor"]
+        value = self.members.get("noise_power_correction_factor")
+        if value is None:
+            raise KeyError("noise_power_correction_factor")
+        return value
 
     @property
     def number_of_noise_lines(self) -> ArraySpec[Any]:
         """Get number_of_noise_lines array."""
-        return self.members["number_of_noise_lines"]
+        value = self.members.get("number_of_noise_lines")
+        if value is None:
+            raise KeyError("number_of_noise_lines")
+        return value
 
 
-class Sentinel1NoiseAzimuthMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel1NoiseAzimuthMembers(TypedDict, closed=True, total=False):
     """Members for noise_azimuth group."""
 
     first_azimuth_time: ArraySpec[Any]
@@ -732,46 +959,67 @@ class Sentinel1NoiseAzimuthMembers(TypedDict, closed=True, total=False):  # type
     swath: ArraySpec[Any]
 
 
-class Sentinel1NoiseAzimuthGroup(GroupSpec[DatasetAttrs, Sentinel1NoiseAzimuthMembers]):  # type: ignore[type-var]
+class Sentinel1NoiseAzimuthGroup(GroupSpec[DatasetAttrs, Sentinel1NoiseAzimuthMembers]):
     """Noise azimuth group containing azimuth noise vectors."""
 
     @property
     def first_azimuth_time(self) -> ArraySpec[Any]:
         """Get first_azimuth_time array."""
-        return self.members["first_azimuth_time"]
+        value = self.members.get("first_azimuth_time")
+        if value is None:
+            raise KeyError("first_azimuth_time")
+        return value
 
     @property
     def first_range_sample(self) -> ArraySpec[Any]:
         """Get first_range_sample array."""
-        return self.members["first_range_sample"]
+        value = self.members.get("first_range_sample")
+        if value is None:
+            raise KeyError("first_range_sample")
+        return value
 
     @property
     def last_azimuth_time(self) -> ArraySpec[Any]:
         """Get last_azimuth_time array."""
-        return self.members["last_azimuth_time"]
+        value = self.members.get("last_azimuth_time")
+        if value is None:
+            raise KeyError("last_azimuth_time")
+        return value
 
     @property
     def last_range_sample(self) -> ArraySpec[Any]:
         """Get last_range_sample array."""
-        return self.members["last_range_sample"]
+        value = self.members.get("last_range_sample")
+        if value is None:
+            raise KeyError("last_range_sample")
+        return value
 
     @property
     def line(self) -> ArraySpec[Any]:
         """Get line array."""
-        return self.members["line"]
+        value = self.members.get("line")
+        if value is None:
+            raise KeyError("line")
+        return value
 
     @property
     def noise_azimuth_lut(self) -> ArraySpec[Any]:
         """Get noise_azimuth_lut array."""
-        return self.members["noise_azimuth_lut"]
+        value = self.members.get("noise_azimuth_lut")
+        if value is None:
+            raise KeyError("noise_azimuth_lut")
+        return value
 
     @property
     def swath(self) -> ArraySpec[Any]:
         """Get swath array."""
-        return self.members["swath"]
+        value = self.members.get("swath")
+        if value is None:
+            raise KeyError("swath")
+        return value
 
 
-class Sentinel1NoiseRangeMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel1NoiseRangeMembers(TypedDict, closed=True, total=False):
     """Members for noise_range group."""
 
     azimuth_time: ArraySpec[Any]
@@ -781,36 +1029,51 @@ class Sentinel1NoiseRangeMembers(TypedDict, closed=True, total=False):  # type: 
     pixel: ArraySpec[Any]
 
 
-class Sentinel1NoiseRangeGroup(GroupSpec[DatasetAttrs, Sentinel1NoiseRangeMembers]):  # type: ignore[type-var]
+class Sentinel1NoiseRangeGroup(GroupSpec[DatasetAttrs, Sentinel1NoiseRangeMembers]):
     """Noise range group containing range noise vectors."""
 
     @property
     def azimuth_time(self) -> ArraySpec[Any]:
         """Get azimuth_time array."""
-        return self.members["azimuth_time"]
+        value = self.members.get("azimuth_time")
+        if value is None:
+            raise KeyError("azimuth_time")
+        return value
 
     @property
     def ground_range(self) -> ArraySpec[Any]:
         """Get ground_range array."""
-        return self.members["ground_range"]
+        value = self.members.get("ground_range")
+        if value is None:
+            raise KeyError("ground_range")
+        return value
 
     @property
     def line(self) -> ArraySpec[Any]:
         """Get line array."""
-        return self.members["line"]
+        value = self.members.get("line")
+        if value is None:
+            raise KeyError("line")
+        return value
 
     @property
     def noise_range_lut(self) -> ArraySpec[Any]:
         """Get noise_range_lut array."""
-        return self.members["noise_range_lut"]
+        value = self.members.get("noise_range_lut")
+        if value is None:
+            raise KeyError("noise_range_lut")
+        return value
 
     @property
     def pixel(self) -> ArraySpec[Any]:
         """Get pixel array."""
-        return self.members["pixel"]
+        value = self.members.get("pixel")
+        if value is None:
+            raise KeyError("pixel")
+        return value
 
 
-class Sentinel1QualityMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel1QualityMembers(TypedDict, closed=True, total=False):
     """Members for quality group.
 
     Closed TypedDict with optional fields to support different product variants:
@@ -824,7 +1087,7 @@ class Sentinel1QualityMembers(TypedDict, closed=True, total=False):  # type: ign
     noise_range: Sentinel1NoiseRangeGroup
 
 
-class Sentinel1QualityGroup(GroupSpec[DatasetAttrs, Sentinel1QualityMembers]):  # type: ignore[type-var]
+class Sentinel1QualityGroup(GroupSpec[DatasetAttrs, Sentinel1QualityMembers]):
     """Quality group containing quality assurance and calibration data.
 
     Supports both S1A (with noise_azimuth, noise_range) and S1C (without them) products.
@@ -848,7 +1111,7 @@ class Sentinel1QualityGroup(GroupSpec[DatasetAttrs, Sentinel1QualityMembers]):  
 
 
 # Measurements
-class Sentinel1MeasurementsMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class Sentinel1MeasurementsMembers(TypedDict, closed=True, total=False):
     """Members for measurements group."""
 
     azimuth_time: ArraySpec[Any]
@@ -858,37 +1121,52 @@ class Sentinel1MeasurementsMembers(TypedDict, closed=True, total=False):  # type
     pixel: ArraySpec[Any]
 
 
-class Sentinel1MeasurementsGroup(GroupSpec[DatasetAttrs, Sentinel1MeasurementsMembers]):  # type: ignore[type-var]
+class Sentinel1MeasurementsGroup(GroupSpec[DatasetAttrs, Sentinel1MeasurementsMembers]):
     """Measurements group containing SAR imagery data."""
 
     @property
     def azimuth_time(self) -> ArraySpec[Any]:
         """Get azimuth_time array."""
-        return self.members["azimuth_time"]
+        value = self.members.get("azimuth_time")
+        if value is None:
+            raise KeyError("azimuth_time")
+        return value
 
     @property
     def grd(self) -> ArraySpec[Any]:
         """Get grd array."""
-        return self.members["grd"]
+        value = self.members.get("grd")
+        if value is None:
+            raise KeyError("grd")
+        return value
 
     @property
     def ground_range(self) -> ArraySpec[Any]:
         """Get ground_range array."""
-        return self.members["ground_range"]
+        value = self.members.get("ground_range")
+        if value is None:
+            raise KeyError("ground_range")
+        return value
 
     @property
     def line(self) -> ArraySpec[Any]:
         """Get line array."""
-        return self.members["line"]
+        value = self.members.get("line")
+        if value is None:
+            raise KeyError("line")
+        return value
 
     @property
     def pixel(self) -> ArraySpec[Any]:
         """Get pixel array."""
-        return self.members["pixel"]
+        value = self.members.get("pixel")
+        if value is None:
+            raise KeyError("pixel")
+        return value
 
 
 # Polarization group
-class Sentinel1PolarizationMembers(TypedDict, closed=True):  # type: ignore[call-arg]
+class Sentinel1PolarizationMembers(TypedDict, closed=True):
     """Members for polarization group.
 
     Closed TypedDict - only conditions, measurements, quality keys are allowed.
@@ -899,7 +1177,7 @@ class Sentinel1PolarizationMembers(TypedDict, closed=True):  # type: ignore[call
     quality: Sentinel1QualityGroup
 
 
-class Sentinel1PolarizationGroup(GroupSpec[DatasetAttrs, Sentinel1PolarizationMembers]):  # type: ignore[type-var]
+class Sentinel1PolarizationGroup(GroupSpec[DatasetAttrs, Sentinel1PolarizationMembers]):
     """Polarization-specific group containing all data for one polarization."""
 
     @property

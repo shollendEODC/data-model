@@ -15,7 +15,7 @@ from eopf_geozarr.data_api.s1 import Sentinel1Root
 
 def test_sentinel1_roundtrip(s1_json_example: dict[str, object]) -> None:
     """Test that we can round-trip JSON data without loss"""
-    model1 = Sentinel1Root(**s1_json_example)
+    model1 = Sentinel1Root.model_validate(s1_json_example)
     dumped = model1.model_dump()
-    model2 = Sentinel1Root(**dumped)
+    model2 = Sentinel1Root.model_validate(dumped)
     assert model1.model_dump() == model2.model_dump()

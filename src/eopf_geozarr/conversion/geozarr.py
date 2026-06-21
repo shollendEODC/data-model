@@ -24,6 +24,8 @@ import numpy as np
 import structlog
 import xarray as xr
 import zarr
+import zarr.core.common
+import zarr.core.group
 from pyproj import CRS
 from rasterio.warp import calculate_default_transform
 from zarr.codecs import BloscCodec
@@ -49,6 +51,7 @@ from .fs_utils import sanitize_dataset_attributes
 from .sentinel1_reprojection import reproject_sentinel1_with_gcps
 
 if TYPE_CHECKING:
+    from zarr.core.common import JSON
     from zarr_cm import MultiscalesAttrs
 
 log = structlog.get_logger()
@@ -364,14 +367,15 @@ def iterative_copy(
 
             # Write the dataset
             group_param = current_group_path.lstrip("/") if current_group_path else None
-            ds.to_zarr(  # type: ignore[call-overload]  # xarray stubs type storage_options as dict[str, str]
+            ds.to_zarr(
                 output_path,
                 group=group_param,
                 mode="w",
                 consolidated=False,
                 zarr_format=3,
                 encoding=encoding,
-                storage_options=storage_options,
+                # xarray stubs type storage_options as dict[str, str]; S3FsOptions is broader
+                storage_options=storage_options,  # pyright: ignore[reportArgumentType]
             )
 
             dt_result[relative_path] = xr.DataTree(ds)
@@ -677,7 +681,7 @@ def create_geozarr_compliant_multiscales(
     # spatial, proj). proj is included only when a CRS is available.
     multiscales_data = cast(
         "MultiscalesAttrs",
-        MultiscaleMeta(layout=layout, resampling_method="average").model_dump(),
+        MultiscaleMeta(layout=tuple(layout), resampling_method="average").model_dump(),
     )
     attrs_to_write = utils.build_convention_attrs(
         multiscales=multiscales_data,
@@ -691,7 +695,7 @@ def create_geozarr_compliant_multiscales(
 
     group_path = fs_utils.normalize_path(f"{output_path}/{group_name.lstrip('/')}")
     zarr_group = fs_utils.open_zarr_group(group_path, mode="r+")
-    zarr_group.attrs.update(cast("dict[str, Any]", attrs_to_write))
+    zarr_group.attrs.update(cast("dict[str, JSON]", attrs_to_write))
 
     log.info("Added multiscales metadata to group %s", group_name)
 
@@ -748,7 +752,7 @@ def create_geozarr_compliant_multiscales(
         overview_ds = sanitize_dataset_attributes(overview_ds)
 
         align_chunks_flag = not enable_sharding
-        overview_ds.to_zarr(  # type: ignore[call-overload]  # xarray stubs type storage_options as dict[str, str]
+        overview_ds.to_zarr(
             output_path,
             group=overview_group,
             mode="w",
@@ -756,7 +760,8 @@ def create_geozarr_compliant_multiscales(
             zarr_format=3,
             encoding=encoding,
             align_chunks=align_chunks_flag,
-            storage_options=storage_options,
+            # xarray stubs type storage_options as dict[str, str]; S3FsOptions is broader
+            storage_options=storage_options,  # pyright: ignore[reportArgumentType]
         )
 
         overview_datasets[asset_name] = overview_ds
@@ -1108,14 +1113,15 @@ def write_dataset_band_by_band_with_validation(
                 # Sanitize NaN values in single variable dataset attributes
                 single_var_ds = sanitize_dataset_attributes(single_var_ds)
 
-                single_var_ds.to_zarr(  # type: ignore[call-overload]  # xarray stubs type storage_options as dict[str, str]
+                single_var_ds.to_zarr(
                     output_path,
                     group=group_name,
                     mode="a",
                     consolidated=False,
                     zarr_format=3,
                     encoding=var_encoding,
-                    storage_options=store_storage_options,
+                    # xarray stubs type storage_options as dict[str, str]; S3FsOptions is broader
+                    storage_options=store_storage_options,  # pyright: ignore[reportArgumentType]
                 )
 
                 log.info("    ✅ Successfully wrote", var=var)
@@ -1396,9 +1402,10 @@ def _create_encoding(
                     for i in range(len(current_chunks))
                 )
             else:
-                chunking = (
-                    current_chunks[0][0] if len(current_chunks[0]) > 0 else ds[var].shape[0],
-                )
+                chunks_list = list(current_chunks)
+                first_chunks = list(chunks_list[0])
+                first_shape = list(ds[var].shape)
+                chunking = (first_chunks[0] if len(first_chunks) > 0 else first_shape[0],)
         else:
             data_shape = ds[var].shape
             if len(data_shape) >= 2:
@@ -1406,7 +1413,7 @@ def _create_encoding(
                 chunk_x = min(spatial_chunk, data_shape[-1])
                 chunking = (1, chunk_y, chunk_x) if len(data_shape) == 3 else (chunk_y, chunk_x)
             else:
-                chunking = (min(spatial_chunk, data_shape[-1]),)
+                chunking = (min(spatial_chunk, list(data_shape)[-1]),)
 
         var_encoding: XarrayEncodingJSON = {
             "compressors": [compressor],
@@ -1482,7 +1489,7 @@ def _create_geozarr_encoding(
                     )
                 else:
                     # For 1D data, use the full dimension
-                    shards = (data_shape[0],)
+                    shards = (next(iter(data_shape)),)
                     log.info(
                         "  🔧 Sharding config",
                         var=var,
@@ -1699,5 +1706,14 @@ def _is_sentinel1(dt: xr.DataTree) -> bool:
 def get_zarr_group(data: xr.DataTree) -> zarr.Group:
     # `_close` is a bound method of the backend store on an opened DataTree;
     # `__self__` retrieves that store, which exposes `zarr_group`. These are
-    # xarray/zarr internals without public type information.
-    return cast("zarr.Group", data._close.__self__.zarr_group)  # type: ignore[union-attr]
+    # xarray/zarr internals without public type information, so resolve them
+    # defensively and verify the result is actually a zarr.Group.
+    close = data._close
+    store = getattr(close, "__self__", None)
+    group = getattr(store, "zarr_group", None)
+    if not isinstance(group, zarr.Group):
+        raise TypeError(
+            "Could not resolve a zarr.Group from the DataTree backend "
+            f"(got {type(group).__name__}); the xarray/zarr internals may have changed."
+        )
+    return group

@@ -91,13 +91,19 @@ class GeoZarrScaleLevel(ScaleLevel):
 class GeoZarrMultiscaleMeta(MultiscaleMeta):
     """Multiscale metadata where every layout entry is a `GeoZarrScaleLevel`."""
 
-    layout: tuple[GeoZarrScaleLevel, ...]
+    # Intentionally tightens the base ``layout`` field: ``GeoZarrScaleLevel`` is a
+    # subclass of ``ScaleLevel`` and the optional ``MISSING`` default is dropped to make
+    # the field mandatory in this store-level profile. pyright flags the narrowed,
+    # now-required override on a mutable (invariant) field.
+    layout: tuple[GeoZarrScaleLevel, ...]  # pyright: ignore[reportGeneralTypeIssues, reportIncompatibleVariableOverride]
 
 
 class GeoZarrMultiscaleGroupAttrs(MultiscaleGroupAttrs):
     """Multiscale group attributes with a mandatory `spatial:bbox`."""
 
-    multiscales: GeoZarrMultiscaleMeta
+    # Intentionally tightens the base ``multiscales`` field to the ``GeoZarrMultiscaleMeta``
+    # subclass; pyright flags the narrowed override on a mutable (invariant) field.
+    multiscales: GeoZarrMultiscaleMeta  # pyright: ignore[reportIncompatibleVariableOverride]
     spatial_bbox: list[float] = Field(alias="spatial:bbox", min_length=4, max_length=4)
 
     model_config = ConfigDict(

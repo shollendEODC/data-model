@@ -30,7 +30,7 @@ def test_scale_level_from_group() -> None:
     """
     meta = {"group": "1", "from_group": "0"}
     with pytest.raises(ValidationError):
-        ScaleLevel(**meta)
+        ScaleLevel.model_validate(meta)
 
 
 def test_scalelevel_json() -> None:
@@ -46,4 +46,4 @@ def test_scalelevel_json() -> None:
         },
         "resampling_method": "nearest",
     }
-    assert ScaleLevel(**x).model_dump() == x
+    assert ScaleLevel.model_validate(x).model_dump() == x

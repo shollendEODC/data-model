@@ -9,6 +9,7 @@ from typing import Any, cast
 
 import numpy as np
 import rasterio
+import rasterio.control  # Import submodule for GroundControlPoint attribute access
 import rioxarray  # noqa: F401  # Import to enable .rio accessor
 import structlog
 import xarray as xr
@@ -76,6 +77,9 @@ def reproject_sentinel1_with_gcps(
         gcps=gcps,
     )
 
+    # calculate_default_transform sizes the grid, so width and height are populated
+    assert width is not None
+    assert height is not None
     log.info("Calculated target dimensions", width=width, height=height)
     log.info("Transform", transform=str(transform))
 

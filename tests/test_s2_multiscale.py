@@ -4,6 +4,7 @@ Tests for S2 multiscale pyramid creation with xy-aligned sharding.
 
 import json
 import pathlib
+from collections.abc import Mapping, Sequence
 from itertools import pairwise
 from pathlib import Path
 from unittest.mock import patch
@@ -17,6 +18,7 @@ from pydantic_zarr.v3 import GroupSpec
 from structlog.testing import capture_logs
 from zarr.codecs import BloscCodec, CastValue, ScaleOffset
 from zarr.core.dtype import Int16
+from zarr.core.metadata import ArrayV3Metadata
 
 from eopf_geozarr.s2_optimization.s2_multiscale import (
     _coarsen_variable,
@@ -70,7 +72,9 @@ def test_add_multiscales_metadata_prefers_coordinate_transform_for_inconsistent_
             {"band": (["y", "x"], np.ones((size, size), dtype=np.uint16))},
             coords={"x": x, "y": y},
         )
-        return ds.rio.write_crs("EPSG:32631")
+        crs_ds = ds.rio.write_crs("EPSG:32631")
+        assert isinstance(crs_ds, xr.Dataset)
+        return crs_ds
 
     r10m = _dataset(10, 12, 600000.0, 4900020.0)
     r120m = _dataset(120, 3, 600030.0, 4899990.0)
@@ -86,9 +90,17 @@ def test_add_multiscales_metadata_prefers_coordinate_transform_for_inconsistent_
             {"r10m": r10m, "r120m": r120m},
         )
 
-    layout = parent_group.attrs["multiscales"]["layout"]
-    derived_level = next(level for level in layout if level["asset"] == "r120m")
-    assert tuple(derived_level["spatial:transform"]) == (
+    multiscales = parent_group.attrs["multiscales"]
+    assert isinstance(multiscales, Mapping)
+    layout = multiscales["layout"]
+    assert isinstance(layout, Sequence)
+    derived_level = next(
+        level for level in layout if isinstance(level, Mapping) and level["asset"] == "r120m"
+    )
+    assert isinstance(derived_level, Mapping)
+    transform = derived_level["spatial:transform"]
+    assert isinstance(transform, Sequence)
+    assert tuple(transform) == (
         120.0,
         0.0,
         600030.0,
@@ -101,8 +113,8 @@ def test_add_multiscales_metadata_prefers_coordinate_transform_for_inconsistent_
 def test_calculate_simple_shard_dimensions() -> None:
     """Test simplified shard dimensions calculation."""
     # Test 3D data (time, y, x) - shards are multiples of chunks
-    data_shape = (5, 1024, 1024)
-    chunks = (1, 256, 256)
+    data_shape: tuple[int, ...] = (5, 1024, 1024)
+    chunks: tuple[int, ...] = (1, 256, 256)
 
     shard_dims = calculate_simple_shard_dimensions(data_shape, chunks)
 
@@ -181,8 +193,8 @@ def test_create_measurements_encoding(keep_scale_offset: bool, sample_dataset: x
 
     # Check that encoding is created for all variables
     for var_name in sample_dataset.data_vars:
-        assert var_name in encoding
-        var_encoding = encoding[var_name]
+        assert str(var_name) in encoding
+        var_encoding = encoding[str(var_name)]
 
         # Check basic encoding structure
         assert "chunks" in var_encoding
@@ -194,11 +206,11 @@ def test_create_measurements_encoding(keep_scale_offset: bool, sample_dataset: x
 
     # Check coordinate encoding
     for coord_name in sample_dataset.coords:
-        if coord_name in encoding:
+        if str(coord_name) in encoding:
             # Coordinates may have either compressor or compressors set to None
             assert (
-                encoding[coord_name].get("compressor") is None
-                or encoding[coord_name].get("compressors") is None
+                encoding[str(coord_name)].get("compressor") is None
+                or encoding[str(coord_name)].get("compressors") is None
             )
     # Store data and check that we are conditionally applying the scale-offset transformation
     # based on the request passed to the encoding
@@ -220,7 +232,8 @@ def test_create_measurements_encoding_time_chunking(sample_dataset: xr.Dataset) 
 
     for var_name in sample_dataset.data_vars:
         if sample_dataset[var_name].ndim == 3:  # 3D variable with time
-            chunks = encoding[var_name]["chunks"]
+            chunks = encoding[str(var_name)].get("chunks")
+            assert chunks is not None
             assert chunks[0] == 1  # Time dimension should be chunked to 1
 
 
@@ -240,7 +253,7 @@ def test_calculate_aligned_chunk_size() -> None:
 @pytest.mark.filterwarnings("ignore:.*:FutureWarning")
 @pytest.mark.filterwarnings("ignore:.*:UserWarning")
 def test_create_multiscale_from_datatree(
-    s2_group_example: zarr.Group,
+    s2_group_example: pathlib.Path,
     tmp_path: pathlib.Path,
 ) -> None:
     """Snapshot test: a single canonical parametrization (keep_scale_offset=False,
@@ -253,7 +266,13 @@ def test_create_multiscale_from_datatree(
     output_path = str(tmp_path / "output.zarr")
     input_group = zarr.open_group(s2_group_example)
     output_group = zarr.create_group(output_path)
-    dt_input = xr.open_datatree(input_group.store, engine="zarr", chunks="auto")
+    # xarray's open_datatree accepts a zarr store at runtime, but its stub does
+    # not list Store among the accepted input types.
+    dt_input = xr.open_datatree(
+        input_group.store,  # pyright: ignore[reportArgumentType]
+        engine="zarr",
+        chunks="auto",
+    )
 
     # Capture log output using structlog's testing context manager
     with capture_logs():
@@ -291,7 +310,9 @@ def test_create_multiscale_from_datatree(
     # check that all multiscale levels have the same data type
     # this check is redundant with the later check, but it's expedient to check this here.
     # eventually this check should be spun out into its own test
-    _, res_groups = zip(*observed_group["measurements/reflectance"].groups(), strict=False)
+    reflectance_group = observed_group["measurements/reflectance"]
+    assert isinstance(reflectance_group, zarr.Group)
+    _, res_groups = zip(*reflectance_group.groups(), strict=False)
 
     dtype_mismatch: set[object] = set()
     for group_a, group_b in pairwise(res_groups):
@@ -421,6 +442,7 @@ def test_create_multiscale_from_datatree_behavior(
     # ------------------------------------------------------------------
     for group_path, var_name in _ORIGINAL_GROUPS.items():
         arr = zarr.open_array(output_path, path=f"{group_path}/{var_name}")
+        assert isinstance(arr.metadata, ArrayV3Metadata)
         codec_names = [type(c).__name__ for c in arr.metadata.codecs]
 
         if keep_scale_offset:
@@ -461,6 +483,7 @@ def test_create_multiscale_from_datatree_behavior(
         assert ds.data_vars, f"{group_path} has no variables"
         for name in ds.data_vars:
             arr = zarr.open_array(output_path, path=f"{group_path}/{name}")
+            assert isinstance(arr.metadata, ArrayV3Metadata)
             codec_names = [type(c).__name__ for c in arr.metadata.codecs]
 
             if keep_scale_offset:

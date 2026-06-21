@@ -13,10 +13,10 @@ repos:
 
   - repo: local
     hooks:
-      - id: mypy
-        name: mypy
+      - id: pyright
+        name: pyright
         language: system
-        entry: uv run --frozen mypy
+        entry: uv run --frozen pyright
         pass_filenames: false
         always_run: true
         types_or: [python, pyi]

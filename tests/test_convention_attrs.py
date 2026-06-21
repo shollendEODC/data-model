@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import cast
 
 import pytest
 from pyproj import CRS
 from zarr_cm import geo_proj
+from zarr_cm import multiscales as multiscales_cm
 from zarr_cm import spatial as spatial_cm
 
 from eopf_geozarr.conversion.utils import (
@@ -48,18 +49,21 @@ def test_build_convention_attrs_data_and_cmos() -> None:
         },
         crs=CRS.from_epsg(32632),
     )
-    assert out["spatial:dimensions"] == ["y", "x"]
-    assert out["spatial:bbox"] == bbox
-    assert out["spatial:registration"] == "pixel"
-    assert out["proj:code"] == "EPSG:32632"
-    names = [c["name"] for c in out["zarr_conventions"]]
-    assert names == [spatial_cm.CMO["name"], geo_proj.CMO["name"]]
+    data: dict[str, object] = dict(out)
+    assert data["spatial:dimensions"] == ["y", "x"]
+    assert data["spatial:bbox"] == bbox
+    assert data["spatial:registration"] == "pixel"
+    assert data["proj:code"] == "EPSG:32632"
+    conventions = out.get("zarr_conventions")
+    assert conventions is not None
+    names = [c.get("name") for c in conventions]
+    assert names == [spatial_cm.CMO.get("name"), geo_proj.CMO.get("name")]
 
 
 def test_build_convention_attrs_matches_handwritten() -> None:
     """Output is byte-equivalent to the previous hand-assembled dict."""
     bbox = [300000.0, 4990200.0, 409800.0, 5100000.0]
-    hand: dict[str, Any] = {
+    hand: dict[str, object] = {
         "spatial:dimensions": ["y", "x"],
         "spatial:bbox": bbox,
         "spatial:registration": "pixel",
@@ -81,39 +85,48 @@ def test_build_convention_attrs_validates() -> None:
     """Invalid spatial data is rejected by zarr-cm validation."""
     with pytest.raises(ValueError, match="spatial:dimensions"):
         build_convention_attrs(
-            spatial={"spatial:registration": "pixel"},  # missing required dimensions
+            # missing required dimensions — exercises runtime validation
+            spatial=cast("spatial_cm.SpatialAttrs", {"spatial:registration": "pixel"}),
             crs=CRS.from_epsg(32632),
         )
 
 
 def test_build_convention_attrs_with_multiscales() -> None:
     """With multiscales, CMOs are ordered [multiscales, spatial, proj]."""
-    from zarr_cm import multiscales as multiscales_cm
-
     out = build_convention_attrs(
-        multiscales={
-            "layout": [
-                {"asset": "r10m", "spatial:shape": [10980, 10980]},
-                {
-                    "asset": "r20m",
-                    "derived_from": "r10m",
-                    "transform": {"scale": [2.0, 2.0], "translation": [0.0, 0.0]},
-                    "spatial:shape": [5490, 5490],
-                },
-            ],
-            "resampling_method": "average",
-        },
+        multiscales=cast(
+            "multiscales_cm.MultiscalesAttrs",
+            {
+                "layout": [
+                    {"asset": "r10m", "spatial:shape": [10980, 10980]},
+                    {
+                        "asset": "r20m",
+                        "derived_from": "r10m",
+                        "transform": {"scale": [2.0, 2.0], "translation": [0.0, 0.0]},
+                        "spatial:shape": [5490, 5490],
+                    },
+                ],
+                "resampling_method": "average",
+            },
+        ),
         spatial={"spatial:dimensions": ["y", "x"]},
         crs=CRS.from_epsg(32632),
     )
-    names = [c["name"] for c in out["zarr_conventions"]]
+    conventions = out.get("zarr_conventions")
+    assert conventions is not None
+    names = [c.get("name") for c in conventions]
     assert names == [
-        multiscales_cm.CMO["name"],
-        spatial_cm.CMO["name"],
-        geo_proj.CMO["name"],
+        multiscales_cm.CMO.get("name"),
+        spatial_cm.CMO.get("name"),
+        geo_proj.CMO.get("name"),
     ]
     # extra layout keys (spatial:shape) survive the round-trip
-    assert out["multiscales"]["layout"][0]["spatial:shape"] == [10980, 10980]
+    multiscales = out.get("multiscales")
+    assert multiscales is not None
+    layout = multiscales["layout"]
+    assert isinstance(layout, list)
+    first_layout: dict[str, object] = dict(layout[0])
+    assert first_layout["spatial:shape"] == [10980, 10980]
 
 
 def test_build_convention_attrs_multiscales_validation() -> None:

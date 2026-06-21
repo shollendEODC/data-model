@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import pytest
@@ -11,6 +12,9 @@ from eopf_geozarr.data_api.geozarr.v2 import (
     DataArray,
     check_valid_coordinates,
 )
+
+if TYPE_CHECKING:
+    from eopf_geozarr.data_api.geozarr.common import GroupLike
 
 
 def test_invalid_dimension_names() -> None:
@@ -35,10 +39,13 @@ class TestCheckValidCoordinates:
             f"dim_{idx}": DataArray.from_array(np.arange(s), dimension_names=(f"dim_{idx}",))
             for idx, s in enumerate(data_shape)
         }
-        group = GroupSpec[Any, DataArray](
+        group = GroupSpec[Mapping[str, object], DataArray](
             attributes={}, members={"base": base_array, **coords_arrays}
         )
-        assert check_valid_coordinates(group) == group
+        # ``group`` structurally satisfies ``GroupLike``, but mypy cannot bind the
+        # invariant ``Mapping`` value type, mirroring the cast used in the source.
+        group_like = cast("GroupLike", group)
+        assert check_valid_coordinates(group_like) == group_like
 
     @staticmethod
     @pytest.mark.parametrize("data_shape", [(10,), (10, 12)])
@@ -59,9 +66,9 @@ class TestCheckValidCoordinates:
             f"dim_{idx}": DataArray.from_array(np.arange(s + 1), dimension_names=(f"dim_{idx}",))
             for idx, s in enumerate(data_shape)
         }
-        group = GroupSpec[Any, DataArray](
+        group = GroupSpec[Mapping[str, object], DataArray](
             attributes={}, members={"base": base_array, **coords_arrays}
         )
         msg = "Dimension .* for array 'base' has a shape mismatch:"
         with pytest.raises(ValueError, match=msg):
-            check_valid_coordinates(group)
+            check_valid_coordinates(cast("GroupLike", group))

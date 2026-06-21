@@ -5,7 +5,7 @@ Main S2 optimization converter.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, TypedDict, cast
+from typing import TYPE_CHECKING, TypedDict
 
 import structlog
 import xarray as xr
@@ -21,7 +21,7 @@ from eopf_geozarr.data_api.s2 import Sentinel2Root
 from .s2_multiscale import create_multiscale_from_datatree
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping
 
 log = structlog.get_logger()
 
@@ -69,11 +69,14 @@ def initialize_crs_from_dataset(dt_input: xr.DataTree) -> CRS | None:
             continue
         dataset = group_node.ds
 
-        # Check if dataset has rio accessor with CRS
+        # Check if dataset has rio accessor with CRS. rioxarray returns a
+        # rasterio CRS; convert it to a pyproj CRS (the declared return type),
+        # which also validates the value at runtime.
         if hasattr(dataset, "rio"):
             try:
-                ds_crs = cast("CRS | None", dataset.rio.crs)
-                if ds_crs is not None:
+                rio_crs = dataset.rio.crs
+                if rio_crs is not None:
+                    ds_crs = CRS.from_user_input(rio_crs)
                     log.info("Initialized CRS from dataset", crs=str(ds_crs))
                     return ds_crs
             except Exception:
@@ -83,8 +86,9 @@ def initialize_crs_from_dataset(dt_input: xr.DataTree) -> CRS | None:
         for var in dataset.data_vars.values():
             if hasattr(var, "rio"):
                 try:
-                    var_crs = cast("CRS | None", var.rio.crs)
-                    if var_crs is not None:
+                    rio_crs = var.rio.crs
+                    if rio_crs is not None:
+                        var_crs = CRS.from_user_input(rio_crs)
                         log.info("Initialized CRS from variable", crs=str(var_crs))
                         return var_crs
                 except Exception:
@@ -266,7 +270,7 @@ def convert_s2_optimized(
     return result_dt
 
 
-def simple_root_consolidation(output_path: str, datasets: dict[str, dict]) -> None:
+def simple_root_consolidation(output_path: str, datasets: Mapping[str, object]) -> None:
     """Simple root-level metadata consolidation with proper zarr group creation."""
     # create missing intermediary groups (/conditions, /quality, etc.)
     # using the keys of the datasets dict
@@ -321,6 +325,19 @@ def simple_root_consolidation(output_path: str, datasets: dict[str, dict]) -> No
     zarr.consolidate_metadata(output_path, zarr_format=3)
 
 
+def _as_bbox(value: object) -> tuple[float, float, float, float] | None:
+    """Return *value* as a 4-tuple of floats, or ``None`` if it is not one.
+
+    ``spatial:bbox`` is read from stored metadata, so its type is not known
+    statically; this verifies the shape at runtime rather than asserting it.
+    """
+    if not isinstance(value, (list, tuple)) or len(value) != 4:
+        return None
+    if not all(isinstance(v, (int, float)) for v in value):
+        return None
+    return (float(value[0]), float(value[1]), float(value[2]), float(value[3]))
+
+
 def write_store_root_bbox(output_path: str) -> None:
     """Write `spatial:bbox` and `proj:code` at the store root.
 
@@ -337,16 +354,20 @@ def write_store_root_bbox(output_path: str) -> None:
 
     def _walk(group: zarr.Group) -> None:
         attrs = dict(group.attrs)
-        bbox = cast("Sequence[float] | None", attrs.get("spatial:bbox"))
+        bbox = attrs.get("spatial:bbox")
         code = attrs.get("proj:code")
-        if bbox is not None and len(bbox) == 4:
+        # spatial:bbox comes from stored metadata; verify it is a 4-element
+        # numeric sequence before use rather than trusting the type.
+        corners = _as_bbox(bbox)
+        if corners is not None:
+            x0, y0, x1, y1 = corners
             if code and code != "EPSG:4326":
                 transformer = Transformer.from_crs(code, "EPSG:4326", always_xy=True)
-                xmin, ymin = transformer.transform(bbox[0], bbox[1])
-                xmax, ymax = transformer.transform(bbox[2], bbox[3])
+                xmin, ymin = transformer.transform(x0, y0)
+                xmax, ymax = transformer.transform(x1, y1)
                 bboxes_4326.append((xmin, ymin, xmax, ymax))
             else:
-                bboxes_4326.append((float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])))
+                bboxes_4326.append((x0, y0, x1, y1))
         for child in group.groups():
             _walk(child[1])
 
@@ -411,7 +432,7 @@ def create_result_datatree(output_path: str) -> xr.DataTree:
 def is_sentinel2_dataset(group: zarr.Group) -> bool:
     from eopf_geozarr.pyz.v2 import GroupSpec
 
-    adapter = TypeAdapter(Sentinel1Root | Sentinel2Root)  # type: ignore[var-annotated]
+    adapter = TypeAdapter(Sentinel1Root | Sentinel2Root)
     try:
         model = adapter.validate_python(GroupSpec.from_zarr(group).model_dump())
     except ValueError as e:
@@ -421,7 +442,16 @@ def is_sentinel2_dataset(group: zarr.Group) -> bool:
     return isinstance(model, Sentinel2Root)
 
 
-def validate_optimized_dataset(dataset_path: str) -> dict[str, Any]:
+class ValidationResult(TypedDict):
+    """Result of validating an optimized Sentinel-2 dataset."""
+
+    is_valid: bool
+    issues: list[str]
+    warnings: list[str]
+    summary: dict[str, object]
+
+
+def validate_optimized_dataset(dataset_path: str) -> ValidationResult:
     """
     Validate an optimized Sentinel-2 dataset.
 

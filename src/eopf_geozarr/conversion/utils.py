@@ -59,14 +59,17 @@ def build_convention_attrs(
     representation; otherwise only the other conventions are emitted (a proj
     convention with no CRS field is invalid).
     """
-    conventions: dict[zarr_cm.ConventionName, dict[str, Any]] = {}
+    conventions: dict[zarr_cm.ConventionName, MultiscalesAttrs | SpatialAttrs | GeoProjAttrs] = {}
     if multiscales is not None:
-        conventions["multiscales"] = dict(multiscales)
-    conventions["spatial"] = dict(spatial)
+        conventions["multiscales"] = multiscales
+    conventions["spatial"] = spatial
     proj = proj_attrs_for_crs(crs)
     if proj:
-        conventions["geo-proj"] = dict(proj)
-    return cast("MultiConventionAttrs", zarr_cm.create_many(conventions))
+        conventions["geo-proj"] = proj
+    # create_many validates each convention and emits its CMO. It returns a
+    # generic JSON dict; narrow to the combined convention TypedDict.
+    result = zarr_cm.create_many(conventions)
+    return cast("MultiConventionAttrs", result)
 
 
 # Sentinel: distinguish "no explicit fill_value" from a legitimate `None`.

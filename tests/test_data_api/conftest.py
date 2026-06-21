@@ -5,12 +5,8 @@ import json
 import re
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import pytest
-
-if TYPE_CHECKING:
-    from typing import Any
 
 
 def extract_json_code_blocks(
@@ -53,7 +49,8 @@ def extract_json_code_blocks(
             end_line: int = i  # Line with closing ```
             raw_json: str = "\n".join(json_lines)
 
-            parsed_json: Any = json.loads(raw_json)
+            parsed_json: object = json.loads(raw_json)
+            assert isinstance(parsed_json, dict)
             code_blocks[(start_line + 1, end_line)] = parsed_json
 
         i += 1

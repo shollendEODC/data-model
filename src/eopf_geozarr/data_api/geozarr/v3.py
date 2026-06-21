@@ -31,8 +31,9 @@ class DataArray(ArraySpec[BaseDataArrayAttrs]):
     https://github.com/zarr-developers/geozarr-spec/blob/main/geozarr-spec.md#geozarr-dataarray
     """
 
-    # The dimension names must be a tuple of strings
-    dimension_names: tuple[str, ...]
+    # GeoZarr requires dimension names, so tighten the parent's optional
+    # `tuple[str | None, ...] | None` field to a required tuple of strings.
+    dimension_names: tuple[str, ...]  # pyright: ignore[reportGeneralTypeIssues, reportIncompatibleVariableOverride]
 
     @property
     def array_dimensions(self) -> tuple[str, ...]:
