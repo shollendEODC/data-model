@@ -854,7 +854,7 @@ requires-dist = [
     { name = "typing-extensions", specifier = ">=4.15.0" },
     { name = "xarray", specifier = ">=2025.7.1" },
     { name = "zarr", extras = ["cast-value-rs"], specifier = ">=3.2.0" },
-    { name = "zarr-cm", git = "https://github.com/zarr-conventions/zarr-cm.git?rev=main" },
+    { name = "zarr-cm", specifier = ">=0.4.1" },
 ]
 
 [package.metadata.requires-dev]
@@ -3026,10 +3026,14 @@ cast-value-rs = [
 
 [[package]]
 name = "zarr-cm"
-version = "0.4.1.dev13+ge94a3ee8d"
-source = { git = "https://github.com/zarr-conventions/zarr-cm.git?rev=main#e94a3ee8db52689883753f5b928f8331c3d01b15" }
+version = "0.4.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f9/c6/51d38cafa07bdf725c77a67719647eea43255f925fda062b40799bbb361d/zarr_cm-0.4.1.tar.gz", hash = "sha256:693d24ca2b8e3a7230e1ed448c2c57f98833b81e5899607b6cb4a7ac31f94002", size = 50839, upload-time = "2026-06-21T19:20:36.277Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e8/14/3de8976647909b2f6764b8d0c9add0a961667ef4ab46f3f99e12d7a522fa/zarr_cm-0.4.1-py3-none-any.whl", hash = "sha256:2c7f36383af2e6f75eb274a797a13154fd5c5827390de7c79294dfeb9f0543ee", size = 33005, upload-time = "2026-06-21T19:20:35.05Z" },
 ]
 
 [[package]]
