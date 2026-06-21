@@ -5,7 +5,7 @@ This module provides functions to reproject Sentinel-1 GRD data from radar geome
 to geographic coordinates (lat/lon) using Ground Control Points (GCPs).
 """
 
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 import rasterio
@@ -107,11 +107,16 @@ def reproject_sentinel1_with_gcps(
         data_vars=reprojected_data_vars, coords=target_coords, attrs=ds.attrs.copy()
     )
 
-    # Set CRS information
+    # Set CRS information. `rio.write_crs` is untyped (returns Any), so verify
+    # the result is a Dataset rather than asserting it with a cast.
     reprojected_ds = reprojected_ds.rio.write_crs(target_crs)
+    if not isinstance(reprojected_ds, xr.Dataset):
+        raise TypeError(
+            f"expected an xarray.Dataset after write_crs, got {type(reprojected_ds).__name__}"
+        )
 
     log.info("✅ Successfully reprojected Sentinel-1 data", target_crs=target_crs)
-    return cast("xr.Dataset", reprojected_ds)
+    return reprojected_ds
 
 
 def _create_gcps_from_dataset(
