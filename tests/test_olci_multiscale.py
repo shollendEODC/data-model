@@ -34,10 +34,13 @@ def test_decimate_halves_each_axis() -> None:
 
 
 def test_decimate_takes_every_other_pixel() -> None:
-    out = decimate_swath(_swath(8, 6), factor=2)
+    ds = _swath(8, 6)
+    out = decimate_swath(ds, factor=2)
     # top-left pixel is preserved exactly (no averaging)
     assert int(out["oa01_radiance"].values[0, 0]) == 0
     assert float(out["latitude"].values[0, 0]) == 0.0
+    # interior pixel: stride-2 decimation means out[1, 1] comes from original [2, 2]
+    assert int(out["oa01_radiance"].values[1, 1]) == int(ds["oa01_radiance"].values[2, 2])
 
 
 def test_decimate_preserves_attrs() -> None:

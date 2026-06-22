@@ -9,7 +9,10 @@ would not correspond to a real pixel.)
 
 from __future__ import annotations
 
-import xarray as xr  # noqa: TC002
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import xarray as xr
 
 SWATH_DIMS = ("rows", "columns")
 
