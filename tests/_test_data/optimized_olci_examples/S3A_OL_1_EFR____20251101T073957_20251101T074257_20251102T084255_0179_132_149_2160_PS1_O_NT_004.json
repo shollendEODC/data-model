@@ -57,7 +57,7 @@
               "data_type": "float64",
               "dimension_names": [
                 "rows",
-                "tie_columns"
+                "columns"
               ],
               "fill_value": "NaN",
               "node_type": "array",
@@ -118,7 +118,7 @@
               "data_type": "float64",
               "dimension_names": [
                 "rows",
-                "tie_columns"
+                "columns"
               ],
               "fill_value": "NaN",
               "node_type": "array",
@@ -190,7 +190,7 @@
               "data_type": "float64",
               "dimension_names": [
                 "rows",
-                "tie_columns"
+                "columns"
               ],
               "fill_value": "NaN",
               "node_type": "array",
@@ -262,7 +262,7 @@
               "data_type": "float64",
               "dimension_names": [
                 "rows",
-                "tie_columns"
+                "columns"
               ],
               "fill_value": "NaN",
               "node_type": "array",
@@ -334,7 +334,7 @@
               "data_type": "float64",
               "dimension_names": [
                 "rows",
-                "tie_columns"
+                "columns"
               ],
               "fill_value": "NaN",
               "node_type": "array",
@@ -406,7 +406,7 @@
               "data_type": "float64",
               "dimension_names": [
                 "rows",
-                "tie_columns"
+                "columns"
               ],
               "fill_value": "NaN",
               "node_type": "array",
@@ -817,7 +817,7 @@
               "chunk_grid": {
                 "configuration": {
                   "chunk_shape": [
-                    4
+                    8
                   ]
                 },
                 "name": "regular"
@@ -850,7 +850,7 @@
               "fill_value": 0,
               "node_type": "array",
               "shape": [
-                4
+                8
               ],
               "storage_transformers": [],
               "zarr_format": 3
@@ -882,8 +882,8 @@
               "chunk_grid": {
                 "configuration": {
                   "chunk_shape": [
-                    16,
-                    4
+                    21,
+                    8
                   ]
                 },
                 "name": "regular"
@@ -917,8 +917,8 @@
               "fill_value": "NaN",
               "node_type": "array",
               "shape": [
-                16,
-                4
+                21,
+                8
               ],
               "storage_transformers": [],
               "zarr_format": 3
@@ -950,8 +950,8 @@
               "chunk_grid": {
                 "configuration": {
                   "chunk_shape": [
-                    16,
-                    4
+                    21,
+                    8
                   ]
                 },
                 "name": "regular"
@@ -985,8 +985,8 @@
               "fill_value": "NaN",
               "node_type": "array",
               "shape": [
-                16,
-                4
+                21,
+                8
               ],
               "storage_transformers": [],
               "zarr_format": 3
@@ -1011,8 +1011,8 @@
               "chunk_grid": {
                 "configuration": {
                   "chunk_shape": [
-                    16,
-                    4
+                    21,
+                    21
                   ]
                 },
                 "name": "regular"
@@ -1046,8 +1046,8 @@
               "fill_value": "NaN",
               "node_type": "array",
               "shape": [
-                16,
-                4
+                21,
+                21
               ],
               "storage_transformers": [],
               "zarr_format": 3
@@ -1079,8 +1079,8 @@
               "chunk_grid": {
                 "configuration": {
                   "chunk_shape": [
-                    16,
-                    4
+                    21,
+                    8
                   ]
                 },
                 "name": "regular"
@@ -1114,8 +1114,8 @@
               "fill_value": "NaN",
               "node_type": "array",
               "shape": [
-                16,
-                4
+                21,
+                8
               ],
               "storage_transformers": [],
               "zarr_format": 3
@@ -1160,7 +1160,7 @@
               "chunk_grid": {
                 "configuration": {
                   "chunk_shape": [
-                    4,
+                    5,
                     16,
                     4
                   ]
@@ -1192,12 +1192,12 @@
               "dimension_names": [
                 "pressure_level",
                 "rows",
-                "tie_columns"
+                "columns"
               ],
               "fill_value": "NaN",
               "node_type": "array",
               "shape": [
-                4,
+                5,
                 16,
                 4
               ],
@@ -1235,7 +1235,7 @@
               "chunk_grid": {
                 "configuration": {
                   "chunk_shape": [
-                    4,
+                    2,
                     16,
                     4
                   ]
@@ -1267,12 +1267,12 @@
               "dimension_names": [
                 "wind_vector",
                 "rows",
-                "tie_columns"
+                "columns"
               ],
               "fill_value": "NaN",
               "node_type": "array",
               "shape": [
-                4,
+                2,
                 16,
                 4
               ],
@@ -1340,7 +1340,7 @@
               "data_type": "float32",
               "dimension_names": [
                 "rows",
-                "tie_columns"
+                "columns"
               ],
               "fill_value": "NaN",
               "node_type": "array",
@@ -1401,7 +1401,7 @@
               "data_type": "float64",
               "dimension_names": [
                 "rows",
-                "tie_columns"
+                "columns"
               ],
               "fill_value": "NaN",
               "node_type": "array",
@@ -1462,7 +1462,7 @@
               "data_type": "float64",
               "dimension_names": [
                 "rows",
-                "tie_columns"
+                "columns"
               ],
               "fill_value": "NaN",
               "node_type": "array",
@@ -1484,7 +1484,7 @@
               "chunk_grid": {
                 "configuration": {
                   "chunk_shape": [
-                    4
+                    5
                   ]
                 },
                 "name": "regular"
@@ -1517,7 +1517,7 @@
               "fill_value": 0,
               "node_type": "array",
               "shape": [
-                4
+                5
               ],
               "storage_transformers": [],
               "zarr_format": 3
@@ -1583,7 +1583,7 @@
               "data_type": "float32",
               "dimension_names": [
                 "rows",
-                "tie_columns"
+                "columns"
               ],
               "fill_value": "NaN",
               "node_type": "array",
@@ -1655,7 +1655,7 @@
               "data_type": "float32",
               "dimension_names": [
                 "rows",
-                "tie_columns"
+                "columns"
               ],
               "fill_value": "NaN",
               "node_type": "array",
@@ -1727,7 +1727,7 @@
               "data_type": "float32",
               "dimension_names": [
                 "rows",
-                "tie_columns"
+                "columns"
               ],
               "fill_value": "NaN",
               "node_type": "array",
@@ -1749,7 +1749,7 @@
               "chunk_grid": {
                 "configuration": {
                   "chunk_shape": [
-                    4
+                    2
                   ]
                 },
                 "name": "regular"
@@ -1782,7 +1782,7 @@
               "fill_value": 0,
               "node_type": "array",
               "shape": [
-                4
+                2
               ],
               "storage_transformers": [],
               "zarr_format": 3

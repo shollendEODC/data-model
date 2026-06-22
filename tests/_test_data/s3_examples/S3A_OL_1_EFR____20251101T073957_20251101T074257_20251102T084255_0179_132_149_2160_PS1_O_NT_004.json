@@ -2002,7 +2002,7 @@
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "tie_columns"
+                  "columns"
                 ],
                 "dimensions": [
                   "rows",
@@ -2044,7 +2044,7 @@
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "tie_columns"
+                  "columns"
                 ],
                 "dimensions": [
                   "rows",
@@ -2086,7 +2086,7 @@
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "tie_columns"
+                  "columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -2139,7 +2139,7 @@
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "tie_columns"
+                  "columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -2192,7 +2192,7 @@
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "tie_columns"
+                  "columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -2245,7 +2245,7 @@
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "tie_columns"
+                  "columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -2577,7 +2577,7 @@
                 "long_name": "instrument detectors"
               },
               "chunks": [
-                4
+                8
               ],
               "compressor": {
                 "blocksize": 0,
@@ -2591,7 +2591,7 @@
               "filters": null,
               "order": "C",
               "shape": [
-                4
+                8
               ],
               "zarr_format": 2
             },
@@ -2623,8 +2623,8 @@
                 "units": "nm"
               },
               "chunks": [
-                16,
-                4
+                21,
+                8
               ],
               "compressor": {
                 "blocksize": 0,
@@ -2638,8 +2638,8 @@
               "filters": null,
               "order": "C",
               "shape": [
-                16,
-                4
+                21,
+                8
               ],
               "zarr_format": 2
             },
@@ -2671,8 +2671,8 @@
                 "units": "nm"
               },
               "chunks": [
-                16,
-                4
+                21,
+                8
               ],
               "compressor": {
                 "blocksize": 0,
@@ -2686,8 +2686,8 @@
               "filters": null,
               "order": "C",
               "shape": [
-                16,
-                4
+                21,
+                8
               ],
               "zarr_format": 2
             },
@@ -2712,8 +2712,8 @@
                 "long_name": "relative spectral covariance matrix"
               },
               "chunks": [
-                16,
-                4
+                21,
+                21
               ],
               "compressor": {
                 "blocksize": 0,
@@ -2727,8 +2727,8 @@
               "filters": null,
               "order": "C",
               "shape": [
-                16,
-                4
+                21,
+                21
               ],
               "zarr_format": 2
             },
@@ -2760,8 +2760,8 @@
                 "units": "mW.m-2.nm-1"
               },
               "chunks": [
-                16,
-                4
+                21,
+                8
               ],
               "compressor": {
                 "blocksize": 0,
@@ -2775,8 +2775,8 @@
               "filters": null,
               "order": "C",
               "shape": [
-                16,
-                4
+                21,
+                8
               ],
               "zarr_format": 2
             }
@@ -2791,7 +2791,7 @@
                 "_ARRAY_DIMENSIONS": [
                   "pressure_level",
                   "rows",
-                  "tie_columns"
+                  "columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -2821,7 +2821,7 @@
                 "units": "K"
               },
               "chunks": [
-                4,
+                5,
                 16,
                 4
               ],
@@ -2837,7 +2837,7 @@
               "filters": null,
               "order": "C",
               "shape": [
-                4,
+                5,
                 16,
                 4
               ],
@@ -2848,7 +2848,7 @@
                 "_ARRAY_DIMENSIONS": [
                   "wind_vector",
                   "rows",
-                  "tie_columns"
+                  "columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -2876,7 +2876,7 @@
                 "units": "m.s-1"
               },
               "chunks": [
-                4,
+                2,
                 16,
                 4
               ],
@@ -2892,7 +2892,7 @@
               "filters": null,
               "order": "C",
               "shape": [
-                4,
+                2,
                 16,
                 4
               ],
@@ -2902,7 +2902,7 @@
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "tie_columns"
+                  "columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -2954,7 +2954,7 @@
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "tie_columns"
+                  "columns"
                 ],
                 "dimensions": [
                   "rows",
@@ -2996,7 +2996,7 @@
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "tie_columns"
+                  "columns"
                 ],
                 "dimensions": [
                   "rows",
@@ -3046,7 +3046,7 @@
                 "long_name": "coordinates of the vertical temperature profile"
               },
               "chunks": [
-                4
+                5
               ],
               "compressor": {
                 "blocksize": 0,
@@ -3060,7 +3060,7 @@
               "filters": null,
               "order": "C",
               "shape": [
-                4
+                5
               ],
               "zarr_format": 2
             },
@@ -3068,7 +3068,7 @@
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "tie_columns"
+                  "columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -3120,7 +3120,7 @@
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "tie_columns"
+                  "columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -3172,7 +3172,7 @@
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "tie_columns"
+                  "columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -3232,7 +3232,7 @@
                 "long_name": "dimensions of horizontal wind vector"
               },
               "chunks": [
-                4
+                2
               ],
               "compressor": {
                 "blocksize": 0,
@@ -3246,7 +3246,7 @@
               "filters": null,
               "order": "C",
               "shape": [
-                4
+                2
               ],
               "zarr_format": 2
             }

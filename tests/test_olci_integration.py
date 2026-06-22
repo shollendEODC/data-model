@@ -245,8 +245,9 @@ def test_olci_conversion_matches_snapshot(
     The fixture is a Zarr v2 store representing a real OLCI L1 EFR product.
     We open the whole DataTree so that conditions, quality, and
     measurements/orphans subgroups are included in the conversion.
-    The fixture has been fixed so all dimension/shape conflicts are resolved
-    (tie-point grids use 'tie_columns', orphan arrays use removed_pixels=4, etc.).
+    The fixture uses the real product's dimension names: tie-point grids reuse
+    'columns' (at size 4) while measurement grids also use 'columns' (at size 16);
+    orphan arrays use removed_pixels=4.
 
     ``min_dimension=8`` is used so that the 16x16 measurements grid generates
     one overview level (r2 at 8x8).
