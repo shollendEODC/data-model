@@ -15,6 +15,10 @@ import structlog
 import xarray as xr
 
 from eopf_geozarr.s2_optimization.s2_converter import convert_s2_optimized, is_sentinel2_dataset
+from eopf_geozarr.s3_olci_optimization.olci_converter import (
+    convert_olci_optimized,
+    is_sentinel3_olci_dataset,
+)
 
 from . import create_geozarr_dataset
 from .conversion.fs_utils import (
@@ -97,6 +101,20 @@ def _is_sentinel2_input(dt: xr.DataTree) -> bool:
     except Exception as exc:
         # Detection must never abort conversion; treat any failure as "not S2".
         log.debug("Sentinel-2 detection skipped", error=str(exc))
+        return False
+
+
+def _is_sentinel3_olci_input(dt: xr.DataTree) -> bool:
+    """Best-effort Sentinel-3 OLCI detection that never breaks the generic path.
+
+    ``is_sentinel3_olci_dataset`` validates structurally against a Zarr v2 model
+    and can raise on unrelated inputs; any failure simply means "not a recognised
+    OLCI product", so fall back to the generic converter.
+    """
+    try:
+        return is_sentinel3_olci_dataset(get_zarr_group(dt))
+    except Exception as exc:
+        log.debug("Sentinel-3 OLCI detection skipped", error=str(exc))
         return False
 
 
@@ -202,6 +220,14 @@ def convert_command(args: argparse.Namespace) -> None:
                 validate_output=True,
                 keep_scale_offset=False,
                 max_retries=args.max_retries,
+            )
+        elif _is_sentinel3_olci_input(dt):
+            log.info("Detected Sentinel-3 OLCI product; using OLCI converter")
+            dt_geozarr = convert_olci_optimized(
+                dt,
+                output_path=output_path,
+                enable_sharding=args.enable_sharding,
+                spatial_chunk=args.spatial_chunk,
             )
         else:
             dt_geozarr = create_geozarr_dataset(
@@ -1154,6 +1180,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Add S2 optimization commands
     add_s2_optimization_commands(subparsers)
+    add_s3_olci_optimization_commands(subparsers)
 
     return parser
 
@@ -1245,6 +1272,56 @@ def convert_s2_optimized_command(args: argparse.Namespace) -> None:
             except Exception as e:
                 if args.verbose:
                     log.warning("Error closing dask cluster", error=str(e))
+
+
+def add_s3_olci_optimization_commands(subparsers: argparse._SubParsersAction) -> None:
+    """Add S3 OLCI optimization commands to CLI parser."""
+    p = subparsers.add_parser(
+        "convert-s3-olci-optimized",
+        help="Convert a Sentinel-3 OLCI L1 EFR dataset to optimized GeoZarr",
+    )
+    p.add_argument("input_path", type=str, help="Path to input OLCI dataset (Zarr)")
+    p.add_argument("output_path", type=str, help="Path for output optimized dataset")
+    p.add_argument("--spatial-chunk", type=int, default=1024, help="Spatial chunk size")
+    p.add_argument("--enable-sharding", action="store_true", help="Enable Zarr v3 sharding")
+    p.add_argument(
+        "--compression-level",
+        type=int,
+        default=3,
+        choices=range(1, 10),
+        help="Compression level 1-9 (default: 3)",
+    )
+    p.add_argument(
+        "--min-dimension",
+        type=int,
+        default=256,
+        help="Minimum overview dimension (default: 256)",
+    )
+    p.add_argument(
+        "--keep-scale-offset",
+        action="store_true",
+        help="Preserve scale-offset encoding instead of decoding to float",
+    )
+    p.add_argument("--verbose", action="store_true", help="Enable verbose output")
+    p.set_defaults(func=convert_s3_olci_optimized_command)
+
+
+def convert_s3_olci_optimized_command(args: argparse.Namespace) -> None:
+    """Execute S3 OLCI optimized conversion command."""
+    storage_options = get_storage_options(str(args.input_path))
+    dt_input = xr.open_datatree(
+        str(args.input_path), engine="zarr", chunks="auto", storage_options=storage_options
+    )
+    convert_olci_optimized(
+        dt_input,
+        output_path=args.output_path,
+        enable_sharding=args.enable_sharding,
+        spatial_chunk=args.spatial_chunk,
+        compression_level=args.compression_level,
+        min_dimension=args.min_dimension,
+        keep_scale_offset=args.keep_scale_offset,
+    )
+    log.info("S3 OLCI optimization completed", output_path=args.output_path)
 
 
 def main() -> None:

@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
+from typing import TYPE_CHECKING
+
 import numpy as np
 import xarray as xr
+
+if TYPE_CHECKING:
+    import pathlib
 
 from eopf_geozarr.s3_olci_optimization.olci_converter import convert_olci_optimized
 
@@ -182,3 +189,32 @@ def test_convert_olci_conditions_quality_passthrough(tmp_path: object) -> None:
     g = zarr.open_group(out, mode="r")
     assert "conditions" in g
     assert "quality" in g
+
+
+def test_cli_convert_s3_olci_optimized(tmp_path: pathlib.Path) -> None:
+    """convert-s3-olci-optimized subcommand must write a GeoZarr measurements group."""
+    import zarr
+
+    # materialise a synthetic OLCI product to a zarr v2 store on disk
+    dt = build_synthetic_olci(rows=300, cols=300)
+    src = tmp_path / "olci_src.zarr"
+    dt.to_zarr(src, mode="w", consolidated=False)
+    out = tmp_path / "olci_out.zarr"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "eopf_geozarr",
+            "convert-s3-olci-optimized",
+            str(src),
+            str(out),
+            "--spatial-chunk",
+            "256",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    g = zarr.open_group(str(out), mode="r")
+    assert "measurements" in g
