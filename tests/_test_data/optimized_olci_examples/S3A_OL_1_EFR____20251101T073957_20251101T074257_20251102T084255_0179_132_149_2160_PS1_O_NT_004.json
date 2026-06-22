@@ -1,0 +1,1828 @@
+{
+  "attributes": {},
+  "members": {
+    "measurements": {
+      "attributes": {
+        "spatial:dimensions": [
+          "rows",
+          "columns"
+        ],
+        "spatial:registration": "pixel",
+        "zarr_conventions": [
+          {
+            "description": "Spatial coordinate information",
+            "name": "spatial:",
+            "schema_url": "https://raw.githubusercontent.com/zarr-conventions/spatial/54d81b7ced0376e63ee10f34db31db7d08dcc28d/schema.json",
+            "spec_url": "https://github.com/zarr-conventions/spatial/blob/54d81b7ced0376e63ee10f34db31db7d08dcc28d/README.md",
+            "uuid": "689b58e2-cf7b-45e0-9fff-9cfc0883d6b4"
+          }
+        ]
+      },
+      "members": {
+        "altitude": {
+          "attributes": {
+            "dimensions": [
+              "rows",
+              "columns"
+            ],
+            "dtype": "<i2",
+            "eopf_is_masked": true,
+            "eopf_target_dtype": "<f4",
+            "fill_value": -32768,
+            "long_name": "DEM corrected altitude",
+            "standard_name": "altitude",
+            "units": "m",
+            "valid_max": 9000,
+            "valid_min": -1000
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "int16",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": 0,
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "latitude": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "dimensions": [
+              "rows",
+              "columns"
+            ],
+            "dtype": "<i4",
+            "eopf_is_masked": true,
+            "eopf_target_dtype": "<f8",
+            "fill_value": -2147483648,
+            "long_name": "DEM corrected latitude",
+            "standard_name": "latitude",
+            "units": "degrees_north",
+            "valid_max": 90000000,
+            "valid_min": -90000000
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "longitude": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "dimensions": [
+              "rows",
+              "columns"
+            ],
+            "dtype": "<i4",
+            "eopf_is_masked": true,
+            "eopf_target_dtype": "<f8",
+            "fill_value": -2147483648,
+            "long_name": "DEM corrected longitude",
+            "standard_name": "longitude",
+            "units": "degrees_east",
+            "valid_max": 180000000,
+            "valid_min": -180000000
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa01_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 01",
+              "scale_factor": 0.013946459628641605,
+              "short_name": "oa01_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 01",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa02_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 02",
+              "scale_factor": 0.013387260027229786,
+              "short_name": "oa02_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 02",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa03_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 03",
+              "scale_factor": 0.012148120440542698,
+              "short_name": "oa03_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 03",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa04_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 04",
+              "scale_factor": 0.011519820429384708,
+              "short_name": "oa04_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 04",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa05_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 05",
+              "scale_factor": 0.010095260106027126,
+              "short_name": "oa05_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 05",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa06_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 06",
+              "scale_factor": 0.012353800237178802,
+              "short_name": "oa06_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 06",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa07_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 07",
+              "scale_factor": 0.008791609667241573,
+              "short_name": "oa07_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 07",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa08_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 08",
+              "scale_factor": 0.008765390142798424,
+              "short_name": "oa08_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 08",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa09_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 09",
+              "scale_factor": 0.009510300122201443,
+              "short_name": "oa09_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 09",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa10_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 10",
+              "scale_factor": 0.007733779959380627,
+              "short_name": "oa10_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 10",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa11_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 11",
+              "scale_factor": 0.006755230017006397,
+              "short_name": "oa11_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 11",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa12_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 12",
+              "scale_factor": 0.007199599873274565,
+              "short_name": "oa12_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 12",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa13_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 13",
+              "scale_factor": 0.007496839854866266,
+              "short_name": "oa13_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 13",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa14_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 14",
+              "scale_factor": 0.008651199750602245,
+              "short_name": "oa14_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 14",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa15_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 15",
+              "scale_factor": 0.005267790053039789,
+              "short_name": "oa15_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 15",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa16_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 16",
+              "scale_factor": 0.005302669946104288,
+              "short_name": "oa16_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 16",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa17_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 17",
+              "scale_factor": 0.004930039867758751,
+              "short_name": "oa17_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 17",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa18_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 18",
+              "scale_factor": 0.0054996199905872345,
+              "short_name": "oa18_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 18",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa19_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 19",
+              "scale_factor": 0.005028469953685999,
+              "short_name": "oa19_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 19",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa20_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 20",
+              "scale_factor": 0.003263779915869236,
+              "short_name": "oa20_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 20",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "oa21_radiance": {
+          "attributes": {
+            "_FillValue": "AAAAAAAA+H8=",
+            "_eopf_attrs": {
+              "add_offset": 0.0,
+              "coordinates": [
+                "latitude",
+                "longitude",
+                "altitude",
+                "time_stamp"
+              ],
+              "dimensions": [
+                "rows",
+                "columns"
+              ],
+              "dtype": "<u2",
+              "eopf_is_masked": true,
+              "eopf_target_dtype": "<f4",
+              "fill_value": 65535,
+              "long_name": "TOA radiance for OLCI acquisition band 21",
+              "scale_factor": 0.0032411799766123295,
+              "short_name": "oa21_radiance",
+              "standard_name": "toa_upwelling_spectral_radiance",
+              "units": "mW.m-2.sr-1.nm-1",
+              "valid_max": 65534,
+              "valid_min": 0
+            },
+            "coordinates": "altitude latitude longitude",
+            "dtype": "<u2",
+            "long_name": "TOA radiance for OLCI acquisition band 21",
+            "standard_name": "toa_upwelling_spectral_radiance",
+            "units": "mW.m-2.sr-1.nm-1"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16,
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "float64",
+          "dimension_names": [
+            "rows",
+            "columns"
+          ],
+          "fill_value": "NaN",
+          "node_type": "array",
+          "shape": [
+            16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        }
+      },
+      "node_type": "group",
+      "zarr_format": 3
+    }
+  },
+  "node_type": "group",
+  "zarr_format": 3
+}

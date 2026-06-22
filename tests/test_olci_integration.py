@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
 import xarray as xr
+import zarr
+from pydantic_zarr.core import tuplify_json
+from pydantic_zarr.v3 import GroupSpec
 
 if TYPE_CHECKING:
     import pathlib
@@ -218,3 +223,58 @@ def test_cli_convert_s3_olci_optimized(tmp_path: pathlib.Path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
     g = zarr.open_group(str(out), mode="r")
     assert "measurements" in g
+
+
+def test_olci_conversion_matches_snapshot(
+    s3_olci_group_example: pathlib.Path,
+    tmp_path: pathlib.Path,
+) -> None:
+    """Snapshot test: converted OLCI structure must match committed golden file.
+
+    The real OLCI fixture contains a ``time_stamp`` array in the measurements
+    group whose ``rows`` dimension has a different length (4) than the spatial
+    arrays (16).  xarray's DataTree loader rejects this as conflicting dimension
+    sizes, so we open only the /measurements group as a Dataset — dropping the
+    non-spatial ``time_stamp`` — and wrap it in a minimal DataTree before
+    passing it to the converter.
+
+    To (re)generate the snapshot, uncomment the regeneration block below,
+    run the test once, then re-comment before committing.
+    """
+    meas_ds = xr.open_dataset(
+        str(s3_olci_group_example),
+        engine="zarr",
+        group="measurements",
+        consolidated=False,
+        drop_variables=["time_stamp"],
+        chunks={},
+    )
+    # Clear inherited Zarr-v2 encoding (numcodecs.Blosc) so the converter can
+    # write a clean Zarr-v3 store without codec-compatibility errors.
+    for _var in list(meas_ds.data_vars) + list(meas_ds.coords):
+        meas_ds[_var].encoding.clear()
+    dt_in = xr.DataTree.from_dict({"/measurements": meas_ds})
+    out = str(tmp_path / "out.zarr")
+    convert_olci_optimized(dt_in, output_path=out, min_dimension=256)
+
+    observed_group = zarr.open_group(out, use_consolidated=False)
+    observed_structure_json = GroupSpec.from_zarr(observed_group).model_dump()
+
+    expected_path = Path("tests/_test_data/optimized_olci_examples") / (
+        s3_olci_group_example.stem + ".json"
+    )
+
+    # Uncomment this block to (re)generate the snapshot from the observed structure.
+    # expected_path.parent.mkdir(parents=True, exist_ok=True)
+    # expected_path.write_text(json.dumps(observed_structure_json, indent=2, sort_keys=True))
+
+    observed_structure = GroupSpec(**tuplify_json(observed_structure_json))
+    observed_structure_flat = observed_structure.to_flat()
+    expected_structure_json = tuplify_json(json.loads(expected_path.read_text()))
+    expected_structure = GroupSpec(**expected_structure_json)
+    expected_structure_flat = expected_structure.to_flat()
+
+    o_keys = set(observed_structure_flat.keys())
+    e_keys = set(expected_structure_flat.keys())
+    assert o_keys == e_keys
+    assert [k for k in o_keys if observed_structure_flat[k] != expected_structure_flat[k]] == []
