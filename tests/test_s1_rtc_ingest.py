@@ -408,6 +408,57 @@ class TestIngestAcquisition:
                     )
                     assert attrs.get("units") == "1"
 
+    def test_new_orbit_level_groups_carry_proj_code(
+        self, s1_geotiff_dir: Path, s1_store_path: Path
+    ) -> None:
+        """A second orbit added to an existing store must get the same per-level metadata
+        as the store-creating orbit — incl. ``proj:code`` on every level group. The inline
+        new-orbit path previously omitted it (drift vs ``create_s1_store``)."""
+        vv, vh, mask = self._get_acq_paths(s1_geotiff_dir, "20230115t061234")
+        ingest_s1tiling_acquisition(vv, vh, mask, s1_store_path, "ascending")
+        ingest_s1tiling_acquisition(vv, vh, mask, s1_store_path, "descending")
+        root = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)
+        for orbit in ("ascending", "descending"):
+            for level_name, _, _ in OVERVIEW_CHAIN:
+                attrs = dict(root[orbit][level_name].attrs)
+                assert attrs.get("proj:code") == CRS, f"{orbit}/{level_name} missing proj:code"
+
+    def test_fill_value_masking_roundtrip(self, tmp_path: Path, s1_store_path: Path) -> None:
+        """End-to-end: NaN nodata in vv comes back masked when the cube is reopened with
+        ``use_zarr_fill_value_as_mask=True`` — the behaviour the CF ``_FillValue`` attribute
+        exists to enable despite xarray #11345. Mirrors the S2 guarantee in
+        ``tests/test_array_attrs.py::test_fill_value_masking_roundtrip``.
+        """
+        stamp = "20230115t061234"
+        rng = np.random.default_rng(0)
+        vv_data = rng.uniform(0.0, 1.0, (SIZE, SIZE)).astype(np.float32)
+        vv_data[0:16, 0:16] = np.nan  # nodata patch
+        vh_data = rng.uniform(0.0, 0.5, (SIZE, SIZE)).astype(np.float32)
+        mask_data = np.ones((SIZE, SIZE), dtype=np.uint8)
+        vv = tmp_path / f"s1a_32TQM_vv_ASC_037_{stamp}_GammaNaughtRTC.tif"
+        vh = tmp_path / f"s1a_32TQM_vh_ASC_037_{stamp}_GammaNaughtRTC.tif"
+        mask = tmp_path / f"s1a_32TQM_vv_ASC_037_{stamp}_GammaNaughtRTC_BorderMask.tif"
+        _create_synthetic_geotiff(vv, vv_data, tags=ACQ1_TAGS)
+        _create_synthetic_geotiff(vh, vh_data, tags=ACQ1_TAGS)
+        _create_synthetic_geotiff(mask, mask_data, tags=ACQ1_TAGS)
+        ingest_s1tiling_acquisition(vv, vh, mask, s1_store_path, "ascending")
+
+        ds = xr.open_dataset(
+            str(s1_store_path / "ascending" / "r10m"),
+            engine="zarr",
+            consolidated=False,
+            decode_times=False,
+            decode_coords=False,
+            use_zarr_fill_value_as_mask=True,
+        )
+        try:
+            masked = ds["vv"].to_masked_array()
+            assert np.ma.is_masked(masked), "NaN nodata must be masked via `_FillValue`"
+            assert masked.mask[0, 0, 0], "nodata cell must be masked"
+            assert not masked.mask[0, -1, -1], "valid cell must not be masked"
+        finally:
+            ds.close()
+
     def test_preserves_data_integrity(self, s1_geotiff_dir: Path, s1_store_path: Path) -> None:
         vv, vh, mask = self._get_acq_paths(s1_geotiff_dir, "20230115t061234")
         ingest_s1tiling_acquisition(vv, vh, mask, s1_store_path, "ascending")
