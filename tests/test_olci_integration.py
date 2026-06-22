@@ -231,12 +231,13 @@ def test_olci_conversion_matches_snapshot(
 ) -> None:
     """Snapshot test: converted OLCI structure must match committed golden file.
 
-    The real OLCI fixture contains a ``time_stamp`` array in the measurements
-    group whose ``rows`` dimension has a different length (4) than the spatial
-    arrays (16).  xarray's DataTree loader rejects this as conflicting dimension
-    sizes, so we open only the /measurements group as a Dataset — dropping the
-    non-spatial ``time_stamp`` — and wrap it in a minimal DataTree before
-    passing it to the converter.
+    The fixture is a Zarr v2 store representing a real OLCI L1 EFR product.
+    We open just the ``/measurements`` group (the converter's input is a
+    DataTree rooted at this sub-tree) and wrap it in a minimal DataTree.
+    The ``time_stamp`` array is included: its ``rows`` dimension now matches
+    the spatial arrays (both 16), so no ``drop_variables`` workaround is
+    needed.  Inherited Zarr v2 encoding is stripped inside the converter, so
+    no ``encoding.clear()`` workaround is needed here either.
 
     To (re)generate the snapshot, uncomment the regeneration block below,
     run the test once, then re-comment before committing.
@@ -246,13 +247,8 @@ def test_olci_conversion_matches_snapshot(
         engine="zarr",
         group="measurements",
         consolidated=False,
-        drop_variables=["time_stamp"],
         chunks={},
     )
-    # Clear inherited Zarr-v2 encoding (numcodecs.Blosc) so the converter can
-    # write a clean Zarr-v3 store without codec-compatibility errors.
-    for _var in list(meas_ds.data_vars) + list(meas_ds.coords):
-        meas_ds[_var].encoding.clear()
     dt_in = xr.DataTree.from_dict({"/measurements": meas_ds})
     out = str(tmp_path / "out.zarr")
     convert_olci_optimized(dt_in, output_path=out, min_dimension=256)

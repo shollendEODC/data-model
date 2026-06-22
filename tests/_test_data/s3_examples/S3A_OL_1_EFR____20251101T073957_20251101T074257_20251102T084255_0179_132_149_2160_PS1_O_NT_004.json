@@ -2017,7 +2017,7 @@
                 "eopf_target_dtype": "<f8",
                 "fill_value": -2147483648,
                 "long_name": "latitude of tie points",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "standard_name": "latitude",
                 "units": "degrees_north",
                 "valid_max": 90000000,
@@ -2059,7 +2059,7 @@
                 "eopf_target_dtype": "<f8",
                 "fill_value": -2147483648,
                 "long_name": "longitude of tie points",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "standard_name": "longitude",
                 "units": "degrees_east",
                 "valid_max": 180000000,
@@ -2106,7 +2106,7 @@
                   "eopf_target_dtype": "<f8",
                   "fill_value": -2147483648,
                   "long_name": "observation (viewing) azimuth angle",
-                  "scale_factor": 1e-6,
+                  "scale_factor": 1e-06,
                   "short_name": "oaa",
                   "units": "degrees",
                   "valid_max": 180000000,
@@ -2115,7 +2115,7 @@
                 "coordinates": "latitude longitude",
                 "dtype": "<i4",
                 "long_name": "observation (viewing) azimuth angle",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "units": "degrees"
               },
               "shape": [
@@ -2159,7 +2159,7 @@
                   "eopf_target_dtype": "<f8",
                   "fill_value": 4294967295,
                   "long_name": "observation (viewing) zenith angle",
-                  "scale_factor": 1e-6,
+                  "scale_factor": 1e-06,
                   "short_name": "oza",
                   "units": "degrees",
                   "valid_max": 180000000,
@@ -2168,7 +2168,7 @@
                 "coordinates": "latitude longitude",
                 "dtype": "<u4",
                 "long_name": "observation (viewing) zenith angle",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "units": "degrees"
               },
               "shape": [
@@ -2212,7 +2212,7 @@
                   "eopf_target_dtype": "<f8",
                   "fill_value": -2147483648,
                   "long_name": "sun azimuth angle",
-                  "scale_factor": 1e-6,
+                  "scale_factor": 1e-06,
                   "short_name": "saa",
                   "units": "degrees",
                   "valid_max": 180000000,
@@ -2221,7 +2221,7 @@
                 "coordinates": "latitude longitude",
                 "dtype": "<i4",
                 "long_name": "sun azimuth angle",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "units": "degrees"
               },
               "shape": [
@@ -2265,7 +2265,7 @@
                   "eopf_target_dtype": "<f8",
                   "fill_value": 4294967295,
                   "long_name": "sun zenith angle",
-                  "scale_factor": 1e-6,
+                  "scale_factor": 1e-06,
                   "short_name": "sza",
                   "units": "degrees",
                   "valid_max": 180000000,
@@ -2274,7 +2274,7 @@
                 "coordinates": "latitude longitude",
                 "dtype": "<u4",
                 "long_name": "sun zenith angle",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "units": "degrees"
               },
               "shape": [
@@ -2460,7 +2460,7 @@
                 "eopf_target_dtype": "<f8",
                 "fill_value": -2147483648,
                 "long_name": "DEM corrected latitude",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "standard_name": "latitude",
                 "units": "degrees_north",
                 "valid_max": 90000000,
@@ -2502,7 +2502,7 @@
                 "eopf_target_dtype": "<f8",
                 "fill_value": -2147483648,
                 "long_name": "DEM corrected longitude",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "standard_name": "longitude",
                 "units": "degrees_east",
                 "valid_max": 180000000,
@@ -2545,10 +2545,10 @@
                 "units": "nanoseconds since 1970-01-01"
               },
               "shape": [
-                4
+                16
               ],
               "chunks": [
-                4
+                16
               ],
               "dtype": "<i8",
               "fill_value": null,
@@ -2969,7 +2969,7 @@
                 "eopf_target_dtype": "<f8",
                 "fill_value": -2147483648,
                 "long_name": "latitude of tie points",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "standard_name": "latitude",
                 "units": "degrees_north",
                 "valid_max": 90000000,
@@ -3011,7 +3011,7 @@
                 "eopf_target_dtype": "<f8",
                 "fill_value": -2147483648,
                 "long_name": "longitude of tie points",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "standard_name": "longitude",
                 "units": "degrees_east",
                 "valid_max": 180000000,
@@ -3417,7 +3417,7 @@
                 "eopf_target_dtype": "<f8",
                 "fill_value": -2147483648,
                 "long_name": "DEM corrected latitude for removed pixels",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "standard_name": "latitude",
                 "units": "degrees_north",
                 "valid_max": 90000000,
@@ -3459,7 +3459,7 @@
                 "eopf_target_dtype": "<f8",
                 "fill_value": -2147483648,
                 "long_name": "DEM corrected longitude for removed pixels",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "standard_name": "longitude",
                 "units": "degrees_east",
                 "valid_max": 180000000,
@@ -3573,7 +3573,7 @@
                   "eopf_target_dtype": "<f8",
                   "fill_value": 4294967295,
                   "long_name": "sun zenith angle for removed pixels",
-                  "scale_factor": 1e-6,
+                  "scale_factor": 1e-06,
                   "short_name": "sza_orphans",
                   "units": "degrees",
                   "valid_max": 180000000,
@@ -3582,7 +3582,7 @@
                 "coordinates": "altitude latitude longitude",
                 "dtype": "<u4",
                 "long_name": "sun zenith angle for removed pixels",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "units": "degrees"
               },
               "shape": [
@@ -3670,7 +3670,7 @@
             "eopf_target_dtype": "<f8",
             "fill_value": -2147483648,
             "long_name": "DEM corrected latitude",
-            "scale_factor": 1e-6,
+            "scale_factor": 1e-06,
             "standard_name": "latitude",
             "units": "degrees_north",
             "valid_max": 90000000,
@@ -3712,7 +3712,7 @@
             "eopf_target_dtype": "<f8",
             "fill_value": -2147483648,
             "long_name": "DEM corrected longitude",
-            "scale_factor": 1e-6,
+            "scale_factor": 1e-06,
             "standard_name": "longitude",
             "units": "degrees_east",
             "valid_max": 180000000,
@@ -5038,7 +5038,7 @@
                 "eopf_target_dtype": "<f8",
                 "fill_value": -2147483648,
                 "long_name": "DEM corrected latitude for removed pixels",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "standard_name": "latitude",
                 "units": "degrees_north",
                 "valid_max": 90000000,
@@ -5080,7 +5080,7 @@
                 "eopf_target_dtype": "<f8",
                 "fill_value": -2147483648,
                 "long_name": "DEM corrected longitude for removed pixels",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "standard_name": "longitude",
                 "units": "degrees_east",
                 "valid_max": 180000000,
@@ -6394,10 +6394,10 @@
             "units": "nanoseconds since 1970-01-01"
           },
           "shape": [
-            4
+            16
           ],
           "chunks": [
-            4
+            16
           ],
           "dtype": "<i8",
           "fill_value": null,
@@ -6474,7 +6474,7 @@
             "eopf_target_dtype": "<f8",
             "fill_value": -2147483648,
             "long_name": "DEM corrected latitude",
-            "scale_factor": 1e-6,
+            "scale_factor": 1e-06,
             "standard_name": "latitude",
             "units": "degrees_north",
             "valid_max": 90000000,
@@ -6516,7 +6516,7 @@
             "eopf_target_dtype": "<f8",
             "fill_value": -2147483648,
             "long_name": "DEM corrected longitude",
-            "scale_factor": 1e-6,
+            "scale_factor": 1e-06,
             "standard_name": "longitude",
             "units": "degrees_east",
             "valid_max": 180000000,
@@ -7800,7 +7800,7 @@
                 "eopf_target_dtype": "<f8",
                 "fill_value": -2147483648,
                 "long_name": "DEM corrected latitude for removed pixels",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "standard_name": "latitude",
                 "units": "degrees_north",
                 "valid_max": 90000000,
@@ -7842,7 +7842,7 @@
                 "eopf_target_dtype": "<f8",
                 "fill_value": -2147483648,
                 "long_name": "DEM corrected longitude for removed pixels",
-                "scale_factor": 1e-6,
+                "scale_factor": 1e-06,
                 "standard_name": "longitude",
                 "units": "degrees_east",
                 "valid_max": 180000000,
@@ -9258,10 +9258,10 @@
             "units": "nanoseconds since 1970-01-01"
           },
           "shape": [
-            4
+            16
           ],
           "chunks": [
-            4
+            16
           ],
           "dtype": "<i8",
           "fill_value": null,

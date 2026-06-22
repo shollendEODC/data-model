@@ -228,7 +228,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 01",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -305,7 +305,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 02",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -382,7 +382,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 03",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -459,7 +459,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 04",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -536,7 +536,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 05",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -613,7 +613,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 06",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -690,7 +690,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 07",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -767,7 +767,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 08",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -844,7 +844,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 09",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -921,7 +921,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 10",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -998,7 +998,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 11",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -1075,7 +1075,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 12",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -1152,7 +1152,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 13",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -1229,7 +1229,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 14",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -1306,7 +1306,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 15",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -1383,7 +1383,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 16",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -1460,7 +1460,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 17",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -1537,7 +1537,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 18",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -1614,7 +1614,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 19",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -1691,7 +1691,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 20",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -1768,7 +1768,7 @@
               "valid_max": 65534,
               "valid_min": 0
             },
-            "coordinates": "altitude latitude longitude",
+            "coordinates": "altitude latitude longitude time_stamp",
             "dtype": "<u2",
             "long_name": "TOA radiance for OLCI acquisition band 21",
             "standard_name": "toa_upwelling_spectral_radiance",
@@ -1813,6 +1813,59 @@
           "node_type": "array",
           "shape": [
             16,
+            16
+          ],
+          "storage_transformers": [],
+          "zarr_format": 3
+        },
+        "time_stamp": {
+          "attributes": {
+            "calendar": "proleptic_gregorian",
+            "dimensions": [
+              "rows"
+            ],
+            "dtype": "<M8[ns]",
+            "fill_value": -1,
+            "long_name": "elapsed time since 01 Jan 2000 00:00:00 as time stamp for each row",
+            "standard_name": "time",
+            "units": "nanoseconds since 1970-01-01"
+          },
+          "chunk_grid": {
+            "configuration": {
+              "chunk_shape": [
+                16
+              ]
+            },
+            "name": "regular"
+          },
+          "chunk_key_encoding": {
+            "configuration": {
+              "separator": "/"
+            },
+            "name": "default"
+          },
+          "codecs": [
+            {
+              "configuration": {
+                "endian": "little"
+              },
+              "name": "bytes"
+            },
+            {
+              "configuration": {
+                "checksum": false,
+                "level": 0
+              },
+              "name": "zstd"
+            }
+          ],
+          "data_type": "int64",
+          "dimension_names": [
+            "rows"
+          ],
+          "fill_value": 0,
+          "node_type": "array",
+          "shape": [
             16
           ],
           "storage_transformers": [],

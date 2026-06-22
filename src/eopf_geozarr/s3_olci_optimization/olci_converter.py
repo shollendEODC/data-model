@@ -50,6 +50,29 @@ def _overview_levels(rows: int, cols: int, min_dimension: int) -> int:
     return levels
 
 
+def _clear_encoding(ds: xr.Dataset) -> xr.Dataset:
+    """Return *ds* with all inherited source encoding cleared.
+
+    When the input DataTree was opened from a Zarr v2 store, xarray carries
+    ``numcodecs.Blosc`` compressors (and potentially scale-offset filters) in
+    each variable's ``.encoding``.  Passing that encoding to
+    ``Dataset.to_zarr(zarr_format=3)`` raises::
+
+        TypeError: Expected a BytesBytesCodec. Got <class 'numcodecs.blosc.Blosc'>
+
+    because numcodecs codecs are not valid Zarr v3 BytesBytesCodecs.  Clearing
+    the encoding lets the Zarr v3 writer choose its own default codecs.
+
+    CF attributes (``scale_factor``, ``add_offset``, ``_FillValue``) live in
+    ``.attrs``, not ``.encoding``, so they are preserved by this function.
+    """
+    ds = ds.copy()
+    ds.encoding = {}
+    for var in list(ds.data_vars) + list(ds.coords):
+        ds[var].encoding.clear()
+    return ds
+
+
 def _copy_subtree(node: xr.DataTree, output_path: str, *, root_group: str) -> None:
     """Write every Dataset in *node*'s subtree to the Zarr store at *output_path*.
 
@@ -65,6 +88,8 @@ def _copy_subtree(node: xr.DataTree, output_path: str, *, root_group: str) -> No
         ds = child.to_dataset()
         if not ds.data_vars and not ds.coords:
             continue
+        # Strip any inherited Zarr v2 encoding before writing to a v3 store.
+        ds = _clear_encoding(ds)
         # Build the group path: strip the ancestor prefix and prepend root_group.
         relative = child.path[len(node_path) :]  # "" for root, "/sub" for children
         group_path = root_group + relative
@@ -143,6 +168,11 @@ def convert_olci_optimized(
     follow-up task so as not to block the integration test.
     """
     measurements = dt_input["/measurements"].to_dataset()
+    # Strip any inherited Zarr v2 encoding (e.g. numcodecs.Blosc compressors)
+    # so the v3 writer can choose its own default codecs without raising a
+    # "Expected a BytesBytesCodec" error.  CF attrs (scale_factor, add_offset,
+    # _FillValue) live in .attrs, not .encoding, so they are preserved.
+    measurements = _clear_encoding(measurements)
 
     # Attach GeoZarr spatial convention metadata for native-resolution swath.
     conv = build_convention_attrs(spatial=swath_spatial_attrs(), crs=None)
@@ -166,6 +196,7 @@ def convert_olci_optimized(
     current = measurements
     for level in range(1, n_levels + 1):
         current = decimate_swath(current, factor=2)
+        current = _clear_encoding(current)
         group_name = f"r{2**level}"
         log.info("Writing overview", group=f"measurements/{group_name}", shape=dict(current.sizes))
         current.to_zarr(
