@@ -6,7 +6,7 @@ structural product detection (an EOPF product is OLCI iff it validates here).
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Mapping  # noqa: TC003
 
 from pydantic import BaseModel
 from typing_extensions import TypedDict
@@ -33,7 +33,7 @@ class Sentinel3OlciMeasurementsMembers(TypedDict, closed=True, total=False):
     latitude: ArraySpec[object]
     longitude: ArraySpec[object]
     altitude: ArraySpec[object]
-    orphans: GroupSpec[Any, Any]
+    orphans: GroupSpec[Mapping[str, object], Mapping[str, ArraySpec[object]]]
     oa01_radiance: ArraySpec[object]
     oa02_radiance: ArraySpec[object]
     oa03_radiance: ArraySpec[object]
@@ -65,8 +65,8 @@ class Sentinel3OlciRootMembers(TypedDict, closed=True, total=False):
     """Members of the OLCI root group."""
 
     measurements: Sentinel3OlciMeasurementsGroup
-    quality: GroupSpec[Any, Any]
-    conditions: GroupSpec[Any, Any]
+    quality: GroupSpec[Mapping[str, object], Mapping[str, ArraySpec[object]]]
+    conditions: GroupSpec[Mapping[str, object], Mapping[str, ArraySpec[object]]]
 
 
 class Sentinel3OlciRoot(GroupSpec[Sentinel3OlciRootAttrs, Sentinel3OlciRootMembers]):
