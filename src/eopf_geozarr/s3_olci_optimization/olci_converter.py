@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, cast
+
 import structlog
 import xarray as xr
 import zarr
 
 from eopf_geozarr.conversion.utils import build_convention_attrs
 from eopf_geozarr.data_api.s3_olci import Sentinel3OlciRoot
-from eopf_geozarr.s3_olci_optimization.olci_multiscale import decimate_swath, swath_spatial_attrs
+from eopf_geozarr.s3_olci_optimization.olci_band_mapping import OLCI_BANDS
+from eopf_geozarr.s3_olci_optimization.olci_multiscale import (
+    reduce_swath,
+    swath_spatial_attrs,
+)
+
+if TYPE_CHECKING:
+    from zarr.core.common import JSON
+    from zarr_cm import LayoutObject, MultiscalesAttrs, Transform
 
 log = structlog.get_logger()
 
@@ -28,7 +38,7 @@ def is_sentinel3_olci_dataset(group: zarr.Group) -> bool:
         log.debug("Not an OLCI dataset", error=str(e))
         return False
     try:
-        return "oa01_radiance" in model.measurements.members
+        return OLCI_BANDS[0] in model.measurements.members
     except KeyError:
         return False
 
@@ -116,9 +126,10 @@ def convert_olci_optimized(
     """Convert an EOPF OLCI L1 EFR DataTree to a GeoZarr multiscale store.
 
     Writes the native-resolution ``measurements`` group with GeoZarr
-    convention metadata, then writes /2-decimated overview subgroups
+    convention metadata, then writes /2-reduced overview subgroups
     (``r2``, ``r4``, …) down to *min_dimension*.  Any ``conditions`` or
-    ``quality`` groups present in *dt_input* are copied through unchanged.
+    ``quality`` groups present in *dt_input* are copied through unchanged,
+    along with any child subgroups of ``measurements`` (e.g. ``orphans``).
 
     Parameters
     ----------
@@ -174,10 +185,6 @@ def convert_olci_optimized(
     # _FillValue) live in .attrs, not .encoding, so they are preserved.
     measurements = _clear_encoding(measurements)
 
-    # Attach GeoZarr spatial convention metadata for native-resolution swath.
-    conv = build_convention_attrs(spatial=swath_spatial_attrs(), crs=None)
-    measurements.attrs.update(dict(conv))
-
     log.info("Writing native-resolution measurements", shape=dict(measurements.sizes))
     measurements.to_zarr(
         output_path,
@@ -187,7 +194,7 @@ def convert_olci_optimized(
         zarr_format=3,
     )
 
-    # Write /2 decimated overview subgroups: r2, r4, r8, …
+    # Write /2 reduced overview subgroups: r2, r4, r8, …
     rows = measurements.sizes["rows"]
     cols = measurements.sizes["columns"]
     n_levels = _overview_levels(rows, cols, min_dimension)
@@ -195,7 +202,7 @@ def convert_olci_optimized(
 
     current = measurements
     for level in range(1, n_levels + 1):
-        current = decimate_swath(current, factor=2)
+        current = reduce_swath(current, factor=2)
         current = _clear_encoding(current)
         group_name = f"r{2**level}"
         log.info("Writing overview", group=f"measurements/{group_name}", shape=dict(current.sizes))
@@ -206,6 +213,29 @@ def convert_olci_optimized(
             consolidated=False,
             zarr_format=3,
         )
+
+    # Build and attach GeoZarr convention metadata (spatial + multiscales CMO)
+    # to the measurements group attrs.
+    layout: list[LayoutObject] = [{"asset": "."}]
+    for lvl in range(1, n_levels + 1):
+        transform: Transform = {"scale": [2.0, 2.0], "translation": [0.0, 0.0]}
+        lo: LayoutObject = {
+            "asset": f"r{2**lvl}",
+            "derived_from": "." if lvl == 1 else f"r{2 ** (lvl - 1)}",
+            "transform": transform,
+            "resampling_method": "average",
+        }
+        layout.append(lo)
+
+    if n_levels > 0:
+        ms: MultiscalesAttrs = {"layout": layout, "resampling_method": "average"}
+        conv = build_convention_attrs(multiscales=ms, spatial=swath_spatial_attrs(), crs=None)
+    else:
+        conv = build_convention_attrs(spatial=swath_spatial_attrs(), crs=None)
+
+    zarr.open_group(output_path, mode="a")["measurements"].attrs.update(
+        cast("dict[str, JSON]", conv)
+    )
 
     # Copy conditions/quality through unchanged (if present).
     # DataTree.to_zarr does not support a root ``group`` argument, so we
@@ -219,6 +249,16 @@ def convert_olci_optimized(
             continue
         log.info("Copying ancillary group", group=grp)
         _copy_subtree(node_item, output_path, root_group=grp)
+
+    # Copy any child subgroups of measurements (e.g. orphans) through unchanged.
+    try:
+        meas_node = dt_input["/measurements"]
+    except KeyError:
+        meas_node = None
+    if isinstance(meas_node, xr.DataTree):
+        for child in meas_node.children.values():
+            log.info("Copying measurements subgroup", group=f"measurements/{child.name}")
+            _copy_subtree(child, output_path, root_group=f"measurements/{child.name}")
 
     # xarray DataTree enforces dimension consistency between parent and child
     # nodes, so opening the whole store via ``xr.open_datatree`` would fail

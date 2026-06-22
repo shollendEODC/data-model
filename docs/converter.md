@@ -201,18 +201,16 @@ A dedicated command offers fine-grained control:
 eopf-geozarr convert-s3-olci-optimized S3A_OL_1_EFR.zarr output.zarr \
     --spatial-chunk 1024 \
     --min-dimension 256 \
-    --compression-level 3 \
-    --enable-sharding \
-    --keep-scale-offset
+    --compression-level 3
 ```
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--spatial-chunk` | 1024 | Target spatial chunk size in pixels |
-| `--enable-sharding` | off | Enable Zarr v3 sharding on measurement arrays |
 | `--compression-level` | 3 | Blosc/zstd compression level (1–9) |
 | `--min-dimension` | 256 | Minimum spatial dimension for overview levels |
-| `--keep-scale-offset` | off | Preserve CF scale-offset encoding (default: decode to float) |
+| `--enable-sharding` | off | Accepted but not yet wired into encoding (follow-up task) |
+| `--keep-scale-offset` | off | Accepted but not yet wired into encoding (follow-up task) |
 
 ### Output layout
 

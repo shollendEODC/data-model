@@ -1,5 +1,4 @@
 {
-  "zarr_format": 2,
   "attributes": {
     "other_metadata": {
       "absolute_pass_number": 101114,
@@ -1994,19 +1993,16 @@
   },
   "members": {
     "conditions": {
-      "zarr_format": 2,
       "attributes": {},
       "members": {
         "geometry": {
-          "zarr_format": 2,
           "attributes": {},
           "members": {
             "latitude": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "columns"
+                  "tie_columns"
                 ],
                 "dimensions": [
                   "rows",
@@ -2023,17 +2019,10 @@
                 "valid_max": 90000000,
                 "valid_min": -90000000
               },
-              "shape": [
-                16,
-                4
-              ],
               "chunks": [
                 16,
                 4
               ],
-              "dtype": "<i4",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2041,14 +2030,21 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i4",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "longitude": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "columns"
+                  "tie_columns"
                 ],
                 "dimensions": [
                   "rows",
@@ -2065,17 +2061,10 @@
                 "valid_max": 180000000,
                 "valid_min": -180000000
               },
-              "shape": [
-                16,
-                4
-              ],
               "chunks": [
                 16,
                 4
               ],
-              "dtype": "<i4",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2083,14 +2072,21 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i4",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oaa": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "columns"
+                  "tie_columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -2118,17 +2114,10 @@
                 "scale_factor": 1e-06,
                 "units": "degrees"
               },
-              "shape": [
-                16,
-                4
-              ],
               "chunks": [
                 16,
                 4
               ],
-              "dtype": "<i4",
-              "fill_value": -2147483648,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2136,14 +2125,21 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i4",
+              "fill_value": -2147483648,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oza": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "columns"
+                  "tie_columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -2171,17 +2167,10 @@
                 "scale_factor": 1e-06,
                 "units": "degrees"
               },
-              "shape": [
-                16,
-                4
-              ],
               "chunks": [
                 16,
                 4
               ],
-              "dtype": "<u4",
-              "fill_value": 4294967295,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2189,14 +2178,21 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u4",
+              "fill_value": 4294967295,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "saa": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "columns"
+                  "tie_columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -2224,17 +2220,10 @@
                 "scale_factor": 1e-06,
                 "units": "degrees"
               },
-              "shape": [
-                16,
-                4
-              ],
               "chunks": [
                 16,
                 4
               ],
-              "dtype": "<i4",
-              "fill_value": -2147483648,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2242,14 +2231,21 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i4",
+              "fill_value": -2147483648,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "sza": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "columns"
+                  "tie_columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -2277,17 +2273,10 @@
                 "scale_factor": 1e-06,
                 "units": "degrees"
               },
-              "shape": [
-                16,
-                4
-              ],
               "chunks": [
                 16,
                 4
               ],
-              "dtype": "<u4",
-              "fill_value": 4294967295,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2295,16 +2284,23 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u4",
+              "fill_value": 4294967295,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             }
-          }
+          },
+          "zarr_format": 2
         },
         "image": {
-          "zarr_format": 2,
           "attributes": {},
           "members": {
             "altitude": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -2324,17 +2320,10 @@
                 "valid_max": 9000,
                 "valid_min": -1000
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
                 16
               ],
-              "dtype": "<i2",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2342,10 +2331,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i2",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                16
+              ],
+              "zarr_format": 2
             },
             "detector_index": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -2374,17 +2370,10 @@
                 "dtype": "<i2",
                 "long_name": "detector index for each pixel"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
                 16
               ],
-              "dtype": "<i2",
-              "fill_value": -1,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2392,10 +2381,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i2",
+              "fill_value": -1,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                16
+              ],
+              "zarr_format": 2
             },
             "frame_offset": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -2424,17 +2420,10 @@
                 "dtype": "<i1",
                 "long_name": "resampling along-track frame offset"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
                 16
               ],
-              "dtype": "|i1",
-              "fill_value": -128,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2442,10 +2431,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|i1",
+              "fill_value": -128,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                16
+              ],
+              "zarr_format": 2
             },
             "latitude": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -2466,17 +2462,10 @@
                 "valid_max": 90000000,
                 "valid_min": -90000000
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
                 16
               ],
-              "dtype": "<i4",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2484,10 +2473,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i4",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                16
+              ],
+              "zarr_format": 2
             },
             "longitude": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -2508,17 +2504,10 @@
                 "valid_max": 180000000,
                 "valid_min": -180000000
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
                 16
               ],
-              "dtype": "<i4",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2526,10 +2515,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i4",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                16
+              ],
+              "zarr_format": 2
             },
             "time_stamp": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows"
@@ -2544,15 +2540,9 @@
                 "standard_name": "time",
                 "units": "nanoseconds since 1970-01-01"
               },
-              "shape": [
-                16
-              ],
               "chunks": [
                 16
               ],
-              "dtype": "<i8",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2560,16 +2550,22 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i8",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16
+              ],
+              "zarr_format": 2
             }
-          }
+          },
+          "zarr_format": 2
         },
         "instrument": {
-          "zarr_format": 2,
           "attributes": {},
           "members": {
             "detectors": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "detectors"
@@ -2580,15 +2576,9 @@
                 "dtype": "<i8",
                 "long_name": "instrument detectors"
               },
-              "shape": [
-                4
-              ],
               "chunks": [
                 4
               ],
-              "dtype": "<i8",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2596,10 +2586,16 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i8",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                4
+              ],
+              "zarr_format": 2
             },
             "fwhm": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "bands",
@@ -2626,17 +2622,10 @@
                 "long_name": "OLCI bandwidth (Full Width at Half Maximum)",
                 "units": "nm"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<f4",
-              "fill_value": -1.0,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2644,10 +2633,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<f4",
+              "fill_value": -1.0,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "lambda0": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "bands",
@@ -2674,17 +2670,10 @@
                 "long_name": "OLCI characterised central wavelength",
                 "units": "nm"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<f4",
-              "fill_value": -1.0,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2692,10 +2681,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<f4",
+              "fill_value": -1.0,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "relative_spectral_covariance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "bands",
@@ -2715,17 +2711,10 @@
                 "dtype": "<f4",
                 "long_name": "relative spectral covariance matrix"
               },
-              "shape": [
-                16,
-                4
-              ],
               "chunks": [
                 16,
                 4
               ],
-              "dtype": "<f4",
-              "fill_value": 0.0,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2733,10 +2722,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<f4",
+              "fill_value": 0.0,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "solar_flux": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "bands",
@@ -2763,17 +2759,10 @@
                 "long_name": "in-band solar irradiance, seasonally corrected",
                 "units": "mW.m-2.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<f4",
-              "fill_value": -1.0,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2781,21 +2770,28 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<f4",
+              "fill_value": -1.0,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             }
-          }
+          },
+          "zarr_format": 2
         },
         "meteorology": {
-          "zarr_format": 2,
           "attributes": {},
           "members": {
             "atmospheric_temperature_profile": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "pressure_level",
                   "rows",
-                  "columns"
+                  "tie_columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -2824,19 +2820,11 @@
                 "standard_name": "air_temperature",
                 "units": "K"
               },
-              "shape": [
-                2,
-                2,
-                2
-              ],
               "chunks": [
-                2,
-                2,
-                2
+                4,
+                16,
+                4
               ],
-              "dtype": "<f4",
-              "fill_value": -1.0,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2844,15 +2832,23 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<f4",
+              "fill_value": -1.0,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                4,
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "horizontal_wind": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "wind_vector",
                   "rows",
-                  "columns"
+                  "tie_columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -2879,19 +2875,11 @@
                 "long_name": "horizontal wind vector at 10m altitude",
                 "units": "m.s-1"
               },
-              "shape": [
-                2,
-                2,
-                2
-              ],
               "chunks": [
-                2,
-                2,
-                2
+                4,
+                16,
+                4
               ],
-              "dtype": "<f4",
-              "fill_value": 9.969209968386869e+36,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2899,14 +2887,22 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<f4",
+              "fill_value": 9.969209968386869e+36,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                4,
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "humidity": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "columns"
+                  "tie_columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -2933,17 +2929,10 @@
                 "standard_name": "relative_humidity",
                 "units": "%"
               },
-              "shape": [
-                16,
-                4
-              ],
               "chunks": [
                 16,
                 4
               ],
-              "dtype": "<f4",
-              "fill_value": -1.0,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2951,14 +2940,21 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<f4",
+              "fill_value": -1.0,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "latitude": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "columns"
+                  "tie_columns"
                 ],
                 "dimensions": [
                   "rows",
@@ -2975,17 +2971,10 @@
                 "valid_max": 90000000,
                 "valid_min": -90000000
               },
-              "shape": [
-                16,
-                4
-              ],
               "chunks": [
                 16,
                 4
               ],
-              "dtype": "<i4",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -2993,14 +2982,21 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i4",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "longitude": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "columns"
+                  "tie_columns"
                 ],
                 "dimensions": [
                   "rows",
@@ -3017,17 +3013,10 @@
                 "valid_max": 180000000,
                 "valid_min": -180000000
               },
-              "shape": [
-                16,
-                4
-              ],
               "chunks": [
                 16,
                 4
               ],
-              "dtype": "<i4",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -3035,10 +3024,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i4",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "pressure_level": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "pressure_level"
@@ -3049,15 +3045,9 @@
                 "dtype": "<i8",
                 "long_name": "coordinates of the vertical temperature profile"
               },
-              "shape": [
-                4
-              ],
               "chunks": [
                 4
               ],
-              "dtype": "<i8",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -3065,14 +3055,20 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i8",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                4
+              ],
+              "zarr_format": 2
             },
             "sea_level_pressure": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "columns"
+                  "tie_columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -3099,17 +3095,10 @@
                 "standard_name": "air_pressure_at_sea_level",
                 "units": "hPa"
               },
-              "shape": [
-                16,
-                4
-              ],
               "chunks": [
                 16,
                 4
               ],
-              "dtype": "<f4",
-              "fill_value": -1.0,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -3117,14 +3106,21 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<f4",
+              "fill_value": -1.0,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "total_columnar_water_vapour": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "columns"
+                  "tie_columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -3151,17 +3147,10 @@
                 "standard_name": "atmosphere_water_vapor_content",
                 "units": "kg.m-2"
               },
-              "shape": [
-                16,
-                4
-              ],
               "chunks": [
                 16,
                 4
               ],
-              "dtype": "<f4",
-              "fill_value": -1.0,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -3169,14 +3158,21 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<f4",
+              "fill_value": -1.0,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "total_ozone": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
-                  "columns"
+                  "tie_columns"
                 ],
                 "_eopf_attrs": {
                   "coordinates": [
@@ -3203,17 +3199,10 @@
                 "standard_name": "atmosphere_mass_content_of_ozone",
                 "units": "kg.m-2"
               },
-              "shape": [
-                16,
-                4
-              ],
               "chunks": [
                 16,
                 4
               ],
-              "dtype": "<f4",
-              "fill_value": -1.0,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -3221,10 +3210,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<f4",
+              "fill_value": -1.0,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "wind_vector": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "wind_vector"
@@ -3235,15 +3231,9 @@
                 "dtype": "<i8",
                 "long_name": "dimensions of horizontal wind vector"
               },
-              "shape": [
-                4
-              ],
               "chunks": [
                 4
               ],
-              "dtype": "<i8",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -3251,16 +3241,22 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i8",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                4
+              ],
+              "zarr_format": 2
             }
-          }
+          },
+          "zarr_format": 2
         },
         "orphans": {
-          "zarr_format": 2,
           "attributes": {},
           "members": {
             "altitude": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -3280,17 +3276,10 @@
                 "valid_max": 9000,
                 "valid_min": -1000
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<i2",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -3298,10 +3287,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i2",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "detector_index": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -3330,17 +3326,10 @@
                 "dtype": "<i2",
                 "long_name": "detector index for removed pixels"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<i2",
-              "fill_value": -1,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -3348,10 +3337,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i2",
+              "fill_value": -1,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "frame_offset": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -3381,17 +3377,10 @@
                 "dtype": "<i1",
                 "long_name": "resampling along-track frame offset"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|i1",
-              "fill_value": -128,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -3399,10 +3388,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|i1",
+              "fill_value": -128,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "latitude": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -3423,17 +3419,10 @@
                 "valid_max": 90000000,
                 "valid_min": -90000000
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<i4",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -3441,10 +3430,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i4",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "longitude": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -3465,17 +3461,10 @@
                 "valid_max": 180000000,
                 "valid_min": -180000000
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<i4",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -3483,10 +3472,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i4",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "nb_removed_pixels": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows"
@@ -3502,15 +3498,9 @@
                 "dtype": "<u2",
                 "long_name": "number of removed pixels per frame"
               },
-              "shape": [
-                4
-              ],
               "chunks": [
-                4
+                16
               ],
-              "dtype": "<u2",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -3518,10 +3508,16 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16
+              ],
+              "zarr_format": 2
             },
             "removed_pixels": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "removed_pixels"
@@ -3532,15 +3528,9 @@
                 "dtype": "<i8",
                 "long_name": "maximum removed pixels per line"
               },
-              "shape": [
-                4
-              ],
               "chunks": [
                 4
               ],
-              "dtype": "<i8",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -3548,10 +3538,16 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i8",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                4
+              ],
+              "zarr_format": 2
             },
             "sza": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -3585,17 +3581,10 @@
                 "scale_factor": 1e-06,
                 "units": "degrees"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u4",
-              "fill_value": 4294967295,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -3603,18 +3592,26 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u4",
+              "fill_value": 4294967295,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             }
-          }
+          },
+          "zarr_format": 2
         }
-      }
+      },
+      "zarr_format": 2
     },
     "measurements": {
-      "zarr_format": 2,
       "attributes": {},
       "members": {
         "altitude": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -3634,17 +3631,10 @@
             "valid_max": 9000,
             "valid_min": -1000
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<i2",
-          "fill_value": null,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -3652,10 +3642,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<i2",
+          "fill_value": null,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "latitude": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -3676,17 +3673,10 @@
             "valid_max": 90000000,
             "valid_min": -90000000
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<i4",
-          "fill_value": null,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -3694,10 +3684,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<i4",
+          "fill_value": null,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "longitude": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -3718,17 +3715,10 @@
             "valid_max": 180000000,
             "valid_min": -180000000
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<i4",
-          "fill_value": null,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -3736,10 +3726,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<i4",
+          "fill_value": null,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa01_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -3777,17 +3774,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -3795,10 +3785,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa02_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -3836,17 +3833,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -3854,10 +3844,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa03_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -3895,17 +3892,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -3913,10 +3903,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa04_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -3954,17 +3951,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -3972,10 +3962,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa05_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4013,17 +4010,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4031,10 +4021,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa06_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4072,17 +4069,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4090,10 +4080,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa07_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4131,17 +4128,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4149,10 +4139,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa08_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4190,17 +4187,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4208,10 +4198,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa09_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4249,17 +4246,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4267,10 +4257,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa10_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4308,17 +4305,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4326,10 +4316,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa11_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4367,17 +4364,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4385,10 +4375,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa12_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4426,17 +4423,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4444,10 +4434,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa13_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4485,17 +4482,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4503,10 +4493,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa14_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4544,17 +4541,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4562,10 +4552,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa15_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4603,17 +4600,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4621,10 +4611,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa16_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4662,17 +4659,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4680,10 +4670,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa17_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4721,17 +4718,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4739,10 +4729,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa18_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4780,17 +4777,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4798,10 +4788,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa19_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4839,17 +4836,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4857,10 +4847,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa20_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4898,17 +4895,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4916,10 +4906,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa21_radiance": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -4957,17 +4954,10 @@
             "standard_name": "toa_upwelling_spectral_radiance",
             "units": "mW.m-2.sr-1.nm-1"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u2",
-          "fill_value": 65535,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -4975,14 +4965,20 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u2",
+          "fill_value": 65535,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "orphans": {
-          "zarr_format": 2,
           "attributes": {},
           "members": {
             "altitude": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5002,17 +4998,10 @@
                 "valid_max": 9000,
                 "valid_min": -1000
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<i2",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5020,10 +5009,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i2",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "latitude": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5044,17 +5040,10 @@
                 "valid_max": 90000000,
                 "valid_min": -90000000
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<i4",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5062,10 +5051,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i4",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "longitude": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5086,17 +5082,10 @@
                 "valid_max": 180000000,
                 "valid_min": -180000000
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<i4",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5104,10 +5093,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i4",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa01_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5145,17 +5141,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5163,10 +5152,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa02_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5204,17 +5200,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5222,10 +5211,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa03_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5263,17 +5259,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5281,10 +5270,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa04_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5322,17 +5318,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5340,10 +5329,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa05_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5381,17 +5377,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5399,10 +5388,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa06_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5440,17 +5436,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5458,10 +5447,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa07_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5499,17 +5495,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5517,10 +5506,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa08_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5558,17 +5554,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5576,10 +5565,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa09_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5617,17 +5613,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5635,10 +5624,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa10_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5676,17 +5672,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5694,10 +5683,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa11_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5735,17 +5731,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5753,10 +5742,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa12_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5794,17 +5790,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5812,10 +5801,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa13_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5853,17 +5849,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5871,10 +5860,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa14_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5912,17 +5908,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5930,10 +5919,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa15_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -5971,17 +5967,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -5989,10 +5978,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa16_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -6030,17 +6026,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -6048,10 +6037,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa17_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -6089,17 +6085,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -6107,10 +6096,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa18_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -6148,17 +6144,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -6166,10 +6155,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa19_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -6207,17 +6203,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -6225,10 +6214,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa20_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -6266,17 +6262,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -6284,10 +6273,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa21_radiance": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -6325,17 +6321,10 @@
                 "standard_name": "toa_upwelling_spectral_radiance",
                 "units": "mW.m-2.sr-1.nm-1"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u2",
-              "fill_value": 65535,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -6343,10 +6332,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u2",
+              "fill_value": 65535,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "removed_pixels": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "removed_pixels"
@@ -6357,15 +6353,9 @@
                 "dtype": "<i8",
                 "long_name": "maximum removed pixels per line"
               },
-              "shape": [
-                4
-              ],
               "chunks": [
                 4
               ],
-              "dtype": "<i8",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -6373,12 +6363,19 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i8",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                4
+              ],
+              "zarr_format": 2
             }
-          }
+          },
+          "zarr_format": 2
         },
         "time_stamp": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows"
@@ -6393,15 +6390,9 @@
             "standard_name": "time",
             "units": "nanoseconds since 1970-01-01"
           },
-          "shape": [
-            16
-          ],
           "chunks": [
             16
           ],
-          "dtype": "<i8",
-          "fill_value": null,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -6409,16 +6400,22 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<i8",
+          "fill_value": null,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16
+          ],
+          "zarr_format": 2
         }
-      }
+      },
+      "zarr_format": 2
     },
     "quality": {
-      "zarr_format": 2,
       "attributes": {},
       "members": {
         "altitude": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -6438,17 +6435,10 @@
             "valid_max": 9000,
             "valid_min": -1000
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<i2",
-          "fill_value": null,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -6456,10 +6446,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<i2",
+          "fill_value": null,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "latitude": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -6480,17 +6477,10 @@
             "valid_max": 90000000,
             "valid_min": -90000000
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<i4",
-          "fill_value": null,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -6498,10 +6488,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<i4",
+          "fill_value": null,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "longitude": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -6522,17 +6519,10 @@
             "valid_max": 180000000,
             "valid_min": -180000000
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<i4",
-          "fill_value": null,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -6540,10 +6530,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<i4",
+          "fill_value": null,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa01_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -6579,17 +6576,10 @@
             "scale_factor": 0.0054720002226531506,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -6597,10 +6587,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa02_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -6636,17 +6633,10 @@
             "scale_factor": 0.005102999974042177,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -6654,10 +6644,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa03_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -6693,17 +6690,10 @@
             "scale_factor": 0.005386999808251858,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -6711,10 +6701,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa04_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -6750,17 +6747,10 @@
             "scale_factor": 0.005243999883532524,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -6768,10 +6758,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa05_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -6807,17 +6804,10 @@
             "scale_factor": 0.005743000190705061,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -6825,10 +6815,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa06_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -6864,17 +6861,10 @@
             "scale_factor": 0.006068000104278326,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -6882,10 +6872,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa07_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -6921,17 +6918,10 @@
             "scale_factor": 0.00686699990183115,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -6939,10 +6929,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa08_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -6978,17 +6975,10 @@
             "scale_factor": 0.007137000095099211,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -6996,10 +6986,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa09_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -7035,17 +7032,10 @@
             "scale_factor": 0.006550000049173832,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -7053,10 +7043,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa10_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -7092,17 +7089,10 @@
             "scale_factor": 0.006779999937862158,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -7110,10 +7100,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa11_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -7149,17 +7146,10 @@
             "scale_factor": 0.007145000156015158,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -7167,10 +7157,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa12_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -7206,17 +7203,10 @@
             "scale_factor": 0.006775000132620335,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -7224,10 +7214,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa13_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -7263,17 +7260,10 @@
             "scale_factor": 0.005898999981582165,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -7281,10 +7271,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa14_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -7320,17 +7317,10 @@
             "scale_factor": 0.006147999782115221,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -7338,10 +7328,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa15_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -7377,17 +7374,10 @@
             "scale_factor": 0.006641000043600798,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -7395,10 +7385,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa16_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -7434,17 +7431,10 @@
             "scale_factor": 0.008098999969661236,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -7452,10 +7442,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa17_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -7491,17 +7488,10 @@
             "scale_factor": 0.008390000090003014,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -7509,10 +7499,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa18_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -7548,17 +7545,10 @@
             "scale_factor": 0.007825000211596489,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -7566,10 +7556,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa19_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -7605,17 +7602,10 @@
             "scale_factor": 0.007402999792248011,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -7623,10 +7613,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa20_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -7662,17 +7659,10 @@
             "scale_factor": 0.008166000247001648,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -7680,10 +7670,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "oa21_radiance_unc": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -7719,17 +7716,10 @@
             "scale_factor": 0.0057830000296235085,
             "units": "lg(re mW.m-2.sr-1.nm-1)"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "|u1",
-          "fill_value": 255,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -7737,14 +7727,20 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "|u1",
+          "fill_value": 255,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "orphans": {
-          "zarr_format": 2,
           "attributes": {},
           "members": {
             "altitude": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -7764,17 +7760,10 @@
                 "valid_max": 9000,
                 "valid_min": -1000
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<i2",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -7782,10 +7771,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i2",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "latitude": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -7806,17 +7802,10 @@
                 "valid_max": 90000000,
                 "valid_min": -90000000
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<i4",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -7824,10 +7813,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i4",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "longitude": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -7848,17 +7844,10 @@
                 "valid_max": 180000000,
                 "valid_min": -180000000
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<i4",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -7866,10 +7855,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i4",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa01_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -7905,17 +7901,10 @@
                 "scale_factor": 0.0054720002226531506,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -7923,10 +7912,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa02_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -7962,17 +7958,10 @@
                 "scale_factor": 0.005102999974042177,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -7980,10 +7969,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa03_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -8019,17 +8015,10 @@
                 "scale_factor": 0.005386999808251858,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8037,14 +8026,21 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa04_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
-                  "dim_0",
-                  "dim_1"
+                  "rows",
+                  "removed_pixels"
                 ],
                 "_eopf_attrs": {
                   "add_offset": -0.30964401364326477,
@@ -8069,17 +8065,10 @@
                 "scale_factor": 0.005243999883532524,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8087,10 +8076,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa05_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -8126,17 +8122,10 @@
                 "scale_factor": 0.005743000190705061,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8144,10 +8133,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa06_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -8183,17 +8179,10 @@
                 "scale_factor": 0.006068000104278326,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8201,10 +8190,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa07_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -8240,17 +8236,10 @@
                 "scale_factor": 0.00686699990183115,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8258,10 +8247,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa08_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -8297,17 +8293,10 @@
                 "scale_factor": 0.007137000095099211,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8315,10 +8304,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa09_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -8354,17 +8350,10 @@
                 "scale_factor": 0.006550000049173832,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8372,10 +8361,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa10_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -8411,17 +8407,10 @@
                 "scale_factor": 0.006779999937862158,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8429,10 +8418,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa11_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -8468,17 +8464,10 @@
                 "scale_factor": 0.007145000156015158,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8486,10 +8475,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa12_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -8525,17 +8521,10 @@
                 "scale_factor": 0.006775000132620335,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8543,10 +8532,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa13_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -8582,17 +8578,10 @@
                 "scale_factor": 0.005898999981582165,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8600,10 +8589,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa14_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -8639,17 +8635,10 @@
                 "scale_factor": 0.006147999782115221,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8657,14 +8646,21 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa15_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
-                  "dim_0",
-                  "dim_1"
+                  "rows",
+                  "removed_pixels"
                 ],
                 "_eopf_attrs": {
                   "add_offset": -0.7225130200386047,
@@ -8689,17 +8685,10 @@
                 "scale_factor": 0.006641000043600798,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8707,10 +8696,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa16_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -8746,17 +8742,10 @@
                 "scale_factor": 0.008098999969661236,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8764,10 +8753,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa17_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -8803,17 +8799,10 @@
                 "scale_factor": 0.008390000090003014,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8821,10 +8810,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa18_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -8860,17 +8856,10 @@
                 "scale_factor": 0.007825000211596489,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8878,10 +8867,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa19_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -8917,17 +8913,10 @@
                 "scale_factor": 0.007402999792248011,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8935,10 +8924,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa20_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -8974,17 +8970,10 @@
                 "scale_factor": 0.008166000247001648,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -8992,10 +8981,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "oa21_radiance_unc": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -9031,17 +9027,10 @@
                 "scale_factor": 0.0057830000296235085,
                 "units": "lg(re mW.m-2.sr-1.nm-1)"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "|u1",
-              "fill_value": 255,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -9049,10 +9038,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "|u1",
+              "fill_value": 255,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "quality_flags": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "rows",
@@ -9110,17 +9106,10 @@
                 "flag_meanings": "land coastline fresh_inland_water tidal_region bright straylight_risk invalid cosmetic duplicated sun-glint_risk dubious saturated partially_saturated",
                 "long_name": "classification and quality flags for removed pixels"
               },
-              "shape": [
-                16,
-                16
-              ],
               "chunks": [
                 16,
-                16
+                4
               ],
-              "dtype": "<u4",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -9128,10 +9117,17 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<u4",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                16,
+                4
+              ],
+              "zarr_format": 2
             },
             "removed_pixels": {
-              "zarr_format": 2,
               "attributes": {
                 "_ARRAY_DIMENSIONS": [
                   "removed_pixels"
@@ -9142,15 +9138,9 @@
                 "dtype": "<i8",
                 "long_name": "maximum removed pixels per line"
               },
-              "shape": [
-                4
-              ],
               "chunks": [
                 4
               ],
-              "dtype": "<i8",
-              "fill_value": null,
-              "order": "C",
               "compressor": {
                 "blocksize": 0,
                 "clevel": 3,
@@ -9158,12 +9148,19 @@
                 "id": "blosc",
                 "shuffle": 2
               },
-              "filters": null
+              "dtype": "<i8",
+              "fill_value": null,
+              "filters": null,
+              "order": "C",
+              "shape": [
+                4
+              ],
+              "zarr_format": 2
             }
-          }
+          },
+          "zarr_format": 2
         },
         "quality_flags": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows",
@@ -9221,17 +9218,10 @@
             "flag_meanings": "land coastline fresh_inland_water tidal_region bright straylight_risk invalid cosmetic duplicated sun-glint_risk dubious saturated partially_saturated",
             "long_name": "classification and quality flags"
           },
-          "shape": [
-            16,
-            16
-          ],
           "chunks": [
             16,
             16
           ],
-          "dtype": "<u4",
-          "fill_value": null,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -9239,10 +9229,17 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<u4",
+          "fill_value": null,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16,
+            16
+          ],
+          "zarr_format": 2
         },
         "time_stamp": {
-          "zarr_format": 2,
           "attributes": {
             "_ARRAY_DIMENSIONS": [
               "rows"
@@ -9257,15 +9254,9 @@
             "standard_name": "time",
             "units": "nanoseconds since 1970-01-01"
           },
-          "shape": [
-            16
-          ],
           "chunks": [
             16
           ],
-          "dtype": "<i8",
-          "fill_value": null,
-          "order": "C",
           "compressor": {
             "blocksize": 0,
             "clevel": 3,
@@ -9273,9 +9264,18 @@
             "id": "blosc",
             "shuffle": 2
           },
-          "filters": null
+          "dtype": "<i8",
+          "fill_value": null,
+          "filters": null,
+          "order": "C",
+          "shape": [
+            16
+          ],
+          "zarr_format": 2
         }
-      }
+      },
+      "zarr_format": 2
     }
-  }
+  },
+  "zarr_format": 2
 }

@@ -62,11 +62,23 @@ Consequences:
   affine transform. We attach 2-D coordinate arrays via CF `coordinates` and the
   appropriate GeoZarr `spatial`/`proj` metadata for curvilinear data (no
   `spatial:transform`; lat/lon carried as coordinate arrays).
-- Multiscale overviews are produced by **simple /2 decimation** of
-  `rows`/`columns` (subsample the radiance grid AND the lat/lon/altitude
-  coordinate arrays together so geolocation stays consistent per level). This is
-  the COG-style /2 approach minus the projected-grid assumption. (Reprojection
-  to a regular grid is explicitly a *future* option, not in this deliverable.)
+- Multiscale overviews are produced by **2×2 block reduction** of `rows`/`columns`:
+  - **Radiance bands → block-average** (mean over each 2×2 block), like the S2
+    reflectance path. This is a genuine reduction, so each level carries new
+    information that justifies storing it (a literal `[::2,::2]` *subsample* would
+    add no information over the base array and must NOT be re-saved).
+  - **Coordinate arrays (`latitude`/`longitude`/`altitude`) → decimate**
+    (take a fixed sub-pixel, e.g. block top-left), NOT average — so each overview
+    pixel's geolocation remains a real measured position rather than an
+    interpolated one. Radiance and coords are reduced together so each level's
+    grid stays internally consistent.
+  - Levels are declared with the GeoZarr **`multiscales`** convention. Per the
+    multiscales spec, the per-level `transform` holds the **relative** index
+    relationship (`scale: [2, 2]` from the source level) — which remains valid
+    for a 2×2 reduction. We do **NOT** emit `spatial:transform` (the absolute
+    affine), because OLCI has no regular grid; absolute geolocation is carried by
+    each level's own 2-D lat/lon coordinate arrays. (Reprojection to a regular
+    grid is explicitly a *future* option, not in this deliverable.)
 
 ## Scope (v1): measurements-first
 

@@ -180,9 +180,18 @@ def test_convert_olci_conditions_quality_passthrough(tmp_path: object) -> None:
             )
         }
     )
+    # Build a measurements/orphans sub-dataset to verify child subgroup copy.
+    orphans_ds = xr.Dataset(
+        {
+            "removed_count": xr.DataArray(
+                rng.integers(0, 10, (rows,)).astype("int32"), dims=("rows",)
+            )
+        }
+    )
     dt = xr.DataTree.from_dict(
         {
             "/measurements": meas_ds,
+            "/measurements/orphans": orphans_ds,
             "/conditions": cond_ds,
             "/quality": quality_ds,
         }
@@ -194,6 +203,8 @@ def test_convert_olci_conditions_quality_passthrough(tmp_path: object) -> None:
     g = zarr.open_group(out, mode="r")
     assert "conditions" in g
     assert "quality" in g
+    # measurements/orphans subgroup must have been copied through.
+    assert "orphans" in g["measurements"]
 
 
 def test_cli_convert_s3_olci_optimized(tmp_path: pathlib.Path) -> None:
@@ -232,26 +243,25 @@ def test_olci_conversion_matches_snapshot(
     """Snapshot test: converted OLCI structure must match committed golden file.
 
     The fixture is a Zarr v2 store representing a real OLCI L1 EFR product.
-    We open just the ``/measurements`` group (the converter's input is a
-    DataTree rooted at this sub-tree) and wrap it in a minimal DataTree.
-    The ``time_stamp`` array is included: its ``rows`` dimension now matches
-    the spatial arrays (both 16), so no ``drop_variables`` workaround is
-    needed.  Inherited Zarr v2 encoding is stripped inside the converter, so
-    no ``encoding.clear()`` workaround is needed here either.
+    We open the whole DataTree so that conditions, quality, and
+    measurements/orphans subgroups are included in the conversion.
+    The fixture has been fixed so all dimension/shape conflicts are resolved
+    (tie-point grids use 'tie_columns', orphan arrays use removed_pixels=4, etc.).
+
+    ``min_dimension=8`` is used so that the 16x16 measurements grid generates
+    one overview level (r2 at 8x8).
 
     To (re)generate the snapshot, uncomment the regeneration block below,
     run the test once, then re-comment before committing.
     """
-    meas_ds = xr.open_dataset(
+    dt_in = xr.open_datatree(
         str(s3_olci_group_example),
         engine="zarr",
-        group="measurements",
         consolidated=False,
         chunks={},
     )
-    dt_in = xr.DataTree.from_dict({"/measurements": meas_ds})
     out = str(tmp_path / "out.zarr")
-    convert_olci_optimized(dt_in, output_path=out, min_dimension=256)
+    convert_olci_optimized(dt_in, output_path=out, min_dimension=8)
 
     observed_group = zarr.open_group(out, use_consolidated=False)
     observed_structure_json = GroupSpec.from_zarr(observed_group).model_dump()
