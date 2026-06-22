@@ -102,3 +102,31 @@ def test_detector_rejects_s2_zarr(s2_group_example: object) -> None:
     assert isinstance(s2_group_example, pathlib.Path)
     group = zarr.open_group(str(s2_group_example), mode="r")
     assert is_sentinel3_olci_dataset(group) is False
+
+
+def test_real_olci_product_is_detected(s3_olci_group_example: object) -> None:
+    import pathlib
+
+    import zarr
+
+    from eopf_geozarr.s3_olci_optimization.olci_converter import (
+        is_sentinel3_olci_dataset,
+    )
+
+    assert isinstance(s3_olci_group_example, pathlib.Path)
+    group = zarr.open_group(str(s3_olci_group_example), mode="r")
+    assert is_sentinel3_olci_dataset(group) is True
+
+
+def test_real_olci_product_validates_model(s3_olci_group_example: object) -> None:
+    import pathlib
+
+    import zarr
+
+    from eopf_geozarr.data_api.s3_olci import Sentinel3OlciRoot
+    from eopf_geozarr.pyz.v2 import GroupSpec as PyzGroupSpec
+
+    assert isinstance(s3_olci_group_example, pathlib.Path)
+    group = zarr.open_group(str(s3_olci_group_example), mode="r")
+    model = Sentinel3OlciRoot.model_validate(PyzGroupSpec.from_zarr(group).model_dump())
+    assert "oa01_radiance" in model.measurements.members
