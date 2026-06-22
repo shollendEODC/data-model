@@ -36,14 +36,15 @@ def is_sentinel3_olci_dataset(group: zarr.Group) -> bool:
 def _overview_levels(rows: int, cols: int, min_dimension: int) -> int:
     """Return the number of /2 decimations before min(rows, cols) drops below min_dimension.
 
-    A level is generated as long as the *current* minimum spatial dimension is
-    at least *min_dimension*.  That is, the check is on the pre-decimation size
-    so that a 512x480 dataset with min_dimension=256 yields one level
-    (256x240), while a 256x240 dataset would yield zero.
+    A level is generated only when the *post*-decimation minimum spatial
+    dimension is at least *min_dimension*.  For example, a 512x480 dataset
+    with min_dimension=256 yields zero levels because 480//2=240 < 256, while
+    a 1024x1024 dataset with min_dimension=256 yields two levels (512x512,
+    then 256x256).
     """
     levels = 0
     r, c = rows, cols
-    while min(r, c) >= min_dimension:
+    while min(r, c) // 2 >= min_dimension:
         r, c = r // 2, c // 2
         levels += 1
     return levels
@@ -125,6 +126,13 @@ def convert_olci_optimized(
     -------
     xr.DataTree
         The opened output DataTree (lazy; backed by the written Zarr store).
+        Overview subgroups (``r2``, ``r4``, …) are written to the Zarr store
+        but are **not** represented as children of the returned DataTree,
+        because xarray enforces dimension consistency between parent and child
+        nodes and the overview subgroups have smaller spatial dimensions than
+        the parent ``measurements`` group.  To read them, open the store
+        directly with ``zarr.open_group(output_path)["measurements"]["r2"]``
+        etc.
 
     Notes
     -----

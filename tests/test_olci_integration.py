@@ -57,19 +57,67 @@ def test_convert_olci_writes_measurements(tmp_path: object) -> None:
 
 
 def test_convert_olci_creates_overviews(tmp_path: object) -> None:
-    """At least one /2-decimated overview subgroup must be written under measurements."""
+    """Overview subgroups must only be written when BOTH post-decimation dims >= min_dimension.
+
+    Case 1 — 512x480 with min_dimension=256:
+        480//2 = 240 < 256, so the guard fires immediately → zero overview levels.
+
+    Case 2 — 1024x1024 with min_dimension=256:
+        1024//2=512>=256 → level r2 (512x512)
+        512//2=256>=256  → level r4 (256x256)
+        256//2=128<256   → stop
+        Exactly two levels; smallest must be exactly 256x256.
+    """
     import zarr
 
-    dt = build_synthetic_olci(rows=512, cols=480)
-    out = str(tmp_path / "olci_geozarr.zarr")  # type: ignore[operator]
-    convert_olci_optimized(dt, output_path=out, min_dimension=256)
+    # --- Case 1: 512x480, min_dimension=256 → zero overview levels ---
+    dt1 = build_synthetic_olci(rows=512, cols=480)
+    out1 = str(tmp_path / "olci_case1.zarr")  # type: ignore[operator]
+    convert_olci_optimized(dt1, output_path=out1, min_dimension=256)
 
-    g = zarr.open_group(out, mode="r")
-    # at least one decimated overview level exists under measurements
-    meas_item = g["measurements"]
-    assert isinstance(meas_item, zarr.Group)
-    subgroups = list(meas_item.group_keys())
-    assert len(subgroups) >= 1
+    g1 = zarr.open_group(out1, mode="r")
+    meas1 = g1["measurements"]
+    assert isinstance(meas1, zarr.Group)
+    subgroups1 = list(meas1.group_keys())
+    assert len(subgroups1) == 0, (
+        f"Expected 0 overview levels for 512x480 at min_dimension=256, got {subgroups1}"
+    )
+
+    # --- Case 2: 1024x1024, min_dimension=256 → exactly two valid levels ---
+    dt2 = build_synthetic_olci(rows=1024, cols=1024)
+    out2 = str(tmp_path / "olci_case2.zarr")  # type: ignore[operator]
+    convert_olci_optimized(dt2, output_path=out2, min_dimension=256)
+
+    g2 = zarr.open_group(out2, mode="r")
+    meas2 = g2["measurements"]
+    assert isinstance(meas2, zarr.Group)
+    subgroups2 = sorted(meas2.group_keys())
+    assert len(subgroups2) == 2, (
+        f"Expected exactly 2 overview levels for 1024x1024 at min_dimension=256, got {subgroups2}"
+    )
+
+    # Every overview level must have BOTH spatial dims >= min_dimension.
+    for sg_name in subgroups2:
+        sg = meas2[sg_name]
+        assert isinstance(sg, zarr.Group)
+        band = sg["oa01_radiance"]
+        assert isinstance(band, zarr.Array)
+        # shape is (rows, columns)
+        overview_rows, overview_cols = band.shape[0], band.shape[1]
+        assert overview_rows >= 256, f"measurements/{sg_name} rows={overview_rows} < 256"
+        assert overview_cols >= 256, f"measurements/{sg_name} cols={overview_cols} < 256"
+
+    # The deepest level (r4 for 1024-input) must be exactly 256x256.
+    deepest = meas2[subgroups2[-1]]
+    assert isinstance(deepest, zarr.Group)
+    deepest_band = deepest["oa01_radiance"]
+    assert isinstance(deepest_band, zarr.Array)
+    assert deepest_band.shape[0] == 256, (
+        f"Expected smallest overview rows=256, got {deepest_band.shape}"
+    )
+    assert deepest_band.shape[1] == 256, (
+        f"Expected smallest overview cols=256, got {deepest_band.shape}"
+    )
 
 
 def test_convert_olci_returns_datatree(tmp_path: object) -> None:
