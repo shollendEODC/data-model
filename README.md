@@ -283,6 +283,66 @@ Check if a variable is a grid_mapping variable by looking for references to it.
 
 Validate that a specific band exists and is complete in the dataset.
 
+## Supported Products
+
+### Sentinel-2 MSI
+
+Sentinel-2 MSI (MultiSpectral Instrument) L1C and L2A products are detected
+automatically by `eopf-geozarr convert` and routed to the optimized multiscale
+layout (`convert-s2-optimized`).  The three native resolution groups (10 m, 20 m,
+60 m) are reused as-is and coarser overviews (120 m, 360 m, 720 m) are computed
+via /2 downsampling.
+
+### Sentinel-3 OLCI L1 EFR
+
+Sentinel-3 OLCI (Ocean and Land Colour Instrument) Level-1 EFR (Full Resolution)
+products are detected automatically by `eopf-geozarr convert` and routed to the
+dedicated OLCI converter.  Unlike Sentinel-2, OLCI data uses **native swath geometry**:
+measurements are stored on a per-pixel 2-D lat/lon grid with no reprojection to a
+projected CRS.  The exporter preserves this curvilinear geometry intact.
+
+#### Auto-detection
+
+```bash
+eopf-geozarr convert S3A_OL_1_EFR.zarr output.zarr
+```
+
+#### Dedicated command
+
+```bash
+eopf-geozarr convert-s3-olci-optimized S3A_OL_1_EFR.zarr output.zarr \
+    --spatial-chunk 1024 \
+    --min-dimension 256 \
+    --compression-level 3 \
+    --enable-sharding \
+    --keep-scale-offset
+```
+
+Key flags:
+
+- `--spatial-chunk` — target spatial chunk size in pixels (default: 1024)
+- `--enable-sharding` — enable Zarr v3 sharding on measurement arrays
+- `--compression-level` — Blosc/zstd compression level 1–9 (default: 3)
+- `--min-dimension` — stop generating /2 overview levels once either spatial
+  dimension would drop below this value (default: 256)
+- `--keep-scale-offset` — preserve CF `scale_factor`/`add_offset` encoding
+  instead of decoding to float
+
+#### What is converted
+
+- **`/measurements`**: all 21 OLCI radiance bands at native full resolution, with
+  GeoZarr `spatial:` convention metadata and per-pixel 2-D `latitude`/`longitude`
+  coordinate arrays.
+- **Overview subgroups** (`r2`, `r4`, …): /2-decimated copies of the measurements
+  stored as sibling Zarr groups under `measurements/`.
+- **`/conditions` and `/quality`**: copied through unmodified.
+
+> **Note:** OLCI support is initial/measurements-focused (v1).  Tie-point grid
+> groups (`conditions/geometry`, `meteorology`, `instrument`) are copied through but
+> not converted to GeoZarr convention.  Encoding wiring for `--enable-sharding`,
+> `--spatial-chunk`, `--compression-level`, and `--keep-scale-offset` is accepted
+> but scheduled as a follow-up task.
+
 ## Architecture
 
 The library is organized into the following modules:

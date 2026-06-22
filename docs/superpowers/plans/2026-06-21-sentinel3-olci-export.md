@@ -59,6 +59,7 @@ OLCI band central wavelengths (nm), Oa01–Oa21:
 - [ ] **Step 1: Write the failing test**
 
 ```python
+# test: skip
 # tests/test_olci_band_mapping.py
 from eopf_geozarr.s3_olci_optimization.olci_band_mapping import (
     OLCI_BANDS,

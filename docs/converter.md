@@ -177,6 +177,65 @@ dt_optimized = convert_s2_optimized(
 
 The result is a space-efficient multiscale pyramid: `/measurements/reflectance/{r10m, r20m, r60m, r120m, r360m, r720m}` where the native resolutions are preserved as-is and only the coarser levels are computed.
 
+## Sentinel-3 OLCI L1 EFR Conversion
+
+Sentinel-3 OLCI (Ocean and Land Colour Instrument) Level-1 EFR (Full Resolution)
+products are supported.  OLCI uses **native swath geometry**: measurements are stored
+on a per-pixel 2-D lat/lon grid, with no reprojection to a projected CRS.  The
+exporter preserves this curvilinear geometry intact and generates /2-decimated
+overview subgroups for multi-resolution access.
+
+### Auto-detection
+
+The generic `convert` command detects OLCI products automatically:
+
+```bash
+eopf-geozarr convert S3A_OL_1_EFR.zarr output.zarr
+```
+
+### Dedicated command
+
+A dedicated command offers fine-grained control:
+
+```bash
+eopf-geozarr convert-s3-olci-optimized S3A_OL_1_EFR.zarr output.zarr \
+    --spatial-chunk 1024 \
+    --min-dimension 256 \
+    --compression-level 3 \
+    --enable-sharding \
+    --keep-scale-offset
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--spatial-chunk` | 1024 | Target spatial chunk size in pixels |
+| `--enable-sharding` | off | Enable Zarr v3 sharding on measurement arrays |
+| `--compression-level` | 3 | Blosc/zstd compression level (1–9) |
+| `--min-dimension` | 256 | Minimum spatial dimension for overview levels |
+| `--keep-scale-offset` | off | Preserve CF scale-offset encoding (default: decode to float) |
+
+### Output layout
+
+```
+output.zarr/
+├── measurements/        # Native-resolution OLCI bands (oa01_radiance … oa21_radiance)
+│   │                    # with per-pixel latitude/longitude coordinates
+│   ├── r2/             # 1/2-resolution overview
+│   ├── r4/             # 1/4-resolution overview
+│   └── ...
+├── conditions/          # Copied through unmodified (tie-point geometry, meteorology)
+└── quality/             # Copied through unmodified (quality flags)
+```
+
+Each measurement group carries GeoZarr `spatial:` convention metadata and
+references the per-pixel 2-D coordinate arrays `latitude` and `longitude`.
+
+> **Note:** OLCI support is initial/measurements-focused (v1).  Tie-point grid
+> groups in `conditions/geometry`, `meteorology`, and `instrument` are copied
+> through but not converted to GeoZarr convention.  Encoding wiring for
+> `--enable-sharding`, `--spatial-chunk`, `--compression-level`, and
+> `--keep-scale-offset` is accepted but scheduled as a follow-up task.
+
 ## Error Handling
 
 The converter includes robust error handling and retry logic for network operations, ensuring reliable processing even in challenging environments.
