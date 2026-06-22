@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import xarray as xr
+    from zarr_cm import SpatialAttrs
 
 SWATH_DIMS = ("rows", "columns")
 
@@ -32,3 +33,18 @@ def decimate_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
     if not indexers:
         return ds
     return ds.isel(indexers)
+
+
+def swath_spatial_attrs(
+    dims: tuple[str, str] = SWATH_DIMS,
+) -> SpatialAttrs:
+    """Spatial-convention data for curvilinear swath geometry.
+
+    OLCI has no affine transform; geolocation is carried by 2-D lat/lon
+    coordinate arrays, so we declare the spatial dimensions and pixel
+    registration but no ``spatial:transform``/``spatial:bbox``.
+    """
+    return {
+        "spatial:dimensions": [dims[0], dims[1]],
+        "spatial:registration": "pixel",
+    }

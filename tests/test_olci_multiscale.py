@@ -1,7 +1,10 @@
 import numpy as np
 import xarray as xr
 
-from eopf_geozarr.s3_olci_optimization.olci_multiscale import decimate_swath
+from eopf_geozarr.s3_olci_optimization.olci_multiscale import (
+    decimate_swath,
+    swath_spatial_attrs,
+)
 
 
 def _swath(rows: int = 8, cols: int = 6) -> xr.Dataset:
@@ -47,3 +50,11 @@ def test_decimate_preserves_attrs() -> None:
     out = decimate_swath(_swath(8, 6), factor=2)
     assert out["oa01_radiance"].attrs["scale_factor"] == 0.5
     assert out["latitude"].attrs["standard_name"] == "latitude"
+
+
+def test_swath_spatial_attrs_has_no_transform() -> None:
+    attrs = swath_spatial_attrs()
+    assert attrs["spatial:dimensions"] == ["rows", "columns"]
+    assert attrs.get("spatial:registration") == "pixel"
+    assert "spatial:transform" not in attrs
+    assert "spatial:bbox" not in attrs
