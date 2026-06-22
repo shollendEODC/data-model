@@ -8,7 +8,7 @@ import structlog
 import xarray as xr
 import zarr
 
-from eopf_geozarr.conversion.utils import build_convention_attrs
+from eopf_geozarr.conversion.utils import build_convention_attrs, sanitize_array_attrs
 from eopf_geozarr.data_api.s3_olci import Sentinel3OlciRoot
 from eopf_geozarr.s3_olci_optimization.olci_band_mapping import OLCI_BANDS
 from eopf_geozarr.s3_olci_optimization.olci_multiscale import (
@@ -73,14 +73,43 @@ def _clear_encoding(ds: xr.Dataset) -> xr.Dataset:
     because numcodecs codecs are not valid Zarr v3 BytesBytesCodecs.  Clearing
     the encoding lets the Zarr v3 writer choose its own default codecs.
 
-    CF attributes (``scale_factor``, ``add_offset``, ``_FillValue``) live in
-    ``.attrs``, not ``.encoding``, so they are preserved by this function.
+    This converter expects raw (non-mask-scaled) input: the caller must open
+    the source DataTree with ``mask_and_scale=False`` so that CF
+    ``scale_factor``/``add_offset`` stay in ``.attrs`` and integer fill pixels
+    are identified via ``attrs["_FillValue"]``.  Only Zarr v2 *codec* encoding
+    (e.g. ``numcodecs.Blosc`` compressors) is stripped here — CF metadata is
+    untouched.
     """
     ds = ds.copy()
     ds.encoding = {}
     for var in list(ds.data_vars) + list(ds.coords):
         ds[var].encoding.clear()
     return ds
+
+
+def _sanitize_data_vars(ds: xr.Dataset) -> xr.Dataset:
+    """Return *ds* with stale source attrs stripped from all data variables.
+
+    Applies :func:`~eopf_geozarr.conversion.utils.sanitize_array_attrs` with
+    ``is_decoded_float=False`` to every data variable in *ds*.  Coordinate
+    variable attrs are left intact.
+
+    This removes ``_eopf_attrs``, ``dtype``, ``valid_min``, and ``valid_max``
+    (source-only / misleading) while preserving CF attrs
+    (``scale_factor``, ``add_offset``, ``_FillValue``, ``units``,
+    ``standard_name``, ``coordinates``).
+
+    Note: ``xr.DataArray.assign_attrs`` *merges* (update semantics), so we
+    copy the DataArray and replace ``.attrs`` in-place to ensure stale keys
+    are actually removed rather than retained from the old dict.
+    """
+    new_vars: dict[str, xr.DataArray] = {}
+    for name in ds.data_vars:
+        var = ds[name]
+        new_var = var.copy(data=var.data)
+        new_var.attrs = sanitize_array_attrs(dict(var.attrs), is_decoded_float=False)
+        new_vars[str(name)] = new_var
+    return ds.assign(new_vars)
 
 
 def _copy_subtree(node: xr.DataTree, output_path: str, *, root_group: str) -> None:
@@ -181,9 +210,15 @@ def convert_olci_optimized(
     measurements = dt_input["/measurements"].to_dataset()
     # Strip any inherited Zarr v2 encoding (e.g. numcodecs.Blosc compressors)
     # so the v3 writer can choose its own default codecs without raising a
-    # "Expected a BytesBytesCodec" error.  CF attrs (scale_factor, add_offset,
-    # _FillValue) live in .attrs, not .encoding, so they are preserved.
+    # "Expected a BytesBytesCodec" error.  The caller is expected to have opened
+    # the source with mask_and_scale=False, so CF attrs (scale_factor,
+    # add_offset, _FillValue) live in .attrs and are preserved here.
     measurements = _clear_encoding(measurements)
+    # Sanitize radiance variable attrs: strip source-only / misleading attrs
+    # (_eopf_attrs, dtype, valid_min, valid_max) while keeping CF scale/offset
+    # and _FillValue so that downstream readers and reduce_swath can work
+    # correctly with raw integer data.
+    measurements = _sanitize_data_vars(measurements)
 
     log.info("Writing native-resolution measurements", shape=dict(measurements.sizes))
     measurements.to_zarr(
@@ -204,6 +239,8 @@ def convert_olci_optimized(
     for level in range(1, n_levels + 1):
         current = reduce_swath(current, factor=2)
         current = _clear_encoding(current)
+        # Attrs already sanitized at native level and passed through by
+        # reduce_swath; no second sanitize pass needed.
         group_name = f"r{2**level}"
         log.info("Writing overview", group=f"measurements/{group_name}", shape=dict(current.sizes))
         current.to_zarr(

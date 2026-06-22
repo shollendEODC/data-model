@@ -1310,7 +1310,11 @@ def convert_s3_olci_optimized_command(args: argparse.Namespace) -> None:
     """Execute S3 OLCI optimized conversion command."""
     storage_options = get_storage_options(str(args.input_path))
     dt_input = xr.open_datatree(
-        str(args.input_path), engine="zarr", chunks="auto", storage_options=storage_options
+        str(args.input_path),
+        engine="zarr",
+        chunks="auto",
+        storage_options=storage_options,
+        mask_and_scale=False,
     )
     convert_olci_optimized(
         dt_input,

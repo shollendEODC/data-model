@@ -236,6 +236,30 @@ def test_cli_convert_s3_olci_optimized(tmp_path: pathlib.Path) -> None:
     assert "measurements" in g
 
 
+def _assert_radiance_dtype_and_attrs(
+    group: zarr.Group, band_name: str, *, level_label: str
+) -> None:
+    """Assert that *band_name* in *group* is uint16 with scale_factor and no stale attrs.
+
+    This is a regression guard: the converter must preserve raw integer storage
+    and CF scale/offset, and must strip source-only attrs (_eopf_attrs, dtype,
+    valid_min, valid_max).
+    """
+    band = group[band_name]
+    assert isinstance(band, zarr.Array), f"{level_label}/{band_name} is not a zarr.Array"
+    assert band.dtype == np.dtype("uint16"), (
+        f"{level_label}/{band_name}: expected uint16, got {band.dtype}"
+    )
+    attrs = dict(band.attrs)
+    assert "scale_factor" in attrs, (
+        f"{level_label}/{band_name}: scale_factor missing from attrs (got {list(attrs)})"
+    )
+    for stale_key in ("_eopf_attrs", "dtype", "valid_min", "valid_max"):
+        assert stale_key not in attrs, (
+            f"{level_label}/{band_name}: stale attr '{stale_key}' present in output attrs"
+        )
+
+
 def test_olci_conversion_matches_snapshot(
     s3_olci_group_example: pathlib.Path,
     tmp_path: pathlib.Path,
@@ -260,6 +284,7 @@ def test_olci_conversion_matches_snapshot(
         engine="zarr",
         consolidated=False,
         chunks={},
+        mask_and_scale=False,
     )
     out = str(tmp_path / "out.zarr")
     convert_olci_optimized(dt_in, output_path=out, min_dimension=8)
@@ -285,3 +310,13 @@ def test_olci_conversion_matches_snapshot(
     e_keys = set(expected_structure_flat.keys())
     assert o_keys == e_keys
     assert [k for k in o_keys if observed_structure_flat[k] != expected_structure_flat[k]] == []
+
+    # Dtype/attrs regression guard: radiance must be stored as uint16 with
+    # scale_factor preserved and stale source attrs absent.
+    meas_g = observed_group["measurements"]
+    assert isinstance(meas_g, zarr.Group)
+    _assert_radiance_dtype_and_attrs(meas_g, "oa01_radiance", level_label="native")
+    if "r2" in meas_g:
+        r2_g = meas_g["r2"]
+        assert isinstance(r2_g, zarr.Group)
+        _assert_radiance_dtype_and_attrs(r2_g, "oa01_radiance", level_label="r2")
