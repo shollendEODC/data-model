@@ -14,6 +14,8 @@ import zarr
 from pydantic_zarr.core import tuplify_json
 from pydantic_zarr.v3 import GroupSpec
 
+from eopf_geozarr.s3_olci_optimization.olci_converter import _sanitize_olci_array_attrs
+
 if TYPE_CHECKING:
     import pathlib
 
@@ -320,3 +322,38 @@ def test_olci_conversion_matches_snapshot(
         r2_g = meas_g["r2"]
         assert isinstance(r2_g, zarr.Group)
         _assert_radiance_dtype_and_attrs(r2_g, "oa01_radiance", level_label="r2")
+
+
+def test_sanitize_olci_array_attrs_strips_stale_keeps_fill_value() -> None:
+    """_sanitize_olci_array_attrs must strip stale source attrs and preserve _FillValue.
+
+    Unlike the shared sanitize_array_attrs (which always strips _FillValue),
+    the OLCI-local helper must preserve _FillValue so that downstream readers
+    and reduce_swath can identify fill pixels on raw uint16 data opened with
+    mask_and_scale=False.
+    """
+    attrs: dict[str, object] = {
+        "_eopf_attrs": {"source": "some blob"},
+        "dtype": "uint16",
+        "valid_min": 0,
+        "valid_max": 65534,
+        "scale_factor": 0.0139,
+        "add_offset": 0.0,
+        "_FillValue": 65535,
+        "units": "W m-2 sr-1 um-1",
+        "standard_name": "toa_upwelling_spectral_radiance",
+        "coordinates": "latitude longitude altitude",
+    }
+    result = _sanitize_olci_array_attrs(attrs)
+    # Stale source-only attrs must be removed.
+    assert "_eopf_attrs" not in result, "_eopf_attrs must be stripped"
+    assert "dtype" not in result, "dtype must be stripped"
+    assert "valid_min" not in result, "valid_min must be stripped"
+    assert "valid_max" not in result, "valid_max must be stripped"
+    # CF and fill attrs must be preserved.
+    assert result.get("scale_factor") == 0.0139, "scale_factor must be preserved"
+    assert result.get("add_offset") == 0.0, "add_offset must be preserved"
+    assert result.get("_FillValue") == 65535, "_FillValue must be preserved for OLCI raw uint16"
+    assert result.get("units") == "W m-2 sr-1 um-1", "units must be preserved"
+    assert result.get("standard_name") == "toa_upwelling_spectral_radiance"
+    assert result.get("coordinates") == "latitude longitude altitude"

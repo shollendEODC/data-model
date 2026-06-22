@@ -112,29 +112,18 @@ def sanitize_array_attrs(
 ) -> dict[str, Any]:
     """Return a copy of *attrs* with source-only and misleading keys removed.
 
-    Always removed:
-    - ``_eopf_attrs`` — internal EOPF provenance blob, not a CF/GeoZarr attr.
-    - ``dtype`` — source storage dtype hint; misleading after conversion.
-    - ``valid_min``, ``valid_max`` — source-domain integer bounds; not meaningful
-      in GeoZarr output and absent from CF conventions for radiance bands.
-
-    When ``is_decoded_float=True`` (caller has already CF-decoded the array to
-    float), ``_FillValue`` is also removed because it has been consumed by
-    xarray into ``.encoding`` and is no longer meaningful in ``.attrs``.
-    ``units: "digital_counts"`` is rewritten to ``"1"`` to match the decoded
-    physical-unit convention.
-
-    When ``is_decoded_float=False`` (raw integer / mask-and-scale=False path),
-    ``_FillValue`` is **preserved** in attrs so that downstream code (e.g.
-    ``reduce_swath``) and Zarr readers can identify fill pixels without
-    requiring CF decoding.
+    - ``_eopf_attrs`` is always removed.
+    - For decoded float measurement arrays (*is_decoded_float=True*), also
+      removes raw-encoding leftovers ``dtype``, ``fill_value``,
+      ``valid_min``, ``valid_max`` and rewrites
+      ``units: "digital_counts"`` → ``"1"``.
 
     CF keys ``scale_factor`` and ``add_offset`` are always preserved.
     """
-    _always_strip = ("_eopf_attrs", "dtype", "valid_min", "valid_max")
-    out = {k: v for k, v in attrs.items() if k not in _always_strip}
+    out = {k: v for k, v in attrs.items() if k not in ("_eopf_attrs", "_FillValue")}
     if is_decoded_float:
-        out.pop("_FillValue", None)
+        for key in ("dtype", "fill_value", "valid_min", "valid_max"):
+            out.pop(key, None)
         if out.get("units") == "digital_counts":
             out["units"] = "1"
     return out

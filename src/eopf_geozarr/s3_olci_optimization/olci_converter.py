@@ -8,7 +8,7 @@ import structlog
 import xarray as xr
 import zarr
 
-from eopf_geozarr.conversion.utils import build_convention_attrs, sanitize_array_attrs
+from eopf_geozarr.conversion.utils import build_convention_attrs
 from eopf_geozarr.data_api.s3_olci import Sentinel3OlciRoot
 from eopf_geozarr.s3_olci_optimization.olci_band_mapping import OLCI_BANDS
 from eopf_geozarr.s3_olci_optimization.olci_multiscale import (
@@ -21,6 +21,24 @@ if TYPE_CHECKING:
     from zarr_cm import LayoutObject, MultiscalesAttrs, Transform
 
 log = structlog.get_logger()
+
+
+def _sanitize_olci_array_attrs(attrs: dict[str, object]) -> dict[str, object]:
+    """Return a copy of *attrs* with stale source-only keys removed.
+
+    Strips ``_eopf_attrs``, ``dtype``, ``valid_min``, and ``valid_max`` (source
+    provenance and raw-integer-domain metadata that is misleading in GeoZarr
+    output).  Unlike the shared :func:`~eopf_geozarr.conversion.utils.sanitize_array_attrs`,
+    this helper intentionally **preserves** ``_FillValue`` because OLCI input is
+    opened with ``mask_and_scale=False`` (raw uint16) and downstream code (e.g.
+    ``reduce_swath``) needs ``_FillValue`` in ``.attrs`` to identify fill pixels
+    without CF decoding.
+
+    CF keys ``scale_factor``, ``add_offset``, ``units``, ``standard_name``,
+    ``coordinates``, and ``long_name`` are always preserved.
+    """
+    _strip = frozenset(("_eopf_attrs", "dtype", "valid_min", "valid_max"))
+    return {k: v for k, v in attrs.items() if k not in _strip}
 
 
 def is_sentinel3_olci_dataset(group: zarr.Group) -> bool:
@@ -90,9 +108,8 @@ def _clear_encoding(ds: xr.Dataset) -> xr.Dataset:
 def _sanitize_data_vars(ds: xr.Dataset) -> xr.Dataset:
     """Return *ds* with stale source attrs stripped from all data variables.
 
-    Applies :func:`~eopf_geozarr.conversion.utils.sanitize_array_attrs` with
-    ``is_decoded_float=False`` to every data variable in *ds*.  Coordinate
-    variable attrs are left intact.
+    Applies :func:`_sanitize_olci_array_attrs` to every data variable in *ds*.
+    Coordinate variable attrs are left intact.
 
     This removes ``_eopf_attrs``, ``dtype``, ``valid_min``, and ``valid_max``
     (source-only / misleading) while preserving CF attrs
@@ -107,7 +124,7 @@ def _sanitize_data_vars(ds: xr.Dataset) -> xr.Dataset:
     for name in ds.data_vars:
         var = ds[name]
         new_var = var.copy(data=var.data)
-        new_var.attrs = sanitize_array_attrs(dict(var.attrs), is_decoded_float=False)
+        new_var.attrs = _sanitize_olci_array_attrs(dict(var.attrs))
         new_vars[str(name)] = new_var
     return ds.assign(new_vars)
 
