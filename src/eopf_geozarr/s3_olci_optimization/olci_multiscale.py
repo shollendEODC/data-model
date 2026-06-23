@@ -98,6 +98,21 @@ def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
 
     coord_names: frozenset[str] = frozenset(str(k) for k in ds.coords)
 
+    # Pre-compute the trimmed length for each swath dimension so that both the
+    # coarsen path (radiance) and the isel stride path (coordinates) produce
+    # exactly floor(N / factor) output elements.  coarsen(boundary="trim")
+    # already truncates to a multiple of factor; we match it by stopping the
+    # stride at the same trimmed limit:  slice(0, n_trim, factor).
+    #
+    # Without this, an odd-length dimension N yields:
+    #   coarsen → floor(N / factor)   e.g. 4865 → 2432
+    #   isel[::factor] → ceil(N / factor)  e.g. 4865 → 2433
+    # producing a store where coordinate arrays are longer than the data they
+    # describe, which makes xr.open_dataset raise a conflicting-sizes error.
+    dim_trim: dict[str, int] = {
+        dim: (ds.sizes[dim] // factor) * factor for dim in SWATH_DIMS if dim in ds.sizes
+    }
+
     all_names: list[str] = [str(k) for k in ds.data_vars] + [str(k) for k in ds.coords]
     for name in all_names:
         var: xr.DataArray = ds[name] if name in ds.data_vars else ds.coords[name]
@@ -134,7 +149,12 @@ def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
 
         elif is_swath_2d:
             # Coordinate or non-radiance 2-D swath variable: decimate.
-            indexers: dict[str, slice] = {dim: slice(None, None, factor) for dim in SWATH_DIMS}
+            # Use slice(0, n_trim, factor) rather than slice(None, None, factor)
+            # so that an odd-length dimension N yields floor(N / factor) elements,
+            # matching the output length of coarsen(boundary="trim").mean().
+            indexers: dict[str, slice] = {
+                dim: slice(0, dim_trim[dim], factor) for dim in SWATH_DIMS if dim in dim_trim
+            }
             decimated = var.isel(indexers)
             if name in coord_names:
                 result_coords[name] = decimated
@@ -146,7 +166,9 @@ def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
             # decimate along whichever swath dims it carries.
             var_dims = {str(d) for d in var.dims}
             idx: dict[str, slice] = {
-                dim: slice(None, None, factor) for dim in SWATH_DIMS if dim in var_dims
+                dim: slice(0, dim_trim[dim], factor)
+                for dim in SWATH_DIMS
+                if dim in var_dims and dim in dim_trim
             }
             decimated = var.isel(idx)
             if name in coord_names:

@@ -324,6 +324,53 @@ def test_olci_conversion_matches_snapshot(
         _assert_radiance_dtype_and_attrs(r2_g, "oa01_radiance", level_label="r2")
 
 
+def test_convert_olci_odd_dims_overview_no_conflicting_sizes(tmp_path: object) -> None:
+    """Overview groups written from an odd-dimensioned swath must open without errors.
+
+    Regression test for the off-by-one bug in reduce_swath where coordinate
+    decimation via [::factor] produced ceil(N/factor) elements while
+    coarsen(boundary="trim") produced floor(N/factor) for the radiance data.
+    On an odd-column real OLCI product (4865 cols) this caused xr.open_dataset
+    to raise ``ValueError: conflicting sizes for dimension 'columns'``.
+
+    We use rows=10, cols=9 (odd cols) with min_dimension=4 so that two
+    overview levels (r2 at 5x4, r4 at 2x2) are generated.  Each level is
+    opened via xr.open_dataset to confirm no conflicting-sizes error.
+    """
+    dt = build_synthetic_olci(rows=10, cols=9)
+    out = str(tmp_path / "odd_olci.zarr")  # type: ignore[operator]
+    convert_olci_optimized(dt, output_path=out, min_dimension=4)
+
+    # Determine which overview groups were written.
+    import zarr as _zarr
+
+    g = _zarr.open_group(out, mode="r")
+    meas = g["measurements"]
+    assert isinstance(meas, _zarr.Group)
+    overview_keys = sorted(meas.group_keys())
+    # With rows=10, cols=9, min_dimension=4:
+    #   floor(9/2)=4 >= 4 → r2 generated
+    #   floor(4/2)=2 < 4 → stop
+    assert overview_keys == ["r2"], (
+        f"Expected exactly ['r2'] for 10x9 at min_dimension=4, got {overview_keys}"
+    )
+
+    # Open each overview level; this must NOT raise a conflicting-sizes error.
+    for lvl in overview_keys:
+        ds = xr.open_dataset(out, engine="zarr", group=f"measurements/{lvl}", consolidated=False)
+        rad_shape = ds["oa01_radiance"].shape
+        lat_shape = ds["latitude"].shape
+        lon_shape = ds["longitude"].shape
+        assert rad_shape == lat_shape == lon_shape, (
+            f"measurements/{lvl}: shapes disagree — "
+            f"oa01_radiance={rad_shape}, latitude={lat_shape}, longitude={lon_shape}"
+        )
+        # r2 of a 10x9 swath must be (5, 4) = (floor(10/2), floor(9/2))
+        if lvl == "r2":
+            assert rad_shape == (5, 4), f"r2 shape expected (5,4), got {rad_shape}"
+        ds.close()
+
+
 def test_sanitize_olci_array_attrs_strips_stale_keeps_fill_value() -> None:
     """_sanitize_olci_array_attrs must strip stale source attrs and preserve _FillValue.
 
