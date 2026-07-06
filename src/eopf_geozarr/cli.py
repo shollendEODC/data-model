@@ -110,6 +110,10 @@ def _is_sentinel3_olci_input(dt: xr.DataTree) -> bool:
     ``is_sentinel3_olci_dataset`` validates structurally against a Zarr v2 model
     and can raise on unrelated inputs; any failure simply means "not a recognised
     OLCI product", so fall back to the generic converter.
+
+    Detection is intentionally conservative (strict structural validation), so
+    near-miss OLCI products fall through to the generic path; the explicit
+    ``convert-s3-olci-optimized`` subcommand bypasses detection entirely.
     """
     try:
         return is_sentinel3_olci_dataset(get_zarr_group(dt))
@@ -1128,8 +1132,11 @@ def create_parser() -> argparse.ArgumentParser:
             "--min-dimension do not apply. Sentinel-3 OLCI inputs are likewise "
             "auto-detected and converted with the OLCI swath converter (equivalent to "
             "convert-s3-olci-optimized), which honors --min-dimension but not the "
-            "per-group options. Pass --no-s2-optimized / --no-s3-olci-optimized to "
-            "force the generic conversion path, which honors all options."
+            "per-group options; OLCI detection is intentionally strict, so near-miss "
+            "products fall back to the generic path — use convert-s3-olci-optimized "
+            "to convert them explicitly. Pass --no-s2-optimized / "
+            "--no-s3-olci-optimized to force the generic conversion path, which "
+            "honors all options."
         ),
     )
     convert_parser.add_argument(

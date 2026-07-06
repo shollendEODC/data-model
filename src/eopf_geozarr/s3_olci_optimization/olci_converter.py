@@ -48,6 +48,13 @@ def is_sentinel3_olci_dataset(group: zarr.Group) -> bool:
     Detection is structural: the group must validate against
     ``Sentinel3OlciRoot`` and its ``measurements`` group must contain the
     first OLCI radiance band.
+
+    Detection is intentionally conservative: ``Sentinel3OlciRoot`` uses a
+    closed member set and requires the standard EOPF root attrs, so a
+    product with extra top-level groups or missing root metadata fails
+    validation and is treated as "not OLCI" (falling through to the generic
+    converter in the CLI). Users with such near-miss products should use the
+    explicit ``convert-s3-olci-optimized`` subcommand, which skips detection.
     """
     from eopf_geozarr.pyz.v2 import GroupSpec
 

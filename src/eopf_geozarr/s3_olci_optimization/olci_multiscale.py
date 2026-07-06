@@ -154,11 +154,18 @@ def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
                     # either end of the dtype range).
                     collision = valid_mask & (result_arr == float(fill_value))
                     if collision.any():
-                        nudged = np.where(
-                            unrounded <= float(fill_value),
-                            float(fill_value) - 1,
-                            float(fill_value) + 1,
-                        )
+                        # Nudge candidates, clamped to the dtype range: when
+                        # the sentinel sits at a dtype bound (e.g. 0 for an
+                        # unsigned dtype), both sides resolve to the one
+                        # in-range neighbour instead of wrapping around.
+                        info = np.iinfo(orig_dtype)
+                        down = float(fill_value) - 1
+                        up = float(fill_value) + 1
+                        if down < float(info.min):
+                            down = up
+                        if up > float(info.max):
+                            up = down
+                        nudged = np.where(unrounded <= float(fill_value), down, up)
                         result_arr = np.where(collision, nudged, result_arr)
             result_val = result_arr.astype(orig_dtype)
 
