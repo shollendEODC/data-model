@@ -14,7 +14,9 @@ import zarr
 from pydantic_zarr.core import tuplify_json
 from pydantic_zarr.v3 import GroupSpec
 
-from eopf_geozarr.s3_olci_optimization.olci_converter import _sanitize_olci_array_attrs
+from eopf_geozarr.s3_olci_optimization.olci_converter import (
+    _sanitize_olci_array_attrs_keep_fill,
+)
 
 if TYPE_CHECKING:
     import pathlib
@@ -372,7 +374,7 @@ def test_convert_olci_odd_dims_overview_no_conflicting_sizes(tmp_path: object) -
 
 
 def test_sanitize_olci_array_attrs_strips_stale_keeps_fill_value() -> None:
-    """_sanitize_olci_array_attrs must strip stale source attrs and preserve _FillValue.
+    """_sanitize_olci_array_attrs_keep_fill must strip stale source attrs and preserve _FillValue.
 
     Unlike the shared sanitize_array_attrs (which always strips _FillValue),
     the OLCI-local helper must preserve _FillValue so that downstream readers
@@ -391,7 +393,7 @@ def test_sanitize_olci_array_attrs_strips_stale_keeps_fill_value() -> None:
         "standard_name": "toa_upwelling_spectral_radiance",
         "coordinates": "latitude longitude altitude",
     }
-    result = _sanitize_olci_array_attrs(attrs)
+    result = _sanitize_olci_array_attrs_keep_fill(attrs)
     # Stale source-only attrs must be removed.
     assert "_eopf_attrs" not in result, "_eopf_attrs must be stripped"
     assert "dtype" not in result, "dtype must be stripped"

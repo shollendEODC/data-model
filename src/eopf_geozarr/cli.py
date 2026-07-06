@@ -221,14 +221,18 @@ def convert_command(args: argparse.Namespace) -> None:
                 keep_scale_offset=False,
                 max_retries=args.max_retries,
             )
-        elif _is_sentinel3_olci_input(dt):
-            log.info("Detected Sentinel-3 OLCI product; using OLCI converter")
+        elif _is_sentinel3_olci_input(dt) and not getattr(args, "no_s3_olci_optimized", False):
+            log.info(
+                "Detected Sentinel-3 OLCI product; using OLCI converter "
+                "(pass --no-s3-olci-optimized to force the generic path)"
+            )
             # convert_olci_optimized requires raw (non-mask-scaled) input:
             # radiance must stay packed uint16 with CF scale_factor/add_offset
             # and _FillValue in .attrs (see _clear_encoding / reduce_swath).
             # The tree above was opened with CF decoding on for detection and
-            # the generic path, so re-open it raw, matching
+            # the generic path, so close it and re-open raw, matching
             # convert_s3_olci_optimized_command.
+            dt.close()
             dt_raw = xr.open_datatree(
                 str(input_path),
                 engine="zarr",
@@ -1121,8 +1125,11 @@ def create_parser() -> argparse.ArgumentParser:
             "auto-detected and converted with the optimized flat multiscale layout "
             "(equivalent to convert-s2-optimized with keep_scale_offset disabled); for "
             "those inputs the per-group options --groups, --crs-groups, --gcp-group and "
-            "--min-dimension do not apply. Pass --no-s2-optimized to force the generic "
-            "conversion path, which honors all options."
+            "--min-dimension do not apply. Sentinel-3 OLCI inputs are likewise "
+            "auto-detected and converted with the OLCI swath converter (equivalent to "
+            "convert-s3-olci-optimized), which honors --min-dimension but not the "
+            "per-group options. Pass --no-s2-optimized / --no-s3-olci-optimized to "
+            "force the generic conversion path, which honors all options."
         ),
     )
     convert_parser.add_argument(
@@ -1196,6 +1203,14 @@ def create_parser() -> argparse.ArgumentParser:
         help=(
             "Disable Sentinel-2 auto-detection and use the generic conversion path, "
             "honoring --groups/--crs-groups/--gcp-group/--min-dimension"
+        ),
+    )
+    convert_parser.add_argument(
+        "--no-s3-olci-optimized",
+        action="store_true",
+        help=(
+            "Disable Sentinel-3 OLCI auto-detection and use the generic conversion "
+            "path, honoring --groups/--crs-groups/--gcp-group"
         ),
     )
     convert_parser.set_defaults(func=convert_command)

@@ -32,6 +32,7 @@ def _convert_args(input_path: str, output_path: str, **overrides: Any) -> argpar
         dask_cluster=False,
         enable_sharding=False,
         no_s2_optimized=False,
+        no_s3_olci_optimized=False,
     )
     for key, value in overrides.items():
         setattr(ns, key, value)
@@ -153,6 +154,23 @@ def test_convert_command_routes_olci_with_raw_input(
         "OLCI converter received CF-decoded (mask_and_scale) input; expected raw packed radiance"
     )
     assert "scale_factor" in radiance.attrs
+
+
+def test_convert_command_no_s3_olci_optimized_forces_generic(
+    s3_olci_group_example: Path,
+    tmp_path: Path,
+    converter_spy: dict[str, dict[str, Any]],
+) -> None:
+    """--no-s3-olci-optimized sends Sentinel-3 OLCI inputs down the generic path."""
+    args = _convert_args(
+        str(s3_olci_group_example),
+        str(tmp_path / "out.zarr"),
+        no_s3_olci_optimized=True,
+    )
+    cli.convert_command(args)
+
+    assert "generic" in calls_or_fail(converter_spy)
+    assert "olci" not in converter_spy
 
 
 def test_convert_command_routes_non_s2_to_generic(

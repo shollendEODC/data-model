@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
-def _sanitize_olci_array_attrs(attrs: dict[str, object]) -> dict[str, object]:
+def _sanitize_olci_array_attrs_keep_fill(attrs: dict[str, object]) -> dict[str, object]:
     """Return a copy of *attrs* with stale source-only keys removed.
 
     Strips ``_eopf_attrs``, ``dtype``, ``valid_min``, and ``valid_max`` (source
@@ -109,7 +109,7 @@ def _clear_encoding(ds: xr.Dataset) -> xr.Dataset:
 def _sanitize_data_vars(ds: xr.Dataset) -> xr.Dataset:
     """Return *ds* with stale source attrs stripped from all data variables.
 
-    Applies :func:`_sanitize_olci_array_attrs` to every data variable in *ds*.
+    Applies :func:`_sanitize_olci_array_attrs_keep_fill` to every data variable in *ds*.
     Coordinate variable attrs are left intact.
 
     This removes ``_eopf_attrs``, ``dtype``, ``valid_min``, and ``valid_max``
@@ -125,7 +125,7 @@ def _sanitize_data_vars(ds: xr.Dataset) -> xr.Dataset:
     for name in ds.data_vars:
         var = ds[name]
         new_var = var.copy(data=var.data)
-        new_var.attrs = _sanitize_olci_array_attrs(dict(var.attrs))
+        new_var.attrs = _sanitize_olci_array_attrs_keep_fill(dict(var.attrs))
         new_vars[str(name)] = new_var
     return ds.assign(new_vars)
 
