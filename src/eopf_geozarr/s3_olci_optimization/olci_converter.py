@@ -232,8 +232,23 @@ def convert_olci_optimized(
     and ``keep_scale_offset`` are accepted but not yet applied to the on-disk
     encoding.  Wiring them through the existing ``conversion`` helpers
     (``create_measurements_encoding``, sharding codec, etc.) is left for a
-    follow-up task so as not to block the integration test.
+    follow-up task so as not to block the integration test.  A warning is
+    logged when a non-default value is passed for any of them, so callers
+    aren't silently handed default-encoded output.
     """
+    unwired: dict[str, tuple[object, object]] = {
+        "enable_sharding": (enable_sharding, False),
+        "spatial_chunk": (spatial_chunk, 1024),
+        "compression_level": (compression_level, 3),
+        "keep_scale_offset": (keep_scale_offset, False),
+    }
+    ignored = [name for name, (value, default) in unwired.items() if value != default]
+    if ignored:
+        log.warning(
+            "Options not yet applied by the OLCI converter; output uses default encoding",
+            ignored_options=ignored,
+        )
+
     measurements = dt_input["/measurements"].to_dataset()
     # Strip any inherited Zarr v2 encoding (e.g. numcodecs.Blosc compressors)
     # so the v3 writer can choose its own default codecs without raising a

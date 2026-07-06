@@ -127,7 +127,12 @@ def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
 
             float_var = var.astype("float64")
             if fill_value is not None:
-                float_var = float_var.where(float_var != float(fill_value))
+                if np.isnan(float(fill_value)):
+                    # NaN sentinel (float sources): equality comparison would
+                    # be a no-op (NaN != NaN is always True); mask explicitly.
+                    float_var = float_var.where(float_var.notnull())
+                else:
+                    float_var = float_var.where(float_var != float(fill_value))
 
             # coarsen().mean() is available at runtime; pyright stubs don't expose .mean()
             # on DataArrayCoarsen, so we suppress the type-check on the reduction call.

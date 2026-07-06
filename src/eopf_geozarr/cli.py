@@ -244,11 +244,15 @@ def convert_command(args: argparse.Namespace) -> None:
                 storage_options=storage_options,
                 mask_and_scale=False,
             )
+            # Only forward options the OLCI converter actually applies;
+            # enable_sharding / spatial_chunk are accepted by
+            # convert_olci_optimized but not yet wired into the encoding
+            # (forwarding them would trigger its ignored-options warning on
+            # every run, since convert's defaults differ). Re-add them here
+            # once the converter wires them through.
             dt_geozarr = convert_olci_optimized(
                 dt_raw,
                 output_path=output_path,
-                enable_sharding=args.enable_sharding,
-                spatial_chunk=args.spatial_chunk,
                 min_dimension=args.min_dimension,
             )
         else:
@@ -1345,14 +1349,23 @@ def add_s3_olci_optimization_commands(subparsers: argparse._SubParsersAction) ->
     )
     p.add_argument("input_path", type=str, help="Path to input OLCI dataset (Zarr)")
     p.add_argument("output_path", type=str, help="Path for output optimized dataset")
-    p.add_argument("--spatial-chunk", type=int, default=1024, help="Spatial chunk size")
-    p.add_argument("--enable-sharding", action="store_true", help="Enable Zarr v3 sharding")
+    p.add_argument(
+        "--spatial-chunk",
+        type=int,
+        default=1024,
+        help="Spatial chunk size (not yet applied; reserved for a follow-up)",
+    )
+    p.add_argument(
+        "--enable-sharding",
+        action="store_true",
+        help="Enable Zarr v3 sharding (not yet applied; reserved for a follow-up)",
+    )
     p.add_argument(
         "--compression-level",
         type=int,
         default=3,
         choices=range(1, 10),
-        help="Compression level 1-9 (default: 3)",
+        help="Compression level 1-9 (default: 3; not yet applied; reserved for a follow-up)",
     )
     p.add_argument(
         "--min-dimension",
@@ -1363,7 +1376,10 @@ def add_s3_olci_optimization_commands(subparsers: argparse._SubParsersAction) ->
     p.add_argument(
         "--keep-scale-offset",
         action="store_true",
-        help="Preserve scale-offset encoding instead of decoding to float",
+        help=(
+            "Preserve scale-offset encoding instead of decoding to float "
+            "(not yet applied; output is currently always raw integer)"
+        ),
     )
     p.add_argument("--verbose", action="store_true", help="Enable verbose output")
     p.set_defaults(func=convert_s3_olci_optimized_command)
