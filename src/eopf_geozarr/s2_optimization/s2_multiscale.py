@@ -483,6 +483,11 @@ def create_measurements_encoding(
         # Forward-propagate the existing encoding, minus keys that should be omitted
         keep_keys = XARRAY_ENCODING_KEYS - {"compressors", "shards", "chunks"}
 
+        # Whether to inject a CF _FillValue attribute for xarray issue #11345.
+        # The injection itself happens after sanitize_array_attrs below, which
+        # would otherwise strip it.
+        inject_nan_fillvalue = False
+
         if experimental_scale_offset_codec and not keep_scale_offset:
             # Push CF scale-offset into the zarr codec pipeline instead of
             # decoding to float. The data stays as packed integers on disk,
@@ -524,8 +529,7 @@ def create_measurements_encoding(
             # on the source variable.
             keep_keys = keep_keys - CF_SCALE_OFFSET_KEYS - {"_FillValue", "filters"}
             var_encoding["fill_value"] = "NaN"
-            # Inject CF _FillValue attribute for xarray issue #11345
-            var_data.attrs["_FillValue"] = np.nan
+            inject_nan_fillvalue = True
         elif not keep_scale_offset:
             # When stripping scale/offset, also strip _FillValue since the original
             # _FillValue is in raw integer units and meaningless for decoded float data.
@@ -536,8 +540,7 @@ def create_measurements_encoding(
             # to set the zarr-level fill value, distinct from "_FillValue" which
             # controls CF-convention attribute masking.
             var_encoding["fill_value"] = "NaN"
-            # Inject CF _FillValue attribute for xarray issue #11345
-            var_data.attrs["_FillValue"] = np.nan
+            inject_nan_fillvalue = True
 
         for key in keep_keys:
             if key in var_data.encoding:
@@ -554,6 +557,9 @@ def create_measurements_encoding(
         # otherwise leak into the output).
         is_float = np.issubdtype(var_data.dtype, np.floating)
         var_data.attrs = utils.sanitize_array_attrs(var_data.attrs, is_decoded_float=is_float)
+        if inject_nan_fillvalue:
+            # Inject CF _FillValue attribute for xarray issue #11345
+            var_data.attrs["_FillValue"] = np.nan
         encoding[str(var_name)] = var_encoding
 
     # Add coordinate encoding and sanitize coord attrs (e.g. drop

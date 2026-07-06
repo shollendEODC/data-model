@@ -211,7 +211,9 @@ def test_cli_convert_with_crs_groups(s2_group_example: Path, tmp_path: Path) -> 
     Test CLI conversion with --crs-groups option using real Sentinel-2 data.
 
     This test verifies that the --crs-groups option works correctly and
-    processes the specified groups for CRS enhancement.
+    processes the specified groups for CRS enhancement. It passes
+    --no-s2-optimized so the Sentinel-2 input goes through the generic
+    conversion path (the auto-detected optimized path ignores --crs-groups).
     """
     # Dataset from the notebook
 
@@ -242,6 +244,7 @@ def test_cli_convert_with_crs_groups(s2_group_example: Path, tmp_path: Path) -> 
         "256",
         "--max-retries",
         "3",
+        "--no-s2-optimized",
         "--verbose",
     ]
 

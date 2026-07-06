@@ -112,7 +112,11 @@ def sanitize_array_attrs(
 ) -> dict[str, Any]:
     """Return a copy of *attrs* with source-only and misleading keys removed.
 
-    - ``_eopf_attrs`` is always removed.
+    - ``_eopf_attrs`` and ``_FillValue`` are always removed. ``_FillValue``
+      belongs in the variable's *encoding* (where the zarr-level fill value is
+      carried), not in its attributes; callers that need a CF ``_FillValue``
+      attribute (e.g. the NaN workaround for xarray issue #11345) must re-add
+      it after sanitizing.
     - For decoded float measurement arrays (*is_decoded_float=True*), also
       removes raw-encoding leftovers ``dtype``, ``fill_value``,
       ``valid_min``, ``valid_max`` and rewrites

@@ -507,14 +507,11 @@ def write_geozarr_group(
     if not success:
         raise RuntimeError(f"Failed to write all bands for {group_name}")
 
-    # Create GeoZarr-spec compliant multiscales
-    if _is_sentinel1(dt_input):
-        assert gcp_group is not None, "GCP group required for processing Sentinel-1"
-        ds_gcp: xr.Dataset | None = dt_input[gcp_group].to_dataset()
-        # For Sentinel-1, ds_gcp is set to None since data is now reprojected and doesn't need GCP handling
-        ds_gcp = None
-    else:
-        ds_gcp = None
+    # Create GeoZarr-spec compliant multiscales. GCPs are not needed here:
+    # Sentinel-1 data was already reprojected upstream (see
+    # setup_datatree_metadata_geozarr_spec_compliant), so multiscales are
+    # created without GCP handling.
+    ds_gcp: xr.Dataset | None = None
 
     try:
         log.info("Creating GeoZarr-spec compliant multiscales", group_name=group_name)
@@ -528,7 +525,10 @@ def write_geozarr_group(
             enable_sharding=enable_sharding,
         )
     except Exception as e:
-        log.warning(
+        # Deliberately continue with the remaining groups, but surface the
+        # failure loudly (with traceback): the output store is missing its
+        # multiscales metadata for this group.
+        log.exception(
             "Failed to create GeoZarr-spec compliant multiscales",
             group_name=group_name,
             error=str(e),

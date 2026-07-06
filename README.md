@@ -183,7 +183,6 @@ dt_geozarr = create_geozarr_dataset(
     output_path="s3://my-bucket/geozarr-data/output.zarr",
     spatial_chunk=4096,
     min_dimension=256,
-    tile_width=256,
     max_retries=3
 )
 ```
@@ -207,7 +206,6 @@ dt_geozarr = create_geozarr_dataset(
     output_path="path/to/output/geozarr.zarr",
     spatial_chunk=4096,
     min_dimension=256,
-    tile_width=256,
     max_retries=3
 )
 ```
@@ -227,7 +225,6 @@ Create a GeoZarr-spec 0.4 compliant dataset from EOPF data.
 - `output_path` (str): Output path for the Zarr store
 - `spatial_chunk` (int, default=4096): Spatial chunk size for encoding
 - `min_dimension` (int, default=256): Minimum dimension for overview levels
-- `tile_width` (int, default=256): Tile width for TMS compatibility
 - `max_retries` (int, default=3): Maximum number of retries for network operations
 
 **Returns:**

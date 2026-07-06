@@ -8,8 +8,10 @@ import pytest
 from pydantic import ValidationError
 from pydantic_zarr.v2 import GroupSpec
 
+from eopf_geozarr.data_api.geozarr.common import DatasetAttrs
 from eopf_geozarr.data_api.geozarr.v2 import (
     DataArray,
+    Dataset,
     check_valid_coordinates,
 )
 
@@ -72,3 +74,30 @@ class TestCheckValidCoordinates:
         msg = "Dimension .* for array 'base' has a shape mismatch:"
         with pytest.raises(ValueError, match=msg):
             check_valid_coordinates(cast("GroupLike", group))
+
+
+class TestDataset:
+    @staticmethod
+    def _members() -> dict[str, DataArray]:
+        base_array = DataArray.from_array(
+            np.zeros((4, 4), dtype="uint8"), dimension_names=["y", "x"]
+        )
+        coords_arrays = {
+            name: DataArray.from_array(np.arange(4), dimension_names=(name,)) for name in ("y", "x")
+        }
+        return {"band": base_array, **coords_arrays}
+
+    def test_valid(self) -> None:
+        """A dataset with consistent coordinates and no grid mapping validates."""
+        ds = Dataset(attributes=DatasetAttrs(), members=self._members())
+        assert isinstance(ds, Dataset)
+
+    def test_missing_grid_mapping_variable(self) -> None:
+        """A member declaring a grid_mapping that is not in the dataset fails validation."""
+        members = self._members()
+        band = members["band"]
+        members["band"] = band.model_copy(
+            update={"attributes": band.attributes.model_copy(update={"grid_mapping": "nope"})}
+        )
+        with pytest.raises(ValidationError, match="Grid mapping variable 'nope'"):
+            Dataset(attributes=DatasetAttrs(), members=members)

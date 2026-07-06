@@ -281,6 +281,14 @@ def _reproject_data_variable(
     # Set nodata using rioxarray if not NaN
     if not np.isnan(nodata_value):
         reprojected_var = reprojected_var.rio.write_nodata(nodata_value)
+        # Also record the fill value in the encoding: downstream attribute
+        # sanitization (setup_datatree_metadata_geozarr_spec_compliant) strips
+        # `_FillValue` from attrs and only re-adds it for float variables, and
+        # `explicit_fill_value` reads the encoding — without this, integer
+        # nodata would be lost from the output metadata.
+        reprojected_var.encoding["_FillValue"] = (
+            np.asarray(nodata_value).astype(reprojected_var.dtype).item()
+        )
 
     return reprojected_var
 
