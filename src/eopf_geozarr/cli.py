@@ -34,6 +34,10 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
+# Default for convert's --spatial-chunk; shared between the parser definition
+# and the OLCI auto-detect path's ignored-options check.
+CONVERT_SPATIAL_CHUNK_DEFAULT = 4096
+
 # Suppress xarray FutureWarning about timedelta decoding
 warnings.filterwarnings("ignore", message=".*", category=FutureWarning)
 
@@ -249,7 +253,22 @@ def convert_command(args: argparse.Namespace) -> None:
             # convert_olci_optimized but not yet wired into the encoding
             # (forwarding them would trigger its ignored-options warning on
             # every run, since convert's defaults differ). Re-add them here
-            # once the converter wires them through.
+            # once the converter wires them through — and don't drop a user's
+            # explicit setting silently in the meantime.
+            ignored_cli_options = [
+                name
+                for name, is_non_default in (
+                    ("--spatial-chunk", args.spatial_chunk != CONVERT_SPATIAL_CHUNK_DEFAULT),
+                    ("--enable-sharding", args.enable_sharding),
+                )
+                if is_non_default
+            ]
+            if ignored_cli_options:
+                log.warning(
+                    "Options not yet applied by the OLCI converter and "
+                    "ignored on the auto-detect path",
+                    ignored_options=ignored_cli_options,
+                )
             dt_geozarr = convert_olci_optimized(
                 dt_raw,
                 output_path=output_path,
@@ -1161,7 +1180,7 @@ def create_parser() -> argparse.ArgumentParser:
     convert_parser.add_argument(
         "--spatial-chunk",
         type=int,
-        default=4096,
+        default=CONVERT_SPATIAL_CHUNK_DEFAULT,
         help="Spatial chunk size for encoding (default: 4096)",
     )
     convert_parser.add_argument(

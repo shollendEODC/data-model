@@ -253,6 +253,16 @@ def convert_olci_optimized(
         )
 
     measurements = dt_input["/measurements"].to_dataset()
+    # Structural detection does not constrain dimension names, but the whole
+    # swath pipeline (reduce_swath, decimate_swath, SWATH_DIMS) assumes
+    # rows/columns; fail with a clear error instead of a bare KeyError below.
+    missing_dims = [d for d in ("rows", "columns") if d not in measurements.sizes]
+    if missing_dims:
+        raise ValueError(
+            "OLCI converter requires swath dimensions ('rows', 'columns') on the "
+            f"measurements group; missing {missing_dims}. Use the generic convert "
+            "path for products with different dimension names."
+        )
     # Strip any inherited Zarr v2 encoding (e.g. numcodecs.Blosc compressors)
     # so the v3 writer can choose its own default codecs without raising a
     # "Expected a BytesBytesCodec" error.  The caller is expected to have opened
@@ -367,15 +377,25 @@ def convert_olci_optimized(
         )
     try:
         return xr.DataTree.from_dict(tree_dict)
-    except ValueError as e:
+    except ValueError:
         # DataTree.from_dict enforces dimension consistency between parent
         # and child nodes; an ancillary group reusing a swath dim name at a
         # different size would make assembly fail even though the store was
-        # written correctly. Never mask a successful write: fall back to a
-        # measurements-only view and point readers at the store itself.
-        log.warning(
-            "Could not assemble the full return DataTree; "
-            "returning measurements-only view (the written store is complete)",
-            error=str(e),
-        )
-        return xr.DataTree.from_dict({"/measurements": tree_dict["/measurements"]})
+        # written correctly. Never mask a successful write: re-add groups
+        # greedily and exclude only the ones that break assembly.
+        kept: dict[str, xr.Dataset] = {"/measurements": tree_dict["/measurements"]}
+        for group_path, ds in tree_dict.items():
+            if group_path == "/measurements":
+                continue
+            candidate = {**kept, group_path: ds}
+            try:
+                xr.DataTree.from_dict(candidate)
+            except ValueError as e:
+                log.warning(
+                    "Excluding group from the returned DataTree (the written store is complete)",
+                    group=group_path,
+                    error=str(e),
+                )
+                continue
+            kept = candidate
+        return xr.DataTree.from_dict(kept)
