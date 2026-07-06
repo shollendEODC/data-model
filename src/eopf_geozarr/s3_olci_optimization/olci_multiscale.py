@@ -137,7 +137,10 @@ def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
             # coarsen().mean() is available at runtime; pyright stubs don't expose .mean()
             # on DataArrayCoarsen, so we suppress the type-check on the reduction call.
             coarsened = float_var.coarsen({"rows": factor, "columns": factor}, boundary="trim")
-            averaged: xr.DataArray = coarsened.mean()  # type: ignore[attr-defined,assignment]
+            # skipna=True explicitly: the fill-aware promise (one fill pixel
+            # must not contaminate its block) depends on it, so don't rely on
+            # the version-dependent default.
+            averaged: xr.DataArray = coarsened.mean(skipna=True)  # type: ignore[attr-defined,assignment]
             # Materialize once: with dask-backed input, the isnull()/where()/
             # .values accesses below would otherwise each re-evaluate the
             # coarsen+mask graph — the heaviest compute in the converter.

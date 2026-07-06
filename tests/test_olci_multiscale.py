@@ -329,3 +329,22 @@ def test_reduce_all_fill_block_stays_fill() -> None:
 
     out = reduce_swath(ds, factor=2)
     assert int(out["oa01_radiance"].values[0, 0]) == 1000
+
+
+def test_reduce_partially_filled_block_averages_valid_pixels_only() -> None:
+    """A block mixing fill and valid pixels averages only the valid pixels.
+
+    Block [[100, 200], [300, fill]] with _FillValue=65535 must average the
+    three valid pixels (200), not collapse to fill or include the sentinel.
+    """
+    rad = xr.DataArray(
+        np.array([[100, 200], [300, 65535]], dtype="uint16"),
+        dims=("rows", "columns"),
+        attrs={"_FillValue": 65535},
+    )
+    lat = xr.DataArray(np.zeros((2, 2)), dims=("rows", "columns"))
+    lon = xr.DataArray(np.zeros((2, 2)), dims=("rows", "columns"))
+    ds = xr.Dataset({"oa01_radiance": rad}, coords={"latitude": lat, "longitude": lon})
+
+    out = reduce_swath(ds, factor=2)
+    assert int(out["oa01_radiance"].values[0, 0]) == 200

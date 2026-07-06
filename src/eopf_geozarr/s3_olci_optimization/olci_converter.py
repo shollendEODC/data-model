@@ -382,9 +382,11 @@ def convert_olci_optimized(
         # and child nodes; an ancillary group reusing a swath dim name at a
         # different size would make assembly fail even though the store was
         # written correctly. Never mask a successful write: re-add groups
-        # greedily and exclude only the ones that break assembly.
+        # greedily and exclude only the ones that break assembly. Consider
+        # parents before children (sorted by path depth) so an implicit empty
+        # parent materialized for a nested group can't shadow the real one.
         kept: dict[str, xr.Dataset] = {"/measurements": tree_dict["/measurements"]}
-        for group_path, ds in tree_dict.items():
+        for group_path, ds in sorted(tree_dict.items(), key=lambda item: item[0].count("/")):
             if group_path == "/measurements":
                 continue
             candidate = {**kept, group_path: ds}
