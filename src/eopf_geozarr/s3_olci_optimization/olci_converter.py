@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, cast
 
 import structlog
@@ -208,7 +209,9 @@ def convert_olci_optimized(
     -------
     xr.DataTree
         The opened output DataTree (lazy; backed by the written Zarr store).
-        Overview subgroups (``r2``, ``r4``, …) are written to the Zarr store
+        Every written group that holds arrays is included — including nested
+        ancillary groups such as ``conditions/geometry`` — except the overview
+        subgroups (``r2``, ``r4``, …), which are written to the Zarr store
         but are **not** represented as children of the returned DataTree,
         because xarray enforces dimension consistency between parent and child
         nodes and the overview subgroups have smaller spatial dimensions than
@@ -318,19 +321,23 @@ def convert_olci_optimized(
     # nodes, so opening the whole store via ``xr.open_datatree`` would fail
     # because the overview subgroups have smaller spatial dimensions than
     # the parent ``measurements`` group.  Instead, we build the DataTree
-    # manually from the top-level groups only: overview levels (r2, r4, …)
-    # are in the zarr store and accessible via ``zarr.open_group``, but are
-    # intentionally not exposed as DataTree children.
+    # manually from every group that holds arrays — including nested ancillary
+    # groups such as ``conditions/geometry`` — skipping the overview levels
+    # (``measurements/r2``, ``r4``, …): those are in the zarr store and
+    # accessible via ``zarr.open_group``, but are intentionally not exposed
+    # as DataTree children.
     root = zarr.open_group(output_path, mode="r")
     tree_dict: dict[str, xr.Dataset] = {}
-    for key in root.group_keys():
-        child = root[key]
-        if isinstance(child, zarr.Group) and list(child.array_keys()):
-            tree_dict[f"/{key}"] = xr.open_dataset(
-                output_path,
-                engine="zarr",
-                group=key,
-                chunks={},
-                consolidated=False,
-            )
+    for group_path, node in root.members(max_depth=None):
+        if not isinstance(node, zarr.Group) or not list(node.array_keys()):
+            continue
+        if re.fullmatch(r"measurements/r\d+", group_path):
+            continue
+        tree_dict[f"/{group_path}"] = xr.open_dataset(
+            output_path,
+            engine="zarr",
+            group=group_path,
+            chunks={},
+            consolidated=False,
+        )
     return xr.DataTree.from_dict(tree_dict)

@@ -136,9 +136,14 @@ def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
 
             if fill_value is not None:
                 fill_da = xr.where(averaged.isnull(), float(fill_value), averaged)
-                result_val = np.round(fill_da.values).astype(orig_dtype)
+                result_arr = fill_da.values
             else:
-                result_val = np.round(averaged.values).astype(orig_dtype)
+                result_arr = averaged.values
+            # Round only when packing back into an integer dtype; float
+            # radiance (e.g. a CF-decoded source) must not be quantized.
+            if np.issubdtype(orig_dtype, np.integer):
+                result_arr = np.round(result_arr)
+            result_val = result_arr.astype(orig_dtype)
 
             out_var = xr.DataArray(result_val, dims=averaged.dims, attrs=var.attrs)
 

@@ -223,8 +223,21 @@ def convert_command(args: argparse.Namespace) -> None:
             )
         elif _is_sentinel3_olci_input(dt):
             log.info("Detected Sentinel-3 OLCI product; using OLCI converter")
+            # convert_olci_optimized requires raw (non-mask-scaled) input:
+            # radiance must stay packed uint16 with CF scale_factor/add_offset
+            # and _FillValue in .attrs (see _clear_encoding / reduce_swath).
+            # The tree above was opened with CF decoding on for detection and
+            # the generic path, so re-open it raw, matching
+            # convert_s3_olci_optimized_command.
+            dt_raw = xr.open_datatree(
+                str(input_path),
+                engine="zarr",
+                chunks="auto",
+                storage_options=storage_options,
+                mask_and_scale=False,
+            )
             dt_geozarr = convert_olci_optimized(
-                dt,
+                dt_raw,
                 output_path=output_path,
                 enable_sharding=args.enable_sharding,
                 spatial_chunk=args.spatial_chunk,
