@@ -290,3 +290,42 @@ def test_swath_spatial_attrs_has_no_transform() -> None:
     assert attrs.get("spatial:registration") == "pixel"
     assert "spatial:transform" not in attrs
     assert "spatial:bbox" not in attrs
+
+
+def test_reduce_fill_collision_nudged_not_recoded_as_fill() -> None:
+    """A valid block whose mean rounds to the fill sentinel must not become fill.
+
+    Uses a sentinel interior to the data range (a bound sentinel such as 0 or
+    65535 cannot be reached by a mean of valid values that all sit on one side
+    of it): values [999, 1001, 999, 1001] average exactly to _FillValue=1000
+    and must be nudged to the neighboring in-range value instead.
+    """
+    rows, cols = 2, 2
+    rad = xr.DataArray(
+        np.array([[999, 1001], [999, 1001]], dtype="uint16"),
+        dims=("rows", "columns"),
+        attrs={"_FillValue": 1000},
+    )
+    lat = xr.DataArray(np.zeros((rows, cols)), dims=("rows", "columns"))
+    lon = xr.DataArray(np.zeros((rows, cols)), dims=("rows", "columns"))
+    ds = xr.Dataset({"oa01_radiance": rad}, coords={"latitude": lat, "longitude": lon})
+
+    out = reduce_swath(ds, factor=2)
+    value = int(out["oa01_radiance"].values[0, 0])
+    assert value != 1000, "valid block was recoded as fill"
+    assert value == 999  # unrounded mean == sentinel → nudged one step down
+
+
+def test_reduce_all_fill_block_stays_fill() -> None:
+    """An all-fill block keeps the sentinel value in the overview."""
+    rad = xr.DataArray(
+        np.full((2, 2), 1000, dtype="uint16"),
+        dims=("rows", "columns"),
+        attrs={"_FillValue": 1000},
+    )
+    lat = xr.DataArray(np.zeros((2, 2)), dims=("rows", "columns"))
+    lon = xr.DataArray(np.zeros((2, 2)), dims=("rows", "columns"))
+    ds = xr.Dataset({"oa01_radiance": rad}, coords={"latitude": lat, "longitude": lon})
+
+    out = reduce_swath(ds, factor=2)
+    assert int(out["oa01_radiance"].values[0, 0]) == 1000

@@ -362,4 +362,17 @@ def convert_olci_optimized(
             chunks={},
             consolidated=False,
         )
-    return xr.DataTree.from_dict(tree_dict)
+    try:
+        return xr.DataTree.from_dict(tree_dict)
+    except ValueError as e:
+        # DataTree.from_dict enforces dimension consistency between parent
+        # and child nodes; an ancillary group reusing a swath dim name at a
+        # different size would make assembly fail even though the store was
+        # written correctly. Never mask a successful write: fall back to a
+        # measurements-only view and point readers at the store itself.
+        log.warning(
+            "Could not assemble the full return DataTree; "
+            "returning measurements-only view (the written store is complete)",
+            error=str(e),
+        )
+        return xr.DataTree.from_dict({"/measurements": tree_dict["/measurements"]})
