@@ -9,6 +9,10 @@ Requires:
     - titiler-xarray, httpx installed
 """
 
+# titiler/fastapi/starlette are optional (the `downstream-titiler` group); this
+# module is skipped at runtime when they're absent, so don't flag their imports.
+# pyright: reportMissingImports=false
+
 from __future__ import annotations
 
 import pathlib
@@ -89,7 +93,7 @@ def _open_group(path: pathlib.Path, group: str) -> xr.Dataset:
 
 def _band_vars(ds: xr.Dataset) -> list[str]:
     """Get band variable names, excluding spatial_ref."""
-    return [v for v in ds.data_vars if v != "spatial_ref"]
+    return [str(v) for v in ds.data_vars if v != "spatial_ref"]
 
 
 class TestTitilerInfo:

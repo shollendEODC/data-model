@@ -46,7 +46,8 @@ _SNAPSHOTS = sorted(_SNAPSHOT_DIR.glob("*.json"))
 
 @pytest.fixture(params=_SNAPSHOTS, ids=lambda p: p.stem)
 def snapshot(request: pytest.FixtureRequest) -> dict:
-    return json.loads(request.param.read_text())
+    loaded: dict = json.loads(request.param.read_text())
+    return loaded
 
 
 def test_no_eopf_attrs(snapshot: dict) -> None:
@@ -163,7 +164,9 @@ def test_fill_value_masking_roundtrip(tmp_path: pathlib.Path) -> None:
             "NaN cells in converter output should be masked when opened with "
             "use_zarr_fill_value_as_mask=True"
         )
-        assert masked.mask[0, 0], "nodata corner cell must be masked"
-        assert not masked.mask[-1, -1], "valid cell must not be masked"
+        mask = masked.mask
+        assert isinstance(mask, np.ndarray), "mask must be an array, not a scalar"
+        assert mask[0, 0], "nodata corner cell must be masked"
+        assert not mask[-1, -1], "valid cell must not be masked"
     finally:
         reopened.close()

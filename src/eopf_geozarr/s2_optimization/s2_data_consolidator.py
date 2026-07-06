@@ -159,7 +159,7 @@ class S2DataConsolidator:
 
             # Consolidate all geometry variables
             for var_name in ds.data_vars:
-                self.geometry_data[var_name] = ds[var_name]
+                self.geometry_data[str(var_name)] = ds[var_name]
 
     def _extract_meteorology_data(self) -> None:
         """Extract meteorological data (CAMS and ECMWF)."""

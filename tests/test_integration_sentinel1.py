@@ -21,7 +21,7 @@ from .conftest import _verify_basic_structure
 class MockSentinel1L1GRDBuilder:
     """Builder class to generate a sample EOPF Sentinel-1 Level 1 GRD data product for testing purpose."""
 
-    def __init__(self, product_id) -> None:
+    def __init__(self, product_id: str) -> None:
         self.product_title = "S01SIWGRD"
         self.product_id = product_id
 
@@ -32,7 +32,7 @@ class MockSentinel1L1GRDBuilder:
         self.nlines = 552
         self.npixels = 1131
 
-    def create_coordinates(self, az_dim_size, gr_dim_size) -> xr.Coordinates:
+    def create_coordinates(self, az_dim_size: int, gr_dim_size: int) -> xr.Coordinates:
         coords = {
             self.az_dim: pd.date_range(
                 start="2017-05-08T16:48:30",
@@ -182,7 +182,7 @@ def temp_output_dir() -> Generator[str, None, None]:
     shutil.rmtree(temp_dir)
 
 
-def test_no_gcp_group(temp_output_dir, sample_sentinel1_datatree) -> None:
+def test_no_gcp_group(temp_output_dir: str, sample_sentinel1_datatree: xr.DataTree) -> None:
     output_path = Path(temp_output_dir) / "temp.zarr"
 
     with pytest.raises(ValueError, match=r"Detected Sentinel-1.*GCP group not provided"):
@@ -193,7 +193,9 @@ def test_no_gcp_group(temp_output_dir, sample_sentinel1_datatree) -> None:
         )
 
 
-def test_invalid_gcp_group_raises_error(temp_output_dir, sample_sentinel1_datatree) -> None:
+def test_invalid_gcp_group_raises_error(
+    temp_output_dir: str, sample_sentinel1_datatree: xr.DataTree
+) -> None:
     """Test that specifying a non-existent GCP group raises an error."""
     output_path = Path(temp_output_dir) / "test_s1_invalid_gcp.zarr"
     groups = ["measurements"]
@@ -216,7 +218,7 @@ def test_invalid_gcp_group_raises_error(temp_output_dir, sample_sentinel1_datatr
     ],
 )
 def test_sentinel1_gcp_conversion(
-    temp_output_dir, sample_sentinel1_datatree, polarization_group
+    temp_output_dir: str, sample_sentinel1_datatree: xr.DataTree, polarization_group: str
 ) -> None:
     """Test conversion of Sentinel-1 data with GCPs."""
     # Prepare test

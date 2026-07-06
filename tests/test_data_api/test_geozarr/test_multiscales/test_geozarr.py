@@ -1,7 +1,8 @@
-from typing import Any, Literal
+from typing import Literal
 
 import pytest
 from pydantic.experimental.missing_sentinel import MISSING
+from zarr_cm import ConventionMetadataObject
 from zarr_cm import multiscales as multiscales_cm
 
 from eopf_geozarr.data_api.geozarr.multiscales import tms, zcm
@@ -18,13 +19,13 @@ def test_multiscale_group_attrs(multiscale_flavor: set[Literal["zcm", "tms"]]) -
     """
     zcm_meta: dict[str, object] = {}
     tms_meta: dict[str, object] = {}
-    zarr_conventions_meta: MISSING | tuple[Any, ...] = MISSING
+    zarr_conventions_meta: tuple[ConventionMetadataObject, ...] | MISSING = MISSING
 
     if "zcm" in multiscale_flavor:
         layout = (
             zcm.ScaleLevel(
                 asset="level_0",
-                transform={"scale": (1.0, 1.0), "translation": (0.0, 0.0)},
+                transform=zcm.Transform(scale=(1.0, 1.0), translation=(0.0, 0.0)),
             ),
         )
         zcm_meta = zcm.Multiscales(layout=layout, resampling_method="nearest").model_dump()
@@ -58,13 +59,17 @@ def test_multiscale_group_attrs(multiscale_flavor: set[Literal["zcm", "tms"]]) -
                 )
             },
         ).model_dump()
-    multiscale_meta = MultiscaleMeta(**{**zcm_meta, **tms_meta})
+    multiscale_meta = MultiscaleMeta.model_validate({**zcm_meta, **tms_meta})
     multiscale_group_attrs = MultiscaleGroupAttrs(
         zarr_conventions=zarr_conventions_meta, multiscales=multiscale_meta
     )
     if "zcm" in multiscale_flavor:
         assert "zcm" in multiscale_group_attrs.multiscale_meta
-        assert multiscale_group_attrs.multiscale_meta["zcm"] == zcm.Multiscales(**zcm_meta)
+        assert multiscale_group_attrs.multiscale_meta["zcm"] == zcm.Multiscales.model_validate(
+            zcm_meta
+        )
     if "tms" in multiscale_flavor:
         assert "tms" in multiscale_group_attrs.multiscale_meta
-        assert multiscale_group_attrs.multiscale_meta["tms"] == tms.Multiscales(**tms_meta)
+        assert multiscale_group_attrs.multiscale_meta["tms"] == tms.Multiscales.model_validate(
+            tms_meta
+        )

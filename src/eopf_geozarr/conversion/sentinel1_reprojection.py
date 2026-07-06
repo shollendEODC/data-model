@@ -5,8 +5,11 @@ This module provides functions to reproject Sentinel-1 GRD data from radar geome
 to geographic coordinates (lat/lon) using Ground Control Points (GCPs).
 """
 
+from typing import Any
+
 import numpy as np
 import rasterio
+import rasterio.control  # Import submodule for GroundControlPoint attribute access
 import rioxarray  # noqa: F401  # Import to enable .rio accessor
 import structlog
 import xarray as xr
@@ -74,6 +77,9 @@ def reproject_sentinel1_with_gcps(
         gcps=gcps,
     )
 
+    # calculate_default_transform sizes the grid, so width and height are populated
+    assert width is not None
+    assert height is not None
     log.info("Calculated target dimensions", width=width, height=height)
     log.info("Transform", transform=str(transform))
 
@@ -101,8 +107,13 @@ def reproject_sentinel1_with_gcps(
         data_vars=reprojected_data_vars, coords=target_coords, attrs=ds.attrs.copy()
     )
 
-    # Set CRS information
+    # Set CRS information. `rio.write_crs` is untyped (returns Any), so verify
+    # the result is a Dataset rather than asserting it with a cast.
     reprojected_ds = reprojected_ds.rio.write_crs(target_crs)
+    if not isinstance(reprojected_ds, xr.Dataset):
+        raise TypeError(
+            f"expected an xarray.Dataset after write_crs, got {type(reprojected_ds).__name__}"
+        )
 
     log.info("✅ Successfully reprojected Sentinel-1 data", target_crs=target_crs)
     return reprojected_ds
@@ -178,7 +189,7 @@ def _create_target_coordinates(
     }
 
 
-def _determine_nodata_value(data_var: xr.DataArray) -> float | np.floating:
+def _determine_nodata_value(data_var: xr.DataArray) -> float:
     """
     Determine appropriate nodata value based on data type and existing attributes.
 
@@ -270,6 +281,14 @@ def _reproject_data_variable(
     # Set nodata using rioxarray if not NaN
     if not np.isnan(nodata_value):
         reprojected_var = reprojected_var.rio.write_nodata(nodata_value)
+        # Also record the fill value in the encoding: downstream attribute
+        # sanitization (setup_datatree_metadata_geozarr_spec_compliant) strips
+        # `_FillValue` from attrs and only re-adds it for float variables, and
+        # `explicit_fill_value` reads the encoding — without this, integer
+        # nodata would be lost from the output metadata.
+        reprojected_var.encoding["_FillValue"] = (
+            np.asarray(nodata_value).astype(reprojected_var.dtype).item()
+        )
 
     return reprojected_var
 
@@ -289,7 +308,7 @@ def _reproject_2d_array(
     # Initialize destination array with nodata values
     if np.isnan(nodata_value):
         dst_array = np.full((dst_height, dst_width), np.nan, dtype=np.float32)
-        dst_dtype = np.float32
+        dst_dtype: np.dtype[Any] | type[np.floating[Any]] = np.float32
     else:
         dst_array = np.full((dst_height, dst_width), nodata_value, dtype=src_array.dtype)
         dst_dtype = src_array.dtype
