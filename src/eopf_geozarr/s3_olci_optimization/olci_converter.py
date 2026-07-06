@@ -60,7 +60,10 @@ def is_sentinel3_olci_dataset(group: zarr.Group) -> bool:
 
     try:
         model = Sentinel3OlciRoot.model_validate(GroupSpec.from_zarr(group).model_dump())
-    except ValueError as e:
+    except Exception as e:
+        # Classify, never raise: from_zarr/model_dump can fail with types
+        # other than ValidationError on malformed or unexpected stores, and
+        # any failure simply means "not a recognised OLCI product".
         log.debug("Not an OLCI dataset", error=str(e))
         return False
     try:

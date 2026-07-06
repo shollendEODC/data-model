@@ -138,6 +138,10 @@ def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
             # on DataArrayCoarsen, so we suppress the type-check on the reduction call.
             coarsened = float_var.coarsen({"rows": factor, "columns": factor}, boundary="trim")
             averaged: xr.DataArray = coarsened.mean()  # type: ignore[attr-defined,assignment]
+            # Materialize once: with dask-backed input, the isnull()/where()/
+            # .values accesses below would otherwise each re-evaluate the
+            # coarsen+mask graph — the heaviest compute in the converter.
+            averaged = averaged.compute()
 
             if fill_value is not None:
                 valid_mask = ~averaged.isnull().values
