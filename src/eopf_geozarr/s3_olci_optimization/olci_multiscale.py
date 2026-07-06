@@ -19,12 +19,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
+import structlog
 import xarray as xr
 
 from eopf_geozarr.s3_olci_optimization.olci_band_mapping import OLCI_BANDS
 
 if TYPE_CHECKING:
     from zarr_cm import SpatialAttrs
+
+log = structlog.get_logger()
 
 SWATH_DIMS = ("rows", "columns")
 
@@ -63,6 +66,13 @@ def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
     2-D coordinate variables spanning exactly ``(rows, columns)`` and **not**
     in :data:`OLCI_BANDS` (e.g. latitude, longitude, altitude) are decimated
     ``[::factor, ::factor]`` to preserve real on-ground positions.
+
+    Note the resulting origin-vs-center mismatch: coordinates sample each
+    block's *origin* pixel while radiance averages the whole block, so
+    overview coordinates sit ~half a block off the averaged value's effective
+    center, growing with each level. This is acceptable for the
+    visualization-oriented overviews these feed; do not treat overview
+    coordinates as block centers.
 
     Variables that do not span exactly ``(rows, columns)`` are passed through
     unchanged.
@@ -116,9 +126,16 @@ def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
     all_names: list[str] = [str(k) for k in ds.data_vars] + [str(k) for k in ds.coords]
     for name in all_names:
         var: xr.DataArray = ds[name] if name in ds.data_vars else ds.coords[name]
-        is_swath_2d: bool = tuple(str(d) for d in var.dims) == SWATH_DIMS
+        # Order-insensitive: a variant product storing a band transposed as
+        # (columns, rows) must still get fill-aware averaging, not silently
+        # fall through to stride decimation. Normalize to SWATH_DIMS below.
+        var_dims = tuple(str(d) for d in var.dims)
+        is_swath_2d: bool = len(var_dims) == 2 and set(var_dims) == set(SWATH_DIMS)
 
         if name in olci_band_set and is_swath_2d:
+            if var_dims != SWATH_DIMS:
+                log.info("Transposing band to canonical swath dim order", band=name)
+                var = var.transpose(*SWATH_DIMS)
             # Fill-aware block averaging for radiance bands.
             fill_value: int | float | None = var.attrs.get("_FillValue")
             if fill_value is None:

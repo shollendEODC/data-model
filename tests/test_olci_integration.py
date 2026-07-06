@@ -406,3 +406,32 @@ def test_sanitize_olci_array_attrs_strips_stale_keeps_fill_value() -> None:
     assert result.get("units") == "W m-2 sr-1 um-1", "units must be preserved"
     assert result.get("standard_name") == "toa_upwelling_spectral_radiance"
     assert result.get("coordinates") == "latitude longitude altitude"
+
+
+def test_convert_olci_rerun_removes_stale_overview_groups(tmp_path: object) -> None:
+    """Re-running against an existing output path must not leave stale groups.
+
+    The first run (small min_dimension) produces more overview levels than the
+    second; without up-front store truncation the extra r{N} groups from run
+    one would survive run two.
+    """
+    import zarr
+
+    out = str(tmp_path / "olci_geozarr.zarr")  # type: ignore[operator]
+    convert_olci_optimized(
+        build_synthetic_olci(rows=256, cols=256), output_path=out, min_dimension=64
+    )
+    root = zarr.open_group(out, mode="r")
+    meas = root["measurements"]
+    assert isinstance(meas, zarr.Group)
+    levels_first = {k for k in meas.group_keys() if k.startswith("r")}
+    assert "r4" in levels_first
+
+    convert_olci_optimized(
+        build_synthetic_olci(rows=256, cols=256), output_path=out, min_dimension=128
+    )
+    root = zarr.open_group(out, mode="r")
+    meas = root["measurements"]
+    assert isinstance(meas, zarr.Group)
+    levels_second = {k for k in meas.group_keys() if k.startswith("r")}
+    assert levels_second == {"r2"}, f"stale overview groups survived re-run: {levels_second}"

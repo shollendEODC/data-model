@@ -275,6 +275,13 @@ def convert_olci_optimized(
     # correctly with raw integer data.
     measurements = _sanitize_data_vars(measurements)
 
+    # Truncate any pre-existing store first: the writes below are per-group
+    # (mode="w" scoped to measurements, mode="a" for overviews/ancillary), so
+    # a prior run with more overview levels or extra ancillary groups would
+    # otherwise leave stale sibling groups behind, and the returned DataTree
+    # (built by re-scanning the store) would surface them.
+    zarr.open_group(output_path, mode="w", zarr_format=3)
+
     log.info("Writing native-resolution measurements", shape=dict(measurements.sizes))
     measurements.to_zarr(
         output_path,

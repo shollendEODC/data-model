@@ -348,3 +348,24 @@ def test_reduce_partially_filled_block_averages_valid_pixels_only() -> None:
 
     out = reduce_swath(ds, factor=2)
     assert int(out["oa01_radiance"].values[0, 0]) == 200
+
+
+def test_reduce_transposed_band_still_block_averaged() -> None:
+    """A radiance band stored as (columns, rows) is averaged, not decimated.
+
+    Swath detection is order-insensitive: the transposed band is normalized to
+    (rows, columns) and fill-aware block-averaged. Stride decimation would
+    keep the block's origin value (10) instead of the block mean (25).
+    """
+    rad = xr.DataArray(
+        np.array([[10, 20], [30, 40]], dtype="uint16"),
+        dims=("columns", "rows"),
+        attrs={"_FillValue": 65535},
+    )
+    lat = xr.DataArray(np.zeros((2, 2)), dims=("rows", "columns"))
+    lon = xr.DataArray(np.zeros((2, 2)), dims=("rows", "columns"))
+    ds = xr.Dataset({"oa01_radiance": rad}, coords={"latitude": lat, "longitude": lon})
+
+    out = reduce_swath(ds, factor=2)
+    assert tuple(out["oa01_radiance"].dims) == ("rows", "columns")
+    assert int(out["oa01_radiance"].values[0, 0]) == 25
