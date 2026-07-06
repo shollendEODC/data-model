@@ -135,14 +135,31 @@ def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
             averaged: xr.DataArray = coarsened.mean()  # type: ignore[attr-defined,assignment]
 
             if fill_value is not None:
+                valid_mask = ~averaged.isnull().values
                 fill_da = xr.where(averaged.isnull(), float(fill_value), averaged)
                 result_arr = fill_da.values
             else:
+                valid_mask = None
                 result_arr = averaged.values
             # Round only when packing back into an integer dtype; float
             # radiance (e.g. a CF-decoded source) must not be quantized.
             if np.issubdtype(orig_dtype, np.integer):
+                unrounded = result_arr
                 result_arr = np.round(result_arr)
+                if fill_value is not None and valid_mask is not None:
+                    # A valid block whose mean rounds to the fill sentinel
+                    # would be recoded as fill in the overview; nudge it one
+                    # step back into the valid domain, on the side of the
+                    # sentinel the unrounded mean came from (fill may sit at
+                    # either end of the dtype range).
+                    collision = valid_mask & (result_arr == float(fill_value))
+                    if collision.any():
+                        nudged = np.where(
+                            unrounded <= float(fill_value),
+                            float(fill_value) - 1,
+                            float(fill_value) + 1,
+                        )
+                        result_arr = np.where(collision, nudged, result_arr)
             result_val = result_arr.astype(orig_dtype)
 
             out_var = xr.DataArray(result_val, dims=averaged.dims, attrs=var.attrs)

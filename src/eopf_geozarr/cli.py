@@ -241,6 +241,7 @@ def convert_command(args: argparse.Namespace) -> None:
                 output_path=output_path,
                 enable_sharding=args.enable_sharding,
                 spatial_chunk=args.spatial_chunk,
+                min_dimension=args.min_dimension,
             )
         else:
             dt_geozarr = create_geozarr_dataset(
