@@ -269,6 +269,7 @@ def test_footprint_is_run_orbit_not_cube_union(tmp_path: Path) -> None:
     # proj:bbox is the descending orbit's UTM extent — not the ascending (preferred) orbit's.
     assert item.properties["proj:bbox"] == desc_bbox
     # WGS84 bbox east edge stays within the descending footprint (~2°E), not the union (~3°E+).
+    assert item.bbox is not None
     assert item.bbox[2] < 2.5
 
 

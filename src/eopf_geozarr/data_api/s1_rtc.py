@@ -138,7 +138,7 @@ class S1RtcConditionsAttrs(BaseModel):
 # ============================================================================
 
 
-class S1RtcNativeResolutionMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class S1RtcNativeResolutionMembers(TypedDict, closed=True, total=False):
     """Members for the native resolution dataset (r10m).
 
     Data variables (time, Y, X) plus 1-D coordinate variables (time,).
@@ -154,7 +154,7 @@ class S1RtcNativeResolutionMembers(TypedDict, closed=True, total=False):  # type
     platform: ArraySpec[Any]
 
 
-class S1RtcOverviewResolutionMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class S1RtcOverviewResolutionMembers(TypedDict, closed=True, total=False):
     """Members for overview resolution datasets (r20m … r720m).
 
     Only data variables, no coordinate arrays.
@@ -171,7 +171,7 @@ class S1RtcOverviewResolutionMembers(TypedDict, closed=True, total=False):  # ty
 
 
 class S1RtcNativeResolutionDataset(
-    GroupSpec[S1RtcResolutionAttrs, S1RtcNativeResolutionMembers]  # type: ignore[type-var]
+    GroupSpec[S1RtcResolutionAttrs, S1RtcNativeResolutionMembers]
 ):
     """The r10m dataset: data variables + coordinate arrays."""
 
@@ -185,19 +185,30 @@ class S1RtcNativeResolutionDataset(
 
     @property
     def vv(self) -> ArraySpec[Any]:
-        return self.members["vv"]
+        # Present post-validation (see validate_data_variables); the key is NotRequired in the
+        # TypedDict to allow incremental construction, so narrow it explicitly here.
+        vv = self.members.get("vv")
+        if vv is None:
+            raise KeyError("vv")
+        return vv
 
     @property
     def vh(self) -> ArraySpec[Any]:
-        return self.members["vh"]
+        vh = self.members.get("vh")
+        if vh is None:
+            raise KeyError("vh")
+        return vh
 
     @property
     def border_mask(self) -> ArraySpec[Any]:
-        return self.members["border_mask"]
+        border_mask = self.members.get("border_mask")
+        if border_mask is None:
+            raise KeyError("border_mask")
+        return border_mask
 
 
 class S1RtcOverviewResolutionDataset(
-    GroupSpec[S1RtcResolutionAttrs, S1RtcOverviewResolutionMembers]  # type: ignore[type-var]
+    GroupSpec[S1RtcResolutionAttrs, S1RtcOverviewResolutionMembers]
 ):
     """An overview resolution dataset (r20m-r720m): data variables only."""
 
@@ -213,7 +224,7 @@ class S1RtcConditionsGroup(GroupSpec[S1RtcConditionsAttrs, dict[str, ArraySpec[A
         return self
 
 
-class S1RtcOrbitGroupMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class S1RtcOrbitGroupMembers(TypedDict, closed=True, total=False):
     """Members for an orbit-direction group.
 
     Contains resolution-level datasets and conditions.
@@ -230,7 +241,7 @@ class S1RtcOrbitGroupMembers(TypedDict, closed=True, total=False):  # type: igno
 
 
 class S1RtcOrbitGroup(
-    GroupSpec[S1RtcOrbitGroupAttrs, S1RtcOrbitGroupMembers]  # type: ignore[type-var]
+    GroupSpec[S1RtcOrbitGroupAttrs, S1RtcOrbitGroupMembers]
 ):
     """One orbit direction (ascending or descending) with multiscale layout."""
 
@@ -242,7 +253,12 @@ class S1RtcOrbitGroup(
 
     @property
     def r10m(self) -> S1RtcNativeResolutionDataset:
-        return self.members["r10m"]
+        # Present post-validation (see validate_r10m_present); NotRequired in the TypedDict to
+        # allow incremental construction, so narrow it explicitly here.
+        r10m = self.members.get("r10m")
+        if r10m is None:
+            raise KeyError("r10m")
+        return r10m
 
     @property
     def conditions(self) -> S1RtcConditionsGroup | None:
@@ -258,14 +274,14 @@ class S1RtcOrbitGroup(
 # ============================================================================
 
 
-class S1RtcRootMembers(TypedDict, closed=True, total=False):  # type: ignore[call-arg]
+class S1RtcRootMembers(TypedDict, closed=True, total=False):
     """Members for the root group. At least one orbit direction must be present."""
 
     ascending: S1RtcOrbitGroup
     descending: S1RtcOrbitGroup
 
 
-class S1RtcRoot(GroupSpec[DatasetAttrs, S1RtcRootMembers]):  # type: ignore[type-var]
+class S1RtcRoot(GroupSpec[DatasetAttrs, S1RtcRootMembers]):
     """Complete S1 GRD RTC GeoZarr V3 hierarchy.
 
     The hierarchy follows the implementation plan::
