@@ -233,6 +233,32 @@ def test_reduce_swath_packed_integer_geolocation_unpacked_for_centroid() -> None
     np.testing.assert_allclose(float(out["longitude"].values[0, 0]) * scale, exp_lon, atol=scale)
 
 
+def test_reduce_swath_altitude_is_block_averaged() -> None:
+    """Altitude gets the fill-aware block mean, not stride decimation.
+
+    A stride sample would locate the overview cell's altitude ~half a block
+    away from the geodesic-centroid lat/lon describing the same cell.
+    """
+    fill = -32768
+    alt = xr.DataArray(
+        np.array([[100, 200], [300, fill]], dtype="int16"),
+        dims=("rows", "columns"),
+        attrs={"standard_name": "altitude", "_FillValue": fill},
+    )
+    lat = xr.DataArray(
+        np.zeros((2, 2)), dims=("rows", "columns"), attrs={"standard_name": "latitude"}
+    )
+    lon = xr.DataArray(
+        np.zeros((2, 2)), dims=("rows", "columns"), attrs={"standard_name": "longitude"}
+    )
+    ds = xr.Dataset(coords={"latitude": lat, "longitude": lon, "altitude": alt})
+    out = reduce_swath(ds, factor=2)
+    # Mean of the three valid pixels (fill excluded), not alt[0, 0] == 100.
+    assert int(out["altitude"].values[0, 0]) == 200
+    assert out["altitude"].dtype == np.dtype("int16")
+    assert out["altitude"].attrs["standard_name"] == "altitude"
+
+
 def test_reduce_swath_fill_value_preserved_in_all_fill_block() -> None:
     """A block where all pixels are fill must produce fill output, not 65535.0 average."""
     fill = 65535

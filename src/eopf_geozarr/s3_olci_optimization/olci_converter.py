@@ -219,6 +219,9 @@ def convert_olci_optimized(
     -------
     xr.DataTree
         The opened output DataTree (lazy; backed by the written Zarr store).
+        Opened with ``mask_and_scale=False``, mirroring the raw store and the
+        converter's input: radiance is packed ``uint16`` with its CF
+        ``scale_factor``/``_FillValue`` attrs intact, not decoded floats.
         Every written group that holds arrays is included — including nested
         ancillary groups such as ``conditions/geometry`` — except the overview
         subgroups (``r2``, ``r4``, …), which are written to the Zarr store
@@ -375,12 +378,16 @@ def convert_olci_optimized(
             continue
         if re.fullmatch(r"measurements/r\d+", group_path):
             continue
+        # mask_and_scale=False so the returned tree mirrors the raw store
+        # (packed uint16 + CF attrs), matching how the converter opened its
+        # input, rather than handing callers CF-decoded floats.
         tree_dict[f"/{group_path}"] = xr.open_dataset(
             output_path,
             engine="zarr",
             group=group_path,
             chunks={},
             consolidated=False,
+            mask_and_scale=False,
         )
     try:
         return xr.DataTree.from_dict(tree_dict)

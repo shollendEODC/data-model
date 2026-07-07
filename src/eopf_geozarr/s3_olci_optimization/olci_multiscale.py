@@ -8,12 +8,12 @@ Two reduction strategies are provided:
   kept exact; intended for coordinate arrays and cases where preserving pixel
   identity matters.
 
-* :func:`reduce_swath` — radiance bands are fill-aware block-averaged
-  (mean of ``factor x factor`` blocks); the 2-D latitude/longitude pair is
-  reduced to per-block *geodesic centroids* (unit-vector mean on the sphere);
-  other swath variables are stride-decimated; non-swath variables pass
-  through unchanged.  Intended for producing GeoZarr multiscale overview
-  groups.
+* :func:`reduce_swath` — radiance bands and altitude are fill-aware
+  block-averaged (mean of ``factor x factor`` blocks); the 2-D
+  latitude/longitude pair is reduced to per-block *geodesic centroids*
+  (unit-vector mean on the sphere); other swath variables are
+  stride-decimated; non-swath variables pass through unchanged.  Intended
+  for producing GeoZarr multiscale overview groups.
 """
 
 from __future__ import annotations
@@ -187,7 +187,11 @@ def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
     levels, which departs from the exact one-shot block centroid only at
     second order.
 
-    Other 2-D swath variables (e.g. altitude) are decimated
+    Altitude (identified like lat/lon, by ``standard_name`` falling back to
+    variable name) is fill-aware block-averaged exactly like radiance, so
+    the full geolocation triplet of an overview cell describes the same
+    pixel block; being linear, its mean commutes with CF packing and runs
+    on raw values.  Remaining 2-D swath variables are decimated
     ``[::factor, ::factor]``; variables that do not span exactly
     ``(rows, columns)`` are passed through unchanged.
 
@@ -261,8 +265,14 @@ def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
         # fall through to stride decimation. Normalize to SWATH_DIMS below.
         var_dims = tuple(str(d) for d in var.dims)
         is_swath_2d: bool = len(var_dims) == 2 and set(var_dims) == set(SWATH_DIMS)
+        # Altitude gets the same fill-aware block mean as radiance so it stays
+        # consistent with the centroid lat/lon locating the same cell (a
+        # stride sample would sit ~half a block away). It is a linear
+        # quantity, and a mean commutes with affine CF packing, so averaging
+        # raw packed values is exact.
+        is_altitude: bool = str(var.attrs.get("standard_name") or name) == "altitude"
 
-        if name in olci_band_set and is_swath_2d:
+        if (name in olci_band_set or is_altitude) and is_swath_2d:
             if var_dims != SWATH_DIMS:
                 log.info("Transposing band to canonical swath dim order", band=name)
                 var = var.transpose(*SWATH_DIMS)
