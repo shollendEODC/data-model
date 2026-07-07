@@ -229,7 +229,9 @@ def convert_command(args: argparse.Namespace) -> None:
                 keep_scale_offset=False,
                 max_retries=args.max_retries,
             )
-        elif _is_sentinel3_olci_input(dt) and not getattr(args, "no_s3_olci_optimized", False):
+        # Opt-out flag first: skip the structural OLCI detection (a full
+        # model validation of the store) when the user already declined it.
+        elif not getattr(args, "no_s3_olci_optimized", False) and _is_sentinel3_olci_input(dt):
             log.info(
                 "Detected Sentinel-3 OLCI product; using OLCI converter "
                 "(pass --no-s3-olci-optimized to force the generic path)"
