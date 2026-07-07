@@ -9,9 +9,11 @@ Two reduction strategies are provided:
   identity matters.
 
 * :func:`reduce_swath` — radiance bands are fill-aware block-averaged
-  (mean of ``factor x factor`` blocks) while coordinate arrays are decimated
-  with :func:`decimate_swath`; non-swath variables pass through unchanged.
-  Intended for producing GeoZarr multiscale overview groups.
+  (mean of ``factor x factor`` blocks); the 2-D latitude/longitude pair is
+  reduced to per-block *geodesic centroids* (unit-vector mean on the sphere);
+  other swath variables are stride-decimated; non-swath variables pass
+  through unchanged.  Intended for producing GeoZarr multiscale overview
+  groups.
 """
 
 from __future__ import annotations
@@ -49,13 +51,125 @@ def decimate_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
     return ds.isel(indexers)
 
 
+def _fill_value_of(var: xr.DataArray) -> int | float | None:
+    """Declared ``_FillValue`` from attrs or encoding, or None."""
+    fill = var.attrs.get("_FillValue")
+    if fill is None:
+        fill = var.encoding.get("_FillValue")
+    return fill
+
+
+def _swath_geolocation_pair(ds: xr.Dataset) -> tuple[str, str] | None:
+    """Names of the 2-D swath (latitude, longitude) pair, or None.
+
+    Matches on CF ``standard_name`` first, falling back to the variable name.
+    Returns None when either member is missing or ambiguous; the caller then
+    falls back to stride decimation for whatever geolocation is present.
+    """
+    found: dict[str, list[str]] = {"latitude": [], "longitude": []}
+    for key in [*ds.data_vars, *ds.coords]:
+        name = str(key)
+        var = ds[name]
+        var_dims = tuple(str(d) for d in var.dims)
+        if len(var_dims) != 2 or set(var_dims) != set(SWATH_DIMS):
+            continue
+        kind = str(var.attrs.get("standard_name") or name)
+        if kind in found:
+            found[kind].append(name)
+    if len(found["latitude"]) == 1 and len(found["longitude"]) == 1:
+        return found["latitude"][0], found["longitude"][0]
+    return None
+
+
+def _geodesic_block_mean(
+    lat: xr.DataArray, lon: xr.DataArray, factor: int
+) -> tuple[xr.DataArray, xr.DataArray]:
+    """Reduce a 2-D lat/lon pair to per-block geodesic centroids.
+
+    Each output cell is the spherical centroid of its ``factor x factor``
+    pixel block: positions are mapped to unit vectors on the sphere, the
+    vectors are averaged (skipping fill pixels), and the mean direction is
+    converted back to degrees.  Unlike a planar mean of raw lat/lon values
+    this is stable across the antimeridian and near the poles, and reducing
+    an entire swath to a single cell yields its geodesic center.
+
+    The sphere is used rather than the WGS84 ellipsoid: for centroid
+    direction the ellipsoidal correction is second-order and far below the
+    positional accuracy these overview coordinates need.
+
+    A pixel that is fill in *either* array is excluded from *both* means —
+    the two arrays describe one position, so a one-sided mean would blend
+    positions.  All-fill blocks come back as the variable's own fill value
+    (NaN if none is declared).
+
+    The converter operates on un-decoded (``mask_and_scale=False``) data, so
+    the inputs may be CF-packed (e.g. OLCI stores int32 microdegrees with
+    ``scale_factor = 1e-06``).  Values are unpacked to degrees before the
+    trigonometry — which, unlike stride decimation or a plain mean, does not
+    commute with scaling — and re-packed afterwards, preserving the inputs'
+    dtypes and attrs so readers decode the overviews exactly like the native
+    level.
+    """
+    lat = lat.transpose(*SWATH_DIMS)
+    lon = lon.transpose(*SWATH_DIMS)
+
+    def cf_packing(var: xr.DataArray) -> tuple[float, float]:
+        scale = var.attrs.get("scale_factor")
+        if scale is None:
+            scale = var.encoding.get("scale_factor", 1.0)
+        offset = var.attrs.get("add_offset")
+        if offset is None:
+            offset = var.encoding.get("add_offset", 0.0)
+        return float(scale), float(offset)
+
+    def unpacked(var: xr.DataArray) -> np.ndarray:
+        """Raw values as float64 degrees, with fill pixels as NaN."""
+        vals = np.asarray(var.values, dtype="float64")
+        fill = _fill_value_of(var)
+        if fill is not None and not np.isnan(float(fill)):
+            vals = np.where(vals == float(fill), np.nan, vals)
+        scale, offset = cf_packing(var)
+        return vals * scale + offset
+
+    lat_v = unpacked(lat)
+    lon_v = unpacked(lon)
+    # A pixel invalid in either array is excluded from both: the two arrays
+    # describe one position, so a one-sided mean would blend positions.
+    invalid = np.isnan(lat_v) | np.isnan(lon_v)
+    lat_r = np.deg2rad(np.where(invalid, np.nan, lat_v))
+    lon_r = np.deg2rad(np.where(invalid, np.nan, lon_v))
+    coslat = np.cos(lat_r)
+    vectors = xr.DataArray(
+        np.stack([coslat * np.cos(lon_r), coslat * np.sin(lon_r), np.sin(lat_r)]),
+        dims=("xyz", *SWATH_DIMS),
+    )
+    coarse = vectors.coarsen({"rows": factor, "columns": factor}, boundary="trim")
+    # .mean() exists at runtime; pyright stubs don't expose it on Coarsen.
+    mean_vec: xr.DataArray = coarse.mean(skipna=True)  # type: ignore[attr-defined,assignment]
+    out_dims = tuple(str(d) for d in mean_vec.dims[1:])
+    xm, ym, zm = np.asarray(mean_vec.values, dtype="float64")
+    lon_mean = np.rad2deg(np.arctan2(ym, xm))
+    lat_mean = np.rad2deg(np.arctan2(zm, np.hypot(xm, ym)))
+
+    def restore(orig: xr.DataArray, degrees: np.ndarray) -> xr.DataArray:
+        scale, offset = cf_packing(orig)
+        vals = (degrees - offset) / scale
+        if np.issubdtype(orig.dtype, np.integer):
+            vals = np.round(vals)
+        fill = _fill_value_of(orig)
+        if fill is not None and not np.isnan(float(fill)):
+            vals = np.where(np.isnan(vals), float(fill), vals)
+        return xr.DataArray(vals.astype(orig.dtype), dims=out_dims, attrs=orig.attrs)
+
+    return restore(lat, lat_mean), restore(lon, lon_mean)
+
+
 def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
-    """Return *ds* with radiance bands block-averaged and 2-D coordinates decimated.
+    """Return *ds* with radiance block-averaged and lat/lon reduced to block centroids.
 
     Overviews are an unweighted index-block mean that ASSUMES locally-uniform
     pixel spacing; intended for visualization, not quantitative analysis at
-    reduced resolution.  Coordinates are decimated (real sub-pixels), radiance
-    is fill-aware block-averaged.
+    reduced resolution.
 
     Radiance variables (those named in :data:`OLCI_BANDS`) are averaged over
     ``factor x factor`` pixel blocks with fill-value awareness: fill pixels
@@ -63,19 +177,19 @@ def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
     the entire block.  Blocks where ALL pixels are fill are set back to the
     fill value in the output.
 
-    2-D coordinate variables spanning exactly ``(rows, columns)`` and **not**
-    in :data:`OLCI_BANDS` (e.g. latitude, longitude, altitude) are decimated
-    ``[::factor, ::factor]`` to preserve real on-ground positions.
+    The 2-D latitude/longitude pair (identified by CF ``standard_name``,
+    falling back to variable name) is reduced with
+    :func:`_geodesic_block_mean`: each output cell's coordinate is the
+    spherical centroid of the same pixel block the radiance was averaged
+    over, so overview coordinates ARE block centers and repeated reduction
+    trends toward the geodesic center of the swath.  Levels built
+    iteratively (2x per level, as the converter does) renormalize between
+    levels, which departs from the exact one-shot block centroid only at
+    second order.
 
-    Note the resulting origin-vs-center mismatch: coordinates sample each
-    block's *origin* pixel while radiance averages the whole block, so
-    overview coordinates sit ~half a block off the averaged value's effective
-    center, growing with each level. This is acceptable for the
-    visualization-oriented overviews these feed; do not treat overview
-    coordinates as block centers.
-
-    Variables that do not span exactly ``(rows, columns)`` are passed through
-    unchanged.
+    Other 2-D swath variables (e.g. altitude) are decimated
+    ``[::factor, ::factor]``; variables that do not span exactly
+    ``(rows, columns)`` are passed through unchanged.
 
     Parameters
     ----------
@@ -123,8 +237,24 @@ def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
         dim: (ds.sizes[dim] // factor) * factor for dim in SWATH_DIMS if dim in ds.sizes
     }
 
+    # Geolocation first: the lat/lon pair is reduced jointly (per-block
+    # geodesic centroids), so both members are handled here and skipped in
+    # the per-variable loop below.
+    geo_pair = _swath_geolocation_pair(ds)
+    geo_names: frozenset[str] = frozenset(geo_pair) if geo_pair is not None else frozenset()
+    if geo_pair is not None:
+        lat_name, lon_name = geo_pair
+        lat_out, lon_out = _geodesic_block_mean(ds[lat_name], ds[lon_name], factor)
+        for geo_name, geo_var in ((lat_name, lat_out), (lon_name, lon_out)):
+            if geo_name in coord_names:
+                result_coords[geo_name] = geo_var
+            else:
+                result_vars[geo_name] = geo_var
+
     all_names: list[str] = [str(k) for k in ds.data_vars] + [str(k) for k in ds.coords]
     for name in all_names:
+        if name in geo_names:
+            continue
         var: xr.DataArray = ds[name] if name in ds.data_vars else ds.coords[name]
         # Order-insensitive: a variant product storing a band transposed as
         # (columns, rows) must still get fill-aware averaging, not silently
@@ -137,9 +267,7 @@ def reduce_swath(ds: xr.Dataset, factor: int = 2) -> xr.Dataset:
                 log.info("Transposing band to canonical swath dim order", band=name)
                 var = var.transpose(*SWATH_DIMS)
             # Fill-aware block averaging for radiance bands.
-            fill_value: int | float | None = var.attrs.get("_FillValue")
-            if fill_value is None:
-                fill_value = var.encoding.get("_FillValue")
+            fill_value: int | float | None = _fill_value_of(var)
             orig_dtype = var.dtype
 
             float_var = var.astype("float64")
