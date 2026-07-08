@@ -12,7 +12,8 @@ import pytest
 import rasterio
 import xarray as xr
 import zarr
-from rasterio.transform import from_bounds
+from rasterio.transform import Affine, from_bounds
+from zarr.core.metadata import ArrayV3Metadata
 
 from eopf_geozarr.conversion.s1_ingest import (
     OVERVIEW_CHAIN,
@@ -62,11 +63,32 @@ ACQ2_TAGS = {
 # =============================================================================
 
 
+def _group(node: zarr.Group, name: str) -> zarr.Group:
+    """Narrow ``node[name]`` to a ``zarr.Group`` (zarr 3.x typing returns ``Array | Group``)."""
+    member = node[name]
+    assert isinstance(member, zarr.Group), f"{name!r} is not a group"
+    return member
+
+
+def _array(node: zarr.Group, name: str) -> zarr.Array:
+    """Narrow ``node[name]`` to a ``zarr.Array`` (zarr 3.x typing returns ``Array | Group``)."""
+    member = node[name]
+    assert isinstance(member, zarr.Array), f"{name!r} is not an array"
+    return member
+
+
+def _dimension_names(arr: zarr.Array) -> tuple[str | None, ...] | None:
+    """Read ``dimension_names`` off a zarr-format-3 array (``metadata`` is a V2/V3 union)."""
+    metadata = arr.metadata
+    assert isinstance(metadata, ArrayV3Metadata), "expected a zarr-format-3 array"
+    return metadata.dimension_names
+
+
 def _create_synthetic_geotiff(
     path: Path,
     data: np.ndarray,
     crs: str = CRS,
-    transform: rasterio.transform.Affine | None = None,
+    transform: Affine | None = None,
     tags: dict[str, str] | None = None,
     nodata: float | None = None,
 ) -> None:
@@ -228,25 +250,32 @@ class TestCreateStore:
 
     def test_conventions(self, s1_store_path: Path, sample_metadata: S1TilingMetadata) -> None:
         root = create_s1_store(s1_store_path, "ascending", sample_metadata)
-        attrs = dict(root["ascending"].attrs)
+        attrs = dict(_group(root, "ascending").attrs)
         assert "zarr_conventions" in attrs
-        conv_names = {c["name"] for c in attrs["zarr_conventions"]}
+        conventions = attrs["zarr_conventions"]
+        assert isinstance(conventions, list)
+        conv_names = set()
+        for conv in conventions:
+            assert isinstance(conv, dict)
+            conv_names.add(conv["name"])
         assert "multiscales" in conv_names
         assert "proj:" in conv_names
         assert "spatial:" in conv_names
         assert attrs["proj:code"] == CRS
         assert attrs["spatial:dimensions"] == ["y", "x"]
-        assert len(attrs["spatial:bbox"]) == 4
+        bbox = attrs["spatial:bbox"]
+        assert isinstance(bbox, list)
+        assert len(bbox) == 4
 
     def test_array_metadata(self, s1_store_path: Path, sample_metadata: S1TilingMetadata) -> None:
         root = create_s1_store(s1_store_path, "ascending", sample_metadata)
-        r10m = root["ascending"]["r10m"]
+        r10m = _group(_group(root, "ascending"), "r10m")
         for arr_name in ["vv", "vh", "border_mask"]:
-            arr = r10m[arr_name]
-            assert arr.metadata.dimension_names == ("time", "y", "x")
+            arr = _array(r10m, arr_name)
+            assert _dimension_names(arr) == ("time", "y", "x")
             assert arr.shape[0] == 0  # time axis starts at 0
-        assert r10m["vv"].dtype == np.float32
-        assert r10m["border_mask"].dtype == np.uint8
+        assert _array(r10m, "vv").dtype == np.float32
+        assert _array(r10m, "border_mask").dtype == np.uint8
 
     def test_float_bands_declare_cf_fill_value(
         self, s1_store_path: Path, sample_metadata: S1TilingMetadata
@@ -262,11 +291,11 @@ class TestCreateStore:
         from xarray.backends.zarr import FillValueCoder
 
         root = create_s1_store(s1_store_path, "ascending", sample_metadata)
-        orbit = root["ascending"]
+        orbit = _group(root, "ascending")
         expected = FillValueCoder.encode(np.nan, np.dtype("float32"))
         for level_name, _, _ in OVERVIEW_CHAIN:
             for band in ("vv", "vh"):
-                attrs = dict(orbit[level_name][band].attrs)
+                attrs = dict(_array(_group(orbit, level_name), band).attrs)
                 assert attrs.get("_FillValue") == expected, (
                     f"{level_name}/{band} missing/!= CF _FillValue"
                 )
@@ -282,7 +311,8 @@ class TestCreateStore:
         # tile_matrix_set is not part of the S1 GRD RTC data model (confirmed with the
         # data-model owner): the multiscales attribute must not carry one.
         root = create_s1_store(s1_store_path, "ascending", sample_metadata)
-        ms = dict(root["ascending"].attrs)["multiscales"]
+        ms = dict(_group(root, "ascending").attrs)["multiscales"]
+        assert isinstance(ms, dict)
         assert "tile_matrix_set" not in ms
         assert "layout" in ms
 
@@ -295,10 +325,11 @@ class TestCreateStore:
         import rioxarray  # noqa: F401  -- registers the .rio accessor
 
         create_s1_store(s1_store_path, "ascending", sample_metadata)
-        r10m = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)["ascending"]["r10m"]
+        root = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)
+        r10m = _group(_group(root, "ascending"), "r10m")
         assert "spatial_ref" in list(r10m.array_keys())
-        assert dict(r10m["vv"].attrs).get("grid_mapping") == "spatial_ref"
-        assert dict(r10m["vh"].attrs).get("grid_mapping") == "spatial_ref"
+        assert dict(_array(r10m, "vv").attrs).get("grid_mapping") == "spatial_ref"
+        assert dict(_array(r10m, "vh").attrs).get("grid_mapping") == "spatial_ref"
 
         ds = xr.open_zarr(
             str(s1_store_path / "ascending" / "r10m"),
@@ -312,22 +343,22 @@ class TestCreateStore:
         self, s1_store_path: Path, sample_metadata: S1TilingMetadata
     ) -> None:
         root = create_s1_store(s1_store_path, "ascending", sample_metadata)
-        r10m = root["ascending"]["r10m"]
+        r10m = _group(_group(root, "ascending"), "r10m")
         for coord_name in ["time", "absolute_orbit", "relative_orbit", "platform"]:
             assert coord_name in r10m, f"Missing coord {coord_name}"
-            assert r10m[coord_name].shape == (0,)
+            assert _array(r10m, coord_name).shape == (0,)
 
     def test_overview_shapes(self, s1_store_path: Path, sample_metadata: S1TilingMetadata) -> None:
         root = create_s1_store(s1_store_path, "ascending", sample_metadata)
-        orbit = root["ascending"]
+        orbit = _group(root, "ascending")
         # Verify shape chain follows ceiling division
         expected_h, expected_w = SIZE, SIZE
         for level_name, _, factor in OVERVIEW_CHAIN:
             if factor > 1:
                 expected_h = ceil(expected_h / factor)
                 expected_w = ceil(expected_w / factor)
-            level = orbit[level_name]
-            arr = level["vv"]
+            level = _group(orbit, level_name)
+            arr = _array(level, "vv")
             assert arr.shape[1] == expected_h
             assert arr.shape[2] == expected_w
 
@@ -336,12 +367,12 @@ class TestCreateStore:
     ) -> None:
         """Verify x and y 1D arrays exist at every resolution level."""
         root = create_s1_store(s1_store_path, "ascending", sample_metadata)
-        orbit = root["ascending"]
+        orbit = _group(root, "ascending")
         for level_name, _, _ in OVERVIEW_CHAIN:
-            level = orbit[level_name]
+            level = _group(orbit, level_name)
             for coord in ["x", "y"]:
                 assert coord in level, f"Missing {coord} at {level_name}"
-                arr = level[coord]
+                arr = _array(level, coord)
                 assert len(arr.shape) == 1
                 attrs = dict(arr.attrs)
                 assert "units" in attrs
@@ -350,9 +381,11 @@ class TestCreateStore:
 
             # Verify x array shape matches level width
             level_attrs = dict(level.attrs)
-            level_h, level_w = level_attrs["spatial:shape"]
-            assert level["x"].shape[0] == level_w
-            assert level["y"].shape[0] == level_h
+            level_shape = level_attrs["spatial:shape"]
+            assert isinstance(level_shape, list)
+            level_h, level_w = level_shape
+            assert _array(level, "x").shape[0] == level_w
+            assert _array(level, "y").shape[0] == level_h
 
 
 # =============================================================================
@@ -373,7 +406,7 @@ class TestIngestAcquisition:
         idx = ingest_s1tiling_acquisition(vv, vh, mask, s1_store_path, "ascending")
         assert idx == 0
         root = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)
-        assert root["ascending"]["r10m"]["vv"].shape[0] == 1
+        assert _array(_group(_group(root, "ascending"), "r10m"), "vv").shape[0] == 1
 
     def test_second_acquisition_appends(self, s1_geotiff_dir: Path, s1_store_path: Path) -> None:
         vv1, vh1, mask1 = self._get_acq_paths(s1_geotiff_dir, "20230115t061234")
@@ -382,7 +415,7 @@ class TestIngestAcquisition:
         idx = ingest_s1tiling_acquisition(vv2, vh2, mask2, s1_store_path, "ascending")
         assert idx == 1
         root = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)
-        assert root["ascending"]["r10m"]["vv"].shape[0] == 2
+        assert _array(_group(_group(root, "ascending"), "r10m"), "vv").shape[0] == 2
 
     def test_ingested_bands_declare_cf_fill_value(
         self, s1_geotiff_dir: Path, s1_store_path: Path
@@ -402,7 +435,7 @@ class TestIngestAcquisition:
         for orbit in ("ascending", "descending"):
             for level_name, _, _ in OVERVIEW_CHAIN:
                 for band in ("vv", "vh"):
-                    attrs = dict(root[orbit][level_name][band].attrs)
+                    attrs = dict(_array(_group(_group(root, orbit), level_name), band).attrs)
                     assert attrs.get("_FillValue") == expected, f"{orbit}/{level_name}/{band}"
                     assert (
                         attrs.get("standard_name")
@@ -422,7 +455,7 @@ class TestIngestAcquisition:
         root = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)
         for orbit in ("ascending", "descending"):
             for level_name, _, _ in OVERVIEW_CHAIN:
-                attrs = dict(root[orbit][level_name].attrs)
+                attrs = dict(_group(_group(root, orbit), level_name).attrs)
                 assert attrs.get("proj:code") == CRS, f"{orbit}/{level_name} missing proj:code"
 
     def test_fill_value_masking_roundtrip(self, tmp_path: Path, s1_store_path: Path) -> None:
@@ -461,8 +494,10 @@ class TestIngestAcquisition:
         try:
             masked = ds["vv"].to_masked_array()
             assert np.ma.is_masked(masked), "out-of-swath nodata must be masked via `_FillValue`"
-            assert masked.mask[0, 0, 0], "nodata cell (border_mask==0) must be masked"
-            assert not masked.mask[0, -1, -1], "valid cell must not be masked"
+            mask = masked.mask
+            assert isinstance(mask, np.ndarray)
+            assert mask[0, 0, 0], "nodata cell (border_mask==0) must be masked"
+            assert not mask[0, -1, -1], "valid cell must not be masked"
         finally:
             ds.close()
 
@@ -491,15 +526,17 @@ class TestIngestAcquisition:
         ingest_s1tiling_acquisition(vv, vh, mask, s1_store_path, "ascending")
 
         root = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)
+        asc = _group(root, "ascending")
+        r10m = _group(asc, "r10m")
         nodata = mask_data == 0
         for band in ("vv", "vh"):
-            native = root["ascending"]["r10m"][band][0, :, :]
+            native = np.asarray(_array(r10m, band)[0, :, :])
             assert np.all(np.isnan(native[nodata])), f"{band}: nodata region must be NaN, not 0"
             assert not np.any(np.isnan(native[~nodata])), f"{band}: valid region must stay finite"
             assert not np.any(native[nodata] == 0.0), f"{band}: nodata must not read back as 0"
 
         # NaN propagates through np.nanmean downsampling: the all-nodata top band stays NaN.
-        coarse = root["ascending"]["r20m"]["vv"][0, :, :]
+        coarse = np.asarray(_array(_group(asc, "r20m"), "vv")[0, :, :])
         assert np.isnan(coarse[0, 0]), "all-nodata block must stay NaN at the overview level"
         assert not np.any(np.isnan(coarse[-1, :])), "fully-valid bottom row must stay finite"
 
@@ -513,7 +550,8 @@ class TestIngestAcquisition:
         with rasterio.open(str(mask)) as src:
             expected_mask = src.read(1).astype(np.uint8)
         root = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)
-        actual_vv = root["ascending"]["r10m"]["vv"][0, :, :]
+        r10m = _group(_group(root, "ascending"), "r10m")
+        actual_vv = np.asarray(_array(r10m, "vv")[0, :, :])
 
         # Valid pixels (border_mask == 1) are preserved exactly; out-of-swath pixels
         # (border_mask == 0) are written as NaN, not the raw 0 — the render-bug fix.
@@ -522,7 +560,7 @@ class TestIngestAcquisition:
         assert np.all(np.isnan(actual_vv[~valid])), "out-of-swath nodata must be NaN"
 
         # border_mask itself is stored verbatim (uint8, never masked).
-        actual_mask = root["ascending"]["r10m"]["border_mask"][0, :, :]
+        actual_mask = _array(r10m, "border_mask")[0, :, :]
         np.testing.assert_array_equal(actual_mask, expected_mask)
 
     def test_coordinate_values(self, s1_geotiff_dir: Path, s1_store_path: Path) -> None:
@@ -530,13 +568,13 @@ class TestIngestAcquisition:
         ingest_s1tiling_acquisition(vv, vh, mask, s1_store_path, "ascending")
 
         root = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)
-        r10m = root["ascending"]["r10m"]
-        assert r10m["absolute_orbit"][0] == 47001
-        assert r10m["relative_orbit"][0] == 37
-        assert str(r10m["platform"][0]) == "S1A"
+        r10m = _group(_group(root, "ascending"), "r10m")
+        assert _array(r10m, "absolute_orbit")[0] == 47001
+        assert _array(r10m, "relative_orbit")[0] == 37
+        assert str(_array(r10m, "platform")[0]) == "S1A"
 
         # Verify time is a valid nanosecond timestamp (stored as int64)
-        time_val = int(r10m["time"][0])
+        time_val = int(np.asarray(_array(r10m, "time"))[0])
         dt = np.datetime64(time_val, "ns")
         assert str(dt).startswith("2023-01-15")
 
@@ -545,13 +583,13 @@ class TestIngestAcquisition:
         ingest_s1tiling_acquisition(vv, vh, mask, s1_store_path, "ascending")
 
         root = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)
-        orbit = root["ascending"]
+        orbit = _group(root, "ascending")
         expected_h, expected_w = SIZE, SIZE
         for level_name, _, factor in OVERVIEW_CHAIN:
             if factor > 1:
                 expected_h = ceil(expected_h / factor)
                 expected_w = ceil(expected_w / factor)
-            arr = orbit[level_name]["vv"]
+            arr = _array(_group(orbit, level_name), "vv")
             assert arr.shape == (1, expected_h, expected_w), (
                 f"Shape mismatch at {level_name}: {arr.shape}"
             )
@@ -635,7 +673,7 @@ class TestConsolidation:
 
         root = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)
         assert root.metadata.consolidated_metadata is not None
-        orbit = root["ascending"]
+        orbit = _group(root, "ascending")
         assert orbit.metadata.consolidated_metadata is not None
 
     def test_consolidate_after_all_ingestions(
@@ -649,8 +687,8 @@ class TestConsolidation:
 
         # Verify consolidated metadata reflects final shape (2 timesteps)
         root = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)
-        r10m = root["ascending"]["r10m"]
-        assert r10m["vv"].shape[0] == 2
+        r10m = _group(_group(root, "ascending"), "r10m")
+        assert _array(r10m, "vv").shape[0] == 2
 
     def test_consolidate_all_orbits_present(
         self, s1_geotiff_dir: Path, s1_store_path: Path
@@ -796,9 +834,9 @@ class TestIngestConditions:
             gamma_area_path=gamma_area_geotiff,
         )
         root = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)
-        orbit = root["ascending"]
+        orbit = _group(root, "ascending")
         assert "conditions" in orbit
-        conditions = orbit["conditions"]
+        conditions = _group(orbit, "conditions")
         assert "gamma_area_037" in conditions
 
     def test_conditions_group_attributes(
@@ -811,15 +849,17 @@ class TestIngestConditions:
             gamma_area_path=gamma_area_geotiff,
         )
         root = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)
-        conditions = root["ascending"]["conditions"]
+        conditions = _group(_group(root, "ascending"), "conditions")
         attrs = dict(conditions.attrs)
         assert attrs["proj:code"] == CRS
         assert attrs["spatial:dimensions"] == ["y", "x"]
-        assert len(attrs["spatial:transform"]) == 6
+        transform = attrs["spatial:transform"]
+        assert isinstance(transform, list)
+        assert len(transform) == 6
         assert attrs["spatial:shape"] == [SIZE, SIZE]
         # CF grid-mapping so rioxarray can resolve the CRS of the condition arrays
         assert "spatial_ref" in list(conditions.array_keys())
-        assert dict(conditions["gamma_area_037"].attrs).get("grid_mapping") == "spatial_ref"
+        assert dict(_array(conditions, "gamma_area_037").attrs).get("grid_mapping") == "spatial_ref"
 
     def test_gamma_area_array_shape_and_dtype(
         self, s1_store_with_acquisition: Path, gamma_area_geotiff: Path
@@ -831,10 +871,10 @@ class TestIngestConditions:
             gamma_area_path=gamma_area_geotiff,
         )
         root = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)
-        arr = root["ascending"]["conditions"]["gamma_area_037"]
+        arr = _array(_group(_group(root, "ascending"), "conditions"), "gamma_area_037")
         assert arr.shape == (SIZE, SIZE)
         assert arr.dtype == np.float32
-        assert arr.metadata.dimension_names == ("y", "x")
+        assert _dimension_names(arr) == ("y", "x")
 
     def test_data_integrity_roundtrip(
         self, s1_store_with_acquisition: Path, gamma_area_geotiff: Path
@@ -850,7 +890,7 @@ class TestIngestConditions:
             expected = src.read(1).astype(np.float32)
         # Read from Zarr
         root = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)
-        actual = root["ascending"]["conditions"]["gamma_area_037"][:]
+        actual = np.asarray(_array(_group(_group(root, "ascending"), "conditions"), "gamma_area_037")[:])
         np.testing.assert_allclose(actual, expected, rtol=1e-6)
 
     def test_conditions_nodata_masked_to_nan(
@@ -870,10 +910,9 @@ class TestIngestConditions:
             relative_orbit=37,
             gamma_area_path=cond_path,
         )
-        conditions = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)[
-            "ascending"
-        ]["conditions"]
-        arr = conditions["gamma_area_037"][:]
+        root = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)
+        conditions = _group(_group(root, "ascending"), "conditions")
+        arr = np.asarray(_array(conditions, "gamma_area_037")[:])
         assert np.all(np.isnan(arr[0:20, 0:20])), "declared-nodata region must be NaN"
         assert not np.any(np.isnan(arr[20:, 20:])), "valid region must stay finite"
 
@@ -895,11 +934,10 @@ class TestIngestConditions:
             lia_path=lia_geotiff,
         )
         expected = FillValueCoder.encode(np.nan, np.dtype("float32"))
-        conditions = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)[
-            "ascending"
-        ]["conditions"]
+        root = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)
+        conditions = _group(_group(root, "ascending"), "conditions")
         for arr_name in ("gamma_area_037", "lia_037"):
-            assert dict(conditions[arr_name].attrs).get("_FillValue") == expected, arr_name
+            assert dict(_array(conditions, arr_name).attrs).get("_FillValue") == expected, arr_name
 
     def test_gamma_area_is_sharded(
         self, s1_store_with_acquisition: Path, gamma_area_geotiff: Path
@@ -912,9 +950,8 @@ class TestIngestConditions:
             relative_orbit=37,
             gamma_area_path=gamma_area_geotiff,
         )
-        arr = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)[
-            "ascending"
-        ]["conditions"]["gamma_area_037"]
+        root = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)
+        arr = _array(_group(_group(root, "ascending"), "conditions"), "gamma_area_037")
         # shards == full extent (None would mean unsharded — the pre-fix layout)
         assert arr.shards == (SIZE, SIZE)
         assert arr.chunks == (calculate_aligned_chunk_size(SIZE, 512),) * 2
@@ -936,9 +973,8 @@ class TestIngestConditions:
             relative_orbit=37,
             gamma_area_path=gpath,
         )
-        arr = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)[
-            "ascending"
-        ]["conditions"]["gamma_area_037"]
+        root = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)
+        arr = _array(_group(_group(root, "ascending"), "conditions"), "gamma_area_037")
         assert arr.chunks == (366, 366)
         assert arr.shards == (big, big)
         # exactly one chunk-data object on disk (the shard), regardless of the 9 inner chunks
@@ -948,7 +984,7 @@ class TestIngestConditions:
         ]
         assert len(data_objects) == 1, data_objects
         # values still byte-identical through the shard
-        np.testing.assert_allclose(arr[:], data, rtol=1e-6)
+        np.testing.assert_allclose(np.asarray(arr[:]), data, rtol=1e-6)
 
     def test_multiple_conditions(
         self, s1_store_with_acquisition: Path, gamma_area_geotiff: Path, lia_geotiff: Path
@@ -961,7 +997,7 @@ class TestIngestConditions:
             lia_path=lia_geotiff,
         )
         root = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)
-        conditions = root["ascending"]["conditions"]
+        conditions = _group(_group(root, "ascending"), "conditions")
         assert "gamma_area_037" in conditions
         assert "lia_037" in conditions
 
@@ -983,7 +1019,7 @@ class TestIngestConditions:
         )
 
         root = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)
-        conditions = root["ascending"]["conditions"]
+        conditions = _group(_group(root, "ascending"), "conditions")
         assert "gamma_area_037" in conditions
         assert "gamma_area_110" in conditions
 
@@ -1007,7 +1043,7 @@ class TestIngestConditions:
         )
 
         root = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)
-        actual = root["ascending"]["conditions"]["gamma_area_037"][:]
+        actual = np.asarray(_array(_group(_group(root, "ascending"), "conditions"), "gamma_area_037")[:])
         np.testing.assert_allclose(actual, data_v2, rtol=1e-6)
 
     def test_raises_no_conditions_provided(
@@ -1055,11 +1091,11 @@ class TestIngestConditions:
 
         root = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)
         assert root.metadata.consolidated_metadata is not None
-        orbit = root["ascending"]
+        orbit = _group(root, "ascending")
         assert orbit.metadata.consolidated_metadata is not None
         # Conditions group should be accessible through consolidated metadata
         assert "conditions" in orbit
-        assert "gamma_area_037" in orbit["conditions"]
+        assert "gamma_area_037" in _group(orbit, "conditions")
 
 
 # =============================================================================
@@ -1146,8 +1182,9 @@ class TestTimeCFDatetime:
         vv, vh, mask = self._paths(s1_geotiff_dir, "20230115t061234")
         ingest_s1tiling_acquisition(vv, vh, mask, s1_store_path, "ascending")
         root = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)
+        asc = _group(root, "ascending")
         for level in _LEVELS:
-            attrs = dict(root["ascending"][level]["time"].attrs)
+            attrs = dict(_array(_group(asc, level), "time").attrs)
             assert attrs.get("units") == "nanoseconds since 1970-01-01", level
             assert attrs.get("calendar") == "proleptic_gregorian", level
             assert attrs.get("standard_name") == "time", level
@@ -1178,7 +1215,9 @@ class TestTimeCFDatetime:
         dt = xr.open_datatree(
             str(s1_store_path), engine="zarr", decode_times=True, consolidated=False
         )
-        times = dt["ascending"]["r10m"]["time"].values
+        time_node = dt["ascending"]["r10m"]["time"]
+        assert isinstance(time_node, xr.DataArray)
+        times = time_node.values
         assert times[0] > times[1], "axis should be non-monotonic (later acq appended first)"
 
         early = np.datetime64("2023-01-15T06:12:34")  # physical index 1
@@ -1200,10 +1239,11 @@ class TestTimeCFDatetime:
         ingest_s1tiling_acquisition(vv1, vh1, mask1, s1_store_path, "ascending")
         ingest_s1tiling_acquisition(vv2, vh2, mask2, s1_store_path, "ascending")
         root = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)
-        ref = np.asarray(root["ascending"]["r10m"]["time"][:])
+        asc = _group(root, "ascending")
+        ref = np.asarray(_array(_group(asc, "r10m"), "time")[:])
         assert ref.shape == (2,)
         for level in _LEVELS[1:]:
-            np.testing.assert_array_equal(np.asarray(root["ascending"][level]["time"][:]), ref)
+            np.testing.assert_array_equal(np.asarray(_array(_group(asc, level), "time")[:]), ref)
 
     def test_r10m_time_still_int64_for_register(
         self, s1_geotiff_dir: Path, s1_store_path: Path
@@ -1212,9 +1252,9 @@ class TestTimeCFDatetime:
         vv, vh, mask = self._paths(s1_geotiff_dir, "20230115t061234")
         ingest_s1tiling_acquisition(vv, vh, mask, s1_store_path, "ascending")
         root = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)
-        arr = root["ascending"]["r10m"]["time"]
+        arr = _array(_group(_group(root, "ascending"), "r10m"), "time")
         assert arr.dtype == np.dtype("int64")
-        assert str(np.datetime64(int(arr[0]), "ns")).startswith("2023-01-15")
+        assert str(np.datetime64(int(np.asarray(arr)[0]), "ns")).startswith("2023-01-15")
 
 
 # =============================================================================
@@ -1236,7 +1276,7 @@ class TestPerLevelTimeHeal:
 
     def _coarse_levels(self, store_path: Path) -> list[str]:
         root = zarr.open_group(str(store_path), mode="r", zarr_format=3)
-        return [n for n, _ in root["ascending"].groups() if n not in ("r10m", "conditions")]
+        return [n for n, _ in _group(root, "ascending").groups() if n not in ("r10m", "conditions")]
 
     def _drop_time(self, store_path: Path, level: str) -> None:
         """Simulate a pre-#192 cube by removing a level's `time` array. `ingest_s1tiling_acquisition`
@@ -1262,12 +1302,13 @@ class TestPerLevelTimeHeal:
 
         assert idx == 1
         root = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)
-        ref = list(root["ascending"]["r10m"]["time"][:])
+        asc = _group(root, "ascending")
+        ref = list(np.asarray(_array(_group(asc, "r10m"), "time")[:]))
         assert len(ref) == 2
         for lvl in coarse:
-            t = root["ascending"][lvl]["time"]
+            t = _array(_group(asc, lvl), "time")
             assert t.dtype == np.dtype("int64")
-            assert list(t[:]) == ref  # backfilled prior slice + appended new slice, matching r10m
+            assert list(np.asarray(t[:])) == ref  # backfilled prior + appended new, matching r10m
 
     def test_append_noop_when_all_levels_have_time(
         self, s1_geotiff_dir: Path, s1_store_path: Path
@@ -1279,8 +1320,9 @@ class TestPerLevelTimeHeal:
         idx = ingest_s1tiling_acquisition(*a2, s1_store_path, "ascending")
         assert idx == 1
         root = zarr.open_group(str(s1_store_path), mode="r", zarr_format=3)
+        asc = _group(root, "ascending")
         for lvl in self._coarse_levels(s1_store_path):
-            assert root["ascending"][lvl]["time"].shape[0] == 2
+            assert _array(_group(asc, lvl), "time").shape[0] == 2
 
     def test_append_raises_on_half_built_cube(
         self, s1_geotiff_dir: Path, s1_store_path: Path
@@ -1293,9 +1335,10 @@ class TestPerLevelTimeHeal:
         ingest_s1tiling_acquisition(*a2, s1_store_path, "ascending")  # 2 slices
 
         root = zarr.open_group(str(s1_store_path), mode="r+", zarr_format=3)
-        r20m = root["ascending"]["r20m"]
-        _, h, w = r20m["vv"].shape
-        r20m["vv"].resize((1, h, w))  # half-built: r20m has 1 slice, r10m has 2
+        r20m = _group(_group(root, "ascending"), "r20m")
+        vv_arr = _array(r20m, "vv")
+        _, h, w = vv_arr.shape
+        vv_arr.resize((1, h, w))  # half-built: r20m has 1 slice, r10m has 2
         self._drop_time(s1_store_path, "r20m")
 
         with pytest.raises(ValueError, match="half-built"):

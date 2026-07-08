@@ -16,6 +16,7 @@ Public API:
 from __future__ import annotations
 
 import re
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
@@ -27,6 +28,7 @@ import structlog
 import zarr
 import zarr.codecs
 from pyproj import CRS as PyprojCRS
+from zarr.core.metadata.v3 import ArrayV3Metadata
 
 # `FillValueCoder` is xarray's internal CF fill-value encoder: the canonical way to produce
 # the base64 `_FillValue` xarray reads back under `use_zarr_fill_value_as_mask` (xarray
@@ -42,6 +44,32 @@ if TYPE_CHECKING:
     from eopf_geozarr.data_api.geozarr.types import S1BackscatterAttrsJSON
 
 log = structlog.get_logger()
+
+
+# =============================================================================
+# Zarr member-access helpers
+# =============================================================================
+#
+# Under pyright, ``group[name]`` is typed ``zarr.Array | zarr.Group``. The store layout
+# guarantees which one a given child is, so these helpers narrow (and assert) the type at
+# the single point of access. The ``raise`` branches encode a store-layout invariant and
+# are effectively unreachable — the established idiom in this codebase (see geozarr.py and
+# s2_multiscale.py).
+
+
+def _child_group(group: zarr.Group, name: str) -> zarr.Group:
+    member = group[name]
+    if not isinstance(member, zarr.Group):
+        raise TypeError(f"expected a group at {name!r}, got {type(member).__name__}")
+    return member
+
+
+def _child_array(group: zarr.Group, name: str) -> zarr.Array:
+    member = group[name]
+    if not isinstance(member, zarr.Array):
+        raise TypeError(f"expected an array at {name!r}, got {type(member).__name__}")
+    return member
+
 
 # =============================================================================
 # Constants
@@ -378,7 +406,13 @@ def _add_grid_mapping(group: zarr.Group, crs_string: str) -> None:
     sref.attrs.update(cf_attrs)
 
     for name, arr in group.arrays():
-        if name != "spatial_ref" and {"y", "x"}.issubset(arr.metadata.dimension_names or ()):
+        # This store is always Zarr V3; only V3 metadata carries ``dimension_names``.
+        dimension_names = (
+            arr.metadata.dimension_names
+            if isinstance(arr.metadata, ArrayV3Metadata)
+            else None
+        )
+        if name != "spatial_ref" and {"y", "x"}.issubset(dimension_names or ()):
             arr.attrs["grid_mapping"] = "spatial_ref"
 
 
@@ -467,7 +501,7 @@ def _build_orbit_group(
         _create_time_coordinate_array(level_group)
 
     # Per-time metadata coordinates at native resolution only (not selected on by readers).
-    r10m = orbit_group["r10m"]
+    r10m = _child_group(orbit_group, "r10m")
     for name, dtype, fill in [
         ("absolute_orbit", "int32", 0),
         ("relative_orbit", "int32", 0),
@@ -616,20 +650,28 @@ def ingest_s1tiling_acquisition(
             _build_orbit_group(root, orbit_direction, meta)
         else:
             # Validate consistency on append
-            orbit_group = root[orbit_direction]
-            store_crs = dict(orbit_group.attrs).get("proj:code")
+            orbit_group = _child_group(root, orbit_direction)
+            attrs = dict(orbit_group.attrs)
+            store_crs = attrs.get("proj:code")
             if store_crs != meta.crs:
                 raise ValueError(f"CRS mismatch: store has {store_crs}, GeoTIFF has {meta.crs}")
-            store_layout = dict(orbit_group.attrs).get("multiscales", {}).get("layout", [])
-            if store_layout:
+            multiscales = attrs.get("multiscales")
+            store_layout = (
+                multiscales.get("layout", []) if isinstance(multiscales, dict) else []
+            )
+            if isinstance(store_layout, list) and store_layout:
                 native_entry = store_layout[0]
-                store_shape = native_entry.get("spatial:shape")
+                store_shape = (
+                    native_entry.get("spatial:shape")
+                    if isinstance(native_entry, dict)
+                    else None
+                )
                 if store_shape != meta.shape:
                     raise ValueError(
                         f"Shape mismatch: store has {store_shape}, GeoTIFF has {meta.shape}"
                     )
 
-    orbit = root[orbit_direction]
+    orbit = _child_group(root, orbit_direction)
 
     # Read GeoTIFF pixel data
     with _rasterio_env(vv_path):
@@ -654,8 +696,8 @@ def ingest_s1tiling_acquisition(
     vh_data = np.where(mask_data == 0, np.nan, vh_data).astype("float32")
 
     # Determine time index
-    r10m = orbit["r10m"]
-    current_size = r10m["vv"].shape[0]
+    r10m = _child_group(orbit, "r10m")
+    current_size = _child_array(r10m, "vv").shape[0]
     new_size = current_size + 1
 
     # Generate overviews
@@ -680,13 +722,13 @@ def ingest_s1tiling_acquisition(
     # Recreate the missing-level coordinate from `r10m/time` (backfilling the existing slices so prior
     # timestamps are preserved), or raise if the cube is inconsistent in a way a backfill cannot fix.
     if "time" in r10m:
-        ref_time = np.asarray(r10m["time"][:])
+        ref_time = np.asarray(_child_array(r10m, "time")[:])
         healed = []
         for level_name in data_by_level:
-            level = orbit[level_name]
+            level = _child_group(orbit, level_name)
             if level_name == "r10m" or "time" in level:
                 continue
-            level_len = level["vv"].shape[0]
+            level_len = _child_array(level, "vv").shape[0]
             if level_len != ref_time.shape[0]:
                 raise ValueError(
                     f"Cannot append to {orbit_direction}/{level_name}: it has {level_len} slice(s) "
@@ -694,8 +736,8 @@ def ingest_s1tiling_acquisition(
                     "be safely backfilled (wipe + reingest)"
                 )
             _create_time_coordinate_array(level)
-            level["time"].resize((ref_time.shape[0],))
-            level["time"][:] = ref_time
+            _child_array(level, "time").resize((ref_time.shape[0],))
+            _child_array(level, "time")[:] = ref_time
             healed.append(level_name)
         if healed:
             log.info("Healed missing per-level `time`", levels=healed)
@@ -708,26 +750,26 @@ def ingest_s1tiling_acquisition(
     # Write data + the `time` coordinate at all levels (time is replicated per level so datetime
     # `.sel` resolves at any rendered scale, #192).
     for level_name, (vv_lev, vh_lev, mask_lev) in data_by_level.items():
-        level = orbit[level_name]
+        level = _child_group(orbit, level_name)
         h, w = vv_lev.shape
 
-        level["vv"].resize((new_size, h, w))
-        level["vh"].resize((new_size, h, w))
-        level["border_mask"].resize((new_size, h, w))
+        _child_array(level, "vv").resize((new_size, h, w))
+        _child_array(level, "vh").resize((new_size, h, w))
+        _child_array(level, "border_mask").resize((new_size, h, w))
 
-        level["vv"][current_size, :, :] = vv_lev
-        level["vh"][current_size, :, :] = vh_lev
-        level["border_mask"][current_size, :, :] = mask_lev
+        _child_array(level, "vv")[current_size, :, :] = vv_lev
+        _child_array(level, "vh")[current_size, :, :] = vh_lev
+        _child_array(level, "border_mask")[current_size, :, :] = mask_lev
 
-        level["time"].resize((new_size,))
-        level["time"][current_size] = dt_ns
+        _child_array(level, "time").resize((new_size,))
+        _child_array(level, "time")[current_size] = dt_ns
 
     # Per-time metadata coordinates at native resolution only.
     for coord_name in ["absolute_orbit", "relative_orbit", "platform"]:
-        r10m[coord_name].resize((new_size,))
-    r10m["absolute_orbit"][current_size] = meta.absolute_orbit
-    r10m["relative_orbit"][current_size] = meta.relative_orbit
-    r10m["platform"][current_size] = meta.platform
+        _child_array(r10m, coord_name).resize((new_size,))
+    _child_array(r10m, "absolute_orbit")[current_size] = meta.absolute_orbit
+    _child_array(r10m, "relative_orbit")[current_size] = meta.relative_orbit
+    _child_array(r10m, "platform")[current_size] = meta.platform
 
     log.info(
         "Zarr write complete",
@@ -799,7 +841,7 @@ def _input_path_exists(p: str | Path) -> bool:
     return Path(p).exists()
 
 
-def _rasterio_env(path: str | Path):  # type: ignore[return]
+def _rasterio_env(path: str | Path) -> AbstractContextManager[object]:
     """rasterio.Env context for S3 paths; no-op context manager for local paths.
 
     rasterio 1.5 passes endpoint_url verbatim as GDAL's AWS_S3_ENDPOINT.
@@ -941,7 +983,7 @@ def ingest_s1tiling_conditions(
     FileNotFoundError
         If any provided condition path does not exist.
     """
-    condition_inputs: list[tuple[str, Path]] = []
+    condition_inputs: list[tuple[str, str | Path]] = []
     for label, path in [
         ("gamma_area", gamma_area_path),
         ("lia", lia_path),
@@ -969,7 +1011,7 @@ def ingest_s1tiling_conditions(
             "Ingest at least one acquisition first."
         )
 
-    orbit = root[orbit_direction]
+    orbit = _child_group(root, orbit_direction)
 
     # Read reference metadata from the first condition file
     ref_label, ref_path = condition_inputs[0]
@@ -999,7 +1041,7 @@ def ingest_s1tiling_conditions(
         )
         log.info("Created conditions group", orbit_direction=orbit_direction)
     else:
-        conditions = orbit["conditions"]
+        conditions = _child_group(orbit, "conditions")
 
     # Write each condition array
     for label, cond_path in condition_inputs:
@@ -1015,7 +1057,7 @@ def ingest_s1tiling_conditions(
 
         if array_name in conditions:
             # Overwrite existing array
-            conditions[array_name][:, :] = data
+            _child_array(conditions, array_name)[:, :] = data
             log.info("Overwrote condition array", array_name=array_name)
         else:
             # Shard like the vv/vh pyramid: one shard over the full (y, x) extent so a 10980²
