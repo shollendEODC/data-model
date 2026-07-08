@@ -11,13 +11,12 @@ repos:
         args: ["--fix", "--show-fixes"]
       - id: ruff-format
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.17.0
+  - repo: local
     hooks:
-      - id: mypy
-        language_version: python
-        exclude: tests/.*
-        additional_dependencies:
-        - types-attrs
-        - typing-extensions>=4.15.0
-        - pydantic>=2.12
+      - id: pyright
+        name: pyright
+        language: system
+        entry: uv run --frozen pyright
+        pass_filenames: false
+        always_run: true
+        types_or: [python, pyi]

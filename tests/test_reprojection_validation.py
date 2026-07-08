@@ -16,7 +16,7 @@ from eopf_geozarr.conversion import create_geozarr_dataset
 class MockSentinel1L1GRDBuilder:
     """Builder class to generate a sample EOPF Sentinel-1 Level 1 GRD data product for testing purpose."""
 
-    def __init__(self, product_id) -> None:
+    def __init__(self, product_id: str) -> None:
         self.product_title = "S01SIWGRD"
         self.product_id = product_id
         self.az_dim = "azimuth_time"
@@ -25,7 +25,7 @@ class MockSentinel1L1GRDBuilder:
         self.nlines = 552
         self.npixels = 1131
 
-    def create_coordinates(self, az_dim_size, gr_dim_size) -> xr.Coordinates:
+    def create_coordinates(self, az_dim_size: int, gr_dim_size: int) -> xr.Coordinates:
         coords = {
             self.az_dim: pd.date_range(
                 start="2017-05-08T16:48:30",

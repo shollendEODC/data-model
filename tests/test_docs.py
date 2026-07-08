@@ -10,6 +10,7 @@ Output assertions can be specified using #> style comments:
     #> hello
 """
 
+import uuid
 from io import StringIO
 from pathlib import Path
 
@@ -92,7 +93,7 @@ def _validate_output(example: CodeExample, captured_output: str) -> None:
 
 # Get all examples and group them by group ID
 _all_examples = list(find_examples("docs"))
-_examples_by_group = {}
+_examples_by_group: dict[uuid.UUID | None, list[CodeExample]] = {}
 for ex in _all_examples:
     if ex.prefix == "python":
         if ex.group not in _examples_by_group:
@@ -120,7 +121,7 @@ def test_doc_example_group(group_examples: list[CodeExample]) -> None:
         #> hello
     """
     # Execute all examples in the group sequentially to share state
-    namespace = {}
+    namespace: dict[str, object] = {}
     any_skipped = False
 
     for example in group_examples:

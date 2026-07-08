@@ -18,25 +18,23 @@ import itertools
 import os
 import time
 from collections.abc import Hashable, Iterable, Mapping, Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import structlog
 import xarray as xr
 import zarr
+import zarr.core.common
+import zarr.core.group
 from pyproj import CRS
 from rasterio.warp import calculate_default_transform
 from zarr.codecs import BloscCodec
 from zarr.core.sync import sync
 from zarr.storage import StoreLike
 from zarr.storage._common import make_store_path
-from zarr_cm import geo_proj
-from zarr_cm import multiscales as multiscales_cm
-from zarr_cm import spatial as spatial_cm
 
 from eopf_geozarr.data_api.geozarr.multiscales import zcm
 from eopf_geozarr.data_api.geozarr.multiscales.geozarr import (
-    MultiscaleGroupAttrs,
     MultiscaleMeta,
 )
 from eopf_geozarr.types import (
@@ -51,6 +49,10 @@ from eopf_geozarr.types import (
 from . import fs_utils, utils
 from .fs_utils import sanitize_dataset_attributes
 from .sentinel1_reprojection import reproject_sentinel1_with_gcps
+
+if TYPE_CHECKING:
+    from zarr.core.common import JSON
+    from zarr_cm import MultiscalesAttrs
 
 log = structlog.get_logger()
 
@@ -372,7 +374,8 @@ def iterative_copy(
                 consolidated=False,
                 zarr_format=3,
                 encoding=encoding,
-                storage_options=storage_options,
+                # xarray stubs type storage_options as dict[str, str]; S3FsOptions is broader
+                storage_options=storage_options,  # pyright: ignore[reportArgumentType]
             )
 
             dt_result[relative_path] = xr.DataTree(ds)
@@ -504,14 +507,11 @@ def write_geozarr_group(
     if not success:
         raise RuntimeError(f"Failed to write all bands for {group_name}")
 
-    # Create GeoZarr-spec compliant multiscales
-    if _is_sentinel1(dt_input):
-        assert gcp_group is not None, "GCP group required for processing Sentinel-1"
-        ds_gcp = dt_input[gcp_group].to_dataset()
-        # For Sentinel-1, ds_gcp is set to None since data is now reprojected and doesn't need GCP handling
-        ds_gcp = None
-    else:
-        ds_gcp = None
+    # Create GeoZarr-spec compliant multiscales. GCPs are not needed here:
+    # Sentinel-1 data was already reprojected upstream (see
+    # setup_datatree_metadata_geozarr_spec_compliant), so multiscales are
+    # created without GCP handling.
+    ds_gcp: xr.Dataset | None = None
 
     try:
         log.info("Creating GeoZarr-spec compliant multiscales", group_name=group_name)
@@ -525,7 +525,10 @@ def write_geozarr_group(
             enable_sharding=enable_sharding,
         )
     except Exception as e:
-        log.warning(
+        # Deliberately continue with the remaining groups, but surface the
+        # failure loudly (with traceback): the output store is missing its
+        # multiscales metadata for this group.
+        log.exception(
             "Failed to create GeoZarr-spec compliant multiscales",
             group_name=group_name,
             error=str(e),
@@ -585,7 +588,7 @@ def create_geozarr_compliant_multiscales(
     compressor = BloscCodec(cname="zstd", clevel=3, shuffle="shuffle")
 
     # Get spatial information from the first data variable
-    data_vars = [var for var in ds.data_vars if not utils.is_grid_mapping_variable(ds, var)]
+    data_vars = [var for var in ds.data_vars if not utils.is_grid_mapping_variable(ds, str(var))]
     if not data_vars:
         return {}
 
@@ -672,26 +675,27 @@ def create_geozarr_compliant_multiscales(
             scale_level_data["spatial:transform"] = spatial_tf
         layout.append(zcm.ScaleLevel(**scale_level_data))
 
-    multiscale_attrs = MultiscaleGroupAttrs(
-        zarr_conventions=(multiscales_cm.CMO, spatial_cm.CMO, geo_proj.CMO),
-        multiscales=MultiscaleMeta(
-            layout=layout,
-            resampling_method="average",
-        ),
+    # Validate + serialize the multiscales block via the project model (which
+    # also covers the ZCM/TMS duality), then hand all conventions to zarr-cm,
+    # which validates each and emits the matching CMOs in order (multiscales,
+    # spatial, proj). proj is included only when a CRS is available.
+    multiscales_data = cast(
+        "MultiscalesAttrs",
+        MultiscaleMeta(layout=tuple(layout), resampling_method="average").model_dump(),
     )
-    attrs_to_write = multiscale_attrs.model_dump()
-    if native_crs and native_bounds:
-        attrs_to_write["spatial:dimensions"] = ["y", "x"]
-        attrs_to_write["spatial:bbox"] = list(native_bounds)
-        attrs_to_write["spatial:registration"] = "pixel"
-        if hasattr(native_crs, "to_epsg") and native_crs.to_epsg():
-            attrs_to_write["proj:code"] = f"EPSG:{native_crs.to_epsg()}"
-        elif hasattr(native_crs, "to_wkt"):
-            attrs_to_write["proj:wkt2"] = native_crs.to_wkt()
+    attrs_to_write = utils.build_convention_attrs(
+        multiscales=multiscales_data,
+        spatial={
+            "spatial:dimensions": ["y", "x"],
+            "spatial:bbox": list(native_bounds),
+            "spatial:registration": "pixel",
+        },
+        crs=native_crs or None,
+    )
 
     group_path = fs_utils.normalize_path(f"{output_path}/{group_name.lstrip('/')}")
     zarr_group = fs_utils.open_zarr_group(group_path, mode="r+")
-    zarr_group.attrs.update(attrs_to_write)
+    zarr_group.attrs.update(cast("dict[str, JSON]", attrs_to_write))
 
     log.info("Added multiscales metadata to group %s", group_name)
 
@@ -756,7 +760,8 @@ def create_geozarr_compliant_multiscales(
             zarr_format=3,
             encoding=encoding,
             align_chunks=align_chunks_flag,
-            storage_options=storage_options,
+            # xarray stubs type storage_options as dict[str, str]; S3FsOptions is broader
+            storage_options=storage_options,  # pyright: ignore[reportArgumentType]
         )
 
         overview_datasets[asset_name] = overview_ds
@@ -1011,7 +1016,7 @@ def write_dataset_band_by_band_with_validation(
     )
 
     # Get data variables
-    data_vars = [var for var in ds.data_vars if not utils.is_grid_mapping_variable(ds, var)]
+    data_vars = [var for var in ds.data_vars if not utils.is_grid_mapping_variable(ds, str(var))]
 
     successful_vars = []
     failed_vars = []
@@ -1044,9 +1049,10 @@ def write_dataset_band_by_band_with_validation(
     for var in data_vars:
         # Check if this variable already exists and is valid
         if not force_overwrite and store_exists:
-            if utils.validate_existing_band_data(existing_dataset, var, ds):
+            assert existing_dataset is not None  # guaranteed by store_exists
+            if utils.validate_existing_band_data(existing_dataset, str(var), ds):
                 ds.drop_vars(str(var))
-                ds[var] = existing_dataset[var]  # type: ignore[index]
+                ds[var] = existing_dataset[var]
                 log.info("✅ Band %s already exists and is valid, skipping.", var)
                 skipped_vars.append(var)
                 successful_vars.append(var)
@@ -1114,7 +1120,8 @@ def write_dataset_band_by_band_with_validation(
                     consolidated=False,
                     zarr_format=3,
                     encoding=var_encoding,
-                    storage_options=store_storage_options,
+                    # xarray stubs type storage_options as dict[str, str]; S3FsOptions is broader
+                    storage_options=store_storage_options,  # pyright: ignore[reportArgumentType]
                 )
 
                 log.info("    ✅ Successfully wrote", var=var)
@@ -1388,15 +1395,17 @@ def _create_encoding(
     for var in ds.data_vars:
         if hasattr(ds[var].data, "chunks"):
             current_chunks = ds[var].chunks
+            assert current_chunks is not None  # guaranteed by hasattr(..., "chunks")
             if len(current_chunks) >= 2:
                 chunking = tuple(
                     current_chunks[i][0] if len(current_chunks[i]) > 0 else ds[var].shape[i]
                     for i in range(len(current_chunks))
                 )
             else:
-                chunking = (
-                    current_chunks[0][0] if len(current_chunks[0]) > 0 else ds[var].shape[0],
-                )
+                chunks_list = list(current_chunks)
+                first_chunks = list(chunks_list[0])
+                first_shape = list(ds[var].shape)
+                chunking = (first_chunks[0] if len(first_chunks) > 0 else first_shape[0],)
         else:
             data_shape = ds[var].shape
             if len(data_shape) >= 2:
@@ -1404,7 +1413,7 @@ def _create_encoding(
                 chunk_x = min(spatial_chunk, data_shape[-1])
                 chunking = (1, chunk_y, chunk_x) if len(data_shape) == 3 else (chunk_y, chunk_x)
             else:
-                chunking = (min(spatial_chunk, data_shape[-1]),)
+                chunking = (min(spatial_chunk, list(data_shape)[-1]),)
 
         var_encoding: XarrayEncodingJSON = {
             "compressors": [compressor],
@@ -1429,7 +1438,7 @@ def _create_geozarr_encoding(
     encoding: dict[Hashable, XarrayEncodingJSON] = {}
     chunks: tuple[int, ...]
     for var in ds.data_vars:
-        if utils.is_grid_mapping_variable(ds, var):
+        if utils.is_grid_mapping_variable(ds, str(var)):
             encoding[var] = {"compressors": None}
         else:
             data_shape = ds[var].shape
@@ -1480,7 +1489,7 @@ def _create_geozarr_encoding(
                     )
                 else:
                     # For 1D data, use the full dimension
-                    shards = (data_shape[0],)
+                    shards = (next(iter(data_shape)),)
                     log.info(
                         "  🔧 Sharding config",
                         var=var,
@@ -1641,7 +1650,7 @@ def _add_grid_mapping_variable(
     # Ensure all data variables have the grid_mapping attribute
     for var_name in overview_ds.data_vars:
         if (
-            not utils.is_grid_mapping_variable(overview_ds, var_name)
+            not utils.is_grid_mapping_variable(overview_ds, str(var_name))
             and "grid_mapping" not in overview_ds[var_name].attrs
         ):
             overview_ds[var_name].attrs["grid_mapping"] = grid_mapping_var_name
@@ -1695,4 +1704,16 @@ def _is_sentinel1(dt: xr.DataTree) -> bool:
 
 
 def get_zarr_group(data: xr.DataTree) -> zarr.Group:
-    return data._close.__self__.zarr_group
+    # `_close` is a bound method of the backend store on an opened DataTree;
+    # `__self__` retrieves that store, which exposes `zarr_group`. These are
+    # xarray/zarr internals without public type information, so resolve them
+    # defensively and verify the result is actually a zarr.Group.
+    close = data._close
+    store = getattr(close, "__self__", None)
+    group = getattr(store, "zarr_group", None)
+    if not isinstance(group, zarr.Group):
+        raise TypeError(
+            "Could not resolve a zarr.Group from the DataTree backend "
+            f"(got {type(group).__name__}); the xarray/zarr internals may have changed."
+        )
+    return group

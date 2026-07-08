@@ -1,16 +1,23 @@
-from typing import Any
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import pytest
 import zarr
+from pydantic import ValidationError
 from pydantic_zarr.core import tuplify_json
 from pydantic_zarr.v3 import ArraySpec, GroupSpec
 
+from eopf_geozarr.data_api.geozarr.common import DatasetAttrs
 from eopf_geozarr.data_api.geozarr.v3 import (
     DataArray,
+    Dataset,
     MultiscaleGroup,
     check_valid_coordinates,
 )
+
+if TYPE_CHECKING:
+    from eopf_geozarr.data_api.geozarr.common import GroupLike
 
 
 class TestCheckValidCoordinates:
@@ -29,10 +36,13 @@ class TestCheckValidCoordinates:
             f"dim_{idx}": DataArray.from_array(np.arange(s), dimension_names=(f"dim_{idx}",))
             for idx, s in enumerate(data_shape)
         }
-        group = GroupSpec[Any, DataArray](
+        group = GroupSpec[Mapping[str, object], DataArray](
             attributes={}, members={"base": base_array, **coords_arrays}
         )
-        assert check_valid_coordinates(group) == group
+        # ``group`` structurally satisfies ``GroupLike``, but mypy cannot bind the
+        # invariant ``Mapping`` value type, mirroring the cast used in the source.
+        group_like = cast("GroupLike", group)
+        assert check_valid_coordinates(group_like) == group_like
 
     @staticmethod
     @pytest.mark.parametrize("data_shape", [(10,), (10, 12)])
@@ -53,19 +63,19 @@ class TestCheckValidCoordinates:
             f"dim_{idx}": DataArray.from_array(np.arange(s + 1), dimension_names=(f"dim_{idx}",))
             for idx, s in enumerate(data_shape)
         }
-        group = GroupSpec[Any, DataArray](
+        group = GroupSpec[Mapping[str, object], DataArray](
             attributes={}, members={"base": base_array, **coords_arrays}
         )
         msg = "Dimension .* for array 'base' has a shape mismatch:"
         with pytest.raises(ValueError, match=msg):
-            check_valid_coordinates(group)
+            check_valid_coordinates(cast("GroupLike", group))
 
 
-def test_dataarray_round_trip(s2_geozarr_group_example: Any) -> None:
+def test_dataarray_round_trip(s2_geozarr_group_example: zarr.Group) -> None:
     """
     Ensure that we can round-trip dataarray attributes through the `Multiscales` model.
     """
-    source_untyped = GroupSpec.from_zarr(s2_geozarr_group_example)
+    source_untyped: GroupSpec = GroupSpec.from_zarr(s2_geozarr_group_example)
     flat = source_untyped.to_flat()
     for val in flat.values():
         if isinstance(val, ArraySpec) and val.dimension_names is not None:
@@ -73,7 +83,7 @@ def test_dataarray_round_trip(s2_geozarr_group_example: Any) -> None:
             assert DataArray(**model_json).model_dump() == model_json
 
 
-def test_multiscale_attrs_round_trip(s2_geozarr_group_example: Any) -> None:
+def test_multiscale_attrs_round_trip(s2_geozarr_group_example: zarr.Group) -> None:
     """
     Test that multiscale datasets round-trip through the `Multiscales` model
     """
@@ -87,3 +97,30 @@ def test_multiscale_attrs_round_trip(s2_geozarr_group_example: Any) -> None:
             assert tuplify_json(MultiscaleGroup(**model_json).model_dump()) == tuplify_json(
                 model_json
             )
+
+
+class TestDataset:
+    @staticmethod
+    def _members() -> dict[str, DataArray]:
+        base_array = DataArray.from_array(
+            np.zeros((4, 4), dtype="uint8"), dimension_names=["y", "x"]
+        )
+        coords_arrays = {
+            name: DataArray.from_array(np.arange(4), dimension_names=(name,)) for name in ("y", "x")
+        }
+        return {"band": base_array, **coords_arrays}
+
+    def test_valid(self) -> None:
+        """A dataset with consistent coordinates and no grid mapping validates."""
+        ds = Dataset(attributes=DatasetAttrs(), members=self._members())
+        assert isinstance(ds, Dataset)
+
+    def test_missing_grid_mapping_variable(self) -> None:
+        """A member declaring a grid_mapping that is not in the dataset fails validation."""
+        members = self._members()
+        band = members["band"]
+        members["band"] = band.model_copy(
+            update={"attributes": band.attributes.model_copy(update={"grid_mapping": "nope"})}
+        )
+        with pytest.raises(ValidationError, match="Grid mapping variable 'nope'"):
+            Dataset(attributes=DatasetAttrs(), members=members)

@@ -66,7 +66,7 @@ def test_get_s3_credentials_info() -> None:
 
 
 @patch("eopf_geozarr.conversion.fs_utils.s3fs.S3FileSystem")
-def test_validate_s3_access_success(mock_s3fs) -> None:
+def test_validate_s3_access_success(mock_s3fs: Mock) -> None:
     """Test successful S3 access validation."""
     mock_fs = Mock()
     mock_fs.ls.return_value = ["file1", "file2"]
@@ -79,7 +79,7 @@ def test_validate_s3_access_success(mock_s3fs) -> None:
 
 
 @patch("eopf_geozarr.conversion.fs_utils.s3fs.S3FileSystem")
-def test_validate_s3_access_failure(mock_s3fs) -> None:
+def test_validate_s3_access_failure(mock_s3fs: Mock) -> None:
     """Test failed S3 access validation."""
     mock_fs = Mock()
     mock_fs.ls.side_effect = Exception("Access denied")
@@ -87,6 +87,7 @@ def test_validate_s3_access_failure(mock_s3fs) -> None:
 
     success, error = validate_s3_access("s3://test-bucket/path")
     assert success is False
+    assert error is not None
     assert "Access denied" in error
 
 
@@ -101,11 +102,13 @@ def test_get_s3_storage_options() -> None:
     ):
         options = get_s3_storage_options("s3://test-bucket/path")
 
-        assert options["anon"] is False
-        assert options["use_ssl"] is True
-        assert options["client_kwargs"]["region_name"] == "us-west-2"
-        assert options["endpoint_url"] == "https://s3.example.com"
-        assert options["client_kwargs"]["endpoint_url"] == "https://s3.example.com"
+        assert options.get("anon") is False
+        assert options.get("use_ssl") is True
+        client_kwargs = options.get("client_kwargs")
+        assert client_kwargs is not None
+        assert client_kwargs.get("region_name") == "us-west-2"
+        assert options.get("endpoint_url") == "https://s3.example.com"
+        assert client_kwargs.get("endpoint_url") == "https://s3.example.com"
 
 
 def test_get_storage_options() -> None:
@@ -114,9 +117,11 @@ def test_get_storage_options() -> None:
     with patch.dict("os.environ", {"AWS_DEFAULT_REGION": "us-west-2"}):
         options = get_storage_options("s3://test-bucket/path")
         assert options is not None
-        assert options["anon"] is False
-        assert options["use_ssl"] is True
-        assert options["client_kwargs"]["region_name"] == "us-west-2"
+        assert options.get("anon") is False
+        assert options.get("use_ssl") is True
+        client_kwargs = options.get("client_kwargs")
+        assert client_kwargs is not None
+        assert client_kwargs.get("region_name") == "us-west-2"
 
     # Test local path
     options = get_storage_options("/local/path")
@@ -142,7 +147,7 @@ def test_normalize_path() -> None:
 
 
 @patch("eopf_geozarr.conversion.fs_utils.get_filesystem")
-def test_path_exists(mock_get_filesystem) -> None:
+def test_path_exists(mock_get_filesystem: Mock) -> None:
     """Test unified path existence check."""
     mock_fs = Mock()
     mock_fs.exists.return_value = True
@@ -160,7 +165,7 @@ def test_path_exists(mock_get_filesystem) -> None:
 
 
 @patch("eopf_geozarr.conversion.fs_utils.get_filesystem")
-def test_write_json_metadata(mock_get_filesystem) -> None:
+def test_write_json_metadata(mock_get_filesystem: Mock) -> None:
     """Test unified JSON metadata writing."""
     from unittest.mock import MagicMock, mock_open
 
@@ -183,7 +188,7 @@ def test_write_json_metadata(mock_get_filesystem) -> None:
 
 
 @patch("eopf_geozarr.conversion.fs_utils.get_filesystem")
-def test_read_json_metadata(mock_get_filesystem) -> None:
+def test_read_json_metadata(mock_get_filesystem: Mock) -> None:
     """Test unified JSON metadata reading."""
     from unittest.mock import MagicMock, mock_open
 

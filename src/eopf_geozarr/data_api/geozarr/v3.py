@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Self
+from typing import Any, Self, cast
 
 from pydantic import model_validator
 from pydantic_zarr.v3 import ArraySpec, GroupSpec
@@ -10,6 +10,8 @@ from pydantic_zarr.v3 import ArraySpec, GroupSpec
 from eopf_geozarr.data_api.geozarr.common import (
     BaseDataArrayAttrs,
     DatasetAttrs,
+    DatasetLike,
+    GroupLike,
     check_grid_mapping,
     check_valid_coordinates,
 )
@@ -29,8 +31,9 @@ class DataArray(ArraySpec[BaseDataArrayAttrs]):
     https://github.com/zarr-developers/geozarr-spec/blob/main/geozarr-spec.md#geozarr-dataarray
     """
 
-    # The dimension names must be a tuple of strings
-    dimension_names: tuple[str, ...]
+    # GeoZarr requires dimension names, so tighten the parent's optional
+    # `tuple[str | None, ...] | None` field to a required tuple of strings.
+    dimension_names: tuple[str, ...]  # pyright: ignore[reportGeneralTypeIssues, reportIncompatibleVariableOverride]
 
     @property
     def array_dimensions(self) -> tuple[str, ...]:
@@ -55,11 +58,17 @@ class Dataset(GroupSpec[DatasetAttrs, GroupSpec[Any, Any] | DataArray]):
         GroupSpec[Any, Any]
             The validated GeoZarr DataSet.
         """
-        return check_valid_coordinates(self)
+        # ``self`` structurally satisfies the ``GroupLike`` protocol, but mypy cannot bind the
+        # helper's TypeVar to ``Self``; cast through the protocol and back to ``Self`` (the helper
+        # returns the same object).
+        check_valid_coordinates(cast("GroupLike", self))
+        return self
 
     @model_validator(mode="after")
     def validate_grid_mapping(self) -> Self:
-        return check_grid_mapping(self)
+        # See note above: ``self`` satisfies ``DatasetLike`` but the TypeVar can't bind to ``Self``.
+        check_grid_mapping(cast("DatasetLike", self))
+        return self
 
 
 class MultiscaleGroup(GroupSpec[MultiscaleGroupAttrs, DataArray | GroupSpec[Any, Any]]):

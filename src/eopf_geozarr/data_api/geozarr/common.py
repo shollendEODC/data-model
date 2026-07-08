@@ -80,7 +80,7 @@ class BaseDataArrayAttrs(BaseModel, extra="allow"):
     ----------
     """
 
-    grid_mapping: str | MISSING = MISSING  # type: ignore[valid-type]
+    grid_mapping: str | MISSING = MISSING
 
 
 class GridMappingAttrs(BaseModel, extra="allow"):

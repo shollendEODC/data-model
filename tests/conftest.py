@@ -29,7 +29,9 @@ def read_json(path: pathlib.Path) -> dict[str, object]:
     """
     Read the contents of path as JSON
     """
-    return json.loads(path.read_text())
+    obj = json.loads(path.read_text())
+    assert isinstance(obj, dict)
+    return obj
 
 
 def get_stem(p: pathlib.Path) -> str:
@@ -41,8 +43,9 @@ def create_group_from_json(source_path: pathlib.Path, out_path: pathlib.Path) ->
     Create a Zarr V2 group from a JSON model
     """
     out_dir = out_path / (source_path.stem + ".zarr")
-    g = GroupSpecV2(**read_json(source_path))
-    g.to_zarr(out_dir, path="")
+    g: GroupSpecV2 = GroupSpecV2.model_validate(read_json(source_path))
+    # to_zarr is annotated to take a Store but accepts a path-like at runtime.
+    g.to_zarr(out_dir, path="")  # type: ignore[arg-type]
     return out_dir
 
 
@@ -97,8 +100,9 @@ def s2_geozarr_group_example(request: pytest.FixtureRequest) -> zarr.Group:
     Return a memory-backed Zarr V3 Group based on a sentinel 2 product converted to geozarr
     """
     source_path: pathlib.Path = request.param
-    store = {}
-    return GroupSpecV3(**read_json(source_path)).to_zarr(store, path="")
+    store: dict[str, bytes] = {}
+    # to_zarr is annotated to take a Store but accepts a dict-backed store at runtime.
+    return GroupSpecV3.model_validate(read_json(source_path)).to_zarr(store, path="")  # type: ignore[arg-type]
 
 
 @pytest.fixture(params=optimized_geozarr_example_paths, ids=get_stem)
@@ -107,8 +111,9 @@ def s2_optimized_geozarr_group_example(request: pytest.FixtureRequest) -> zarr.G
     Return a memory-backed Zarr V3 Group based on a sentinel 2 product converted to geozarr
     """
     source_path: pathlib.Path = request.param
-    store = {}
-    return GroupSpecV3(**read_json(source_path)).to_zarr(store, path="")
+    store: dict[str, bytes] = {}
+    # to_zarr is annotated to take a Store but accepts a dict-backed store at runtime.
+    return GroupSpecV3.model_validate(read_json(source_path)).to_zarr(store, path="")  # type: ignore[arg-type]
 
 
 @pytest.fixture(params=zcm_multiscales_example_paths, ids=get_stem)
@@ -217,7 +222,7 @@ def _verify_geozarr_spec_compliance(output_path: pathlib.Path, group: str) -> No
 
     # Check coordinates
     for coord_name in ds.coords:
-        if coord_name not in ["spatial_ref"]:  # Skip CRS coordinate
+        if coord_name != "spatial_ref":  # Skip CRS coordinate
             assert "_ARRAY_DIMENSIONS" in ds[coord_name].attrs, (
                 f"Missing _ARRAY_DIMENSIONS for coordinate {coord_name} in {group}"
             )

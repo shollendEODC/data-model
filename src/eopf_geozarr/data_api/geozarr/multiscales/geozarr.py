@@ -5,6 +5,9 @@ from typing import NotRequired, Self
 from pydantic import BaseModel, model_validator
 from pydantic.experimental.missing_sentinel import MISSING
 from typing_extensions import TypedDict
+
+# Runtime import (not TYPE_CHECKING): pydantic resolves this annotation when
+# building MultiscaleGroupAttrs, so the name must exist at runtime.
 from zarr_cm import ConventionMetadataObject
 
 from . import tms, zcm
@@ -16,17 +19,17 @@ class MultiscaleMeta(BaseModel):
     or ZCM multiscale metadata
     """
 
-    layout: tuple[zcm.ScaleLevel, ...] | MISSING = MISSING  # type: ignore[valid-type]
-    resampling_method: str | MISSING = MISSING  # type: ignore[valid-type]
-    tile_matrix_set: tms.TileMatrixSet | MISSING = MISSING  # type: ignore[valid-type]
-    tile_matrix_limits: dict[str, tms.TileMatrixLimit] | MISSING = MISSING  # type: ignore[valid-type]
+    layout: tuple[zcm.ScaleLevel, ...] | MISSING = MISSING
+    resampling_method: str | MISSING = MISSING
+    tile_matrix_set: tms.TileMatrixSet | MISSING = MISSING
+    tile_matrix_limits: dict[str, tms.TileMatrixLimit] | MISSING = MISSING
 
     @model_validator(mode="after")
     def valid_zcm(self) -> Self:
         """
         Ensure that the ZCM metadata, if present, is valid
         """
-        if self.layout is not MISSING:  # type: ignore[comparison-overlap]
+        if self.layout is not MISSING:
             zcm.Multiscales(**self.model_dump())
 
         return self
@@ -36,7 +39,7 @@ class MultiscaleMeta(BaseModel):
         """
         Ensure that the TMS metadata, if present, is valid
         """
-        if self.tile_matrix_set is not MISSING:  # type: ignore[comparison-overlap]
+        if self.tile_matrix_set is not MISSING:
             tms.Multiscales(**self.model_dump())
 
         return self
@@ -55,7 +58,7 @@ class MultiscaleGroupAttrs(BaseModel):
     multiscales: MultiscaleAttrs
     """
 
-    zarr_conventions: tuple[ConventionMetadataObject, ...] | MISSING = MISSING  # type: ignore[valid-type]
+    zarr_conventions: tuple[ConventionMetadataObject, ...] | MISSING = MISSING
     multiscales: MultiscaleMeta
 
     _zcm_multiscales: zcm.Multiscales | None = None
@@ -67,15 +70,18 @@ class MultiscaleGroupAttrs(BaseModel):
         Ensure that the ZCM metadata, if present, is valid, and that TMS metadata, if present,
         is valid, and that at least one of the two is present.
         """
-        if self.zarr_conventions is not MISSING:  # type: ignore[comparison-overlap]
+        if self.zarr_conventions is not MISSING:
             self._zcm_multiscales = zcm.Multiscales(
                 layout=self.multiscales.layout,
                 resampling_method=self.multiscales.resampling_method,
             )
-        if self.multiscales.tile_matrix_limits is not MISSING:  # type: ignore[comparison-overlap]
+        if self.multiscales.tile_matrix_limits is not MISSING:
             self._tms_multiscales = tms.Multiscales(
                 tile_matrix_limits=self.multiscales.tile_matrix_limits,
-                resampling_method=self.multiscales.resampling_method,  # type: ignore[arg-type]
+                # ``resampling_method`` is typed ``str | MISSING`` here but tms.Multiscales
+                # constrains it to the ``ResamplingMethod`` literal; pydantic validates the
+                # value at runtime.
+                resampling_method=self.multiscales.resampling_method,  # pyright: ignore[reportArgumentType]
                 tile_matrix_set=self.multiscales.tile_matrix_set,
             )
         if self._tms_multiscales is None and self._zcm_multiscales is None:

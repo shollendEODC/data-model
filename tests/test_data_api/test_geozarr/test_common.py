@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
 from pydantic_zarr.core import tuplify_json
+from pydantic_zarr.v2 import AnyGroupSpec as AnyGroupSpec_V2
 from pydantic_zarr.v2 import GroupSpec as GroupSpec_V2
+from pydantic_zarr.v3 import AnyGroupSpec as AnyGroupSpec_V3
 from pydantic_zarr.v3 import GroupSpec as GroupSpec_V3
 
 from eopf_geozarr.data_api.geozarr.common import (
@@ -33,7 +36,7 @@ if TYPE_CHECKING:
         DataArray_V3.from_array(np.arange(10), dimension_names=("time",)),
     ],
 )
-def test_datarraylike(obj: DataArray_V2 | DataArray_V3) -> None:
+def test_datarraylike(obj: object) -> None:
     """
     Test that the DataArrayLike protocol works correctly
     """
@@ -41,7 +44,7 @@ def test_datarraylike(obj: DataArray_V2 | DataArray_V3) -> None:
 
 
 @pytest.mark.parametrize("obj", [GroupSpec_V2(attributes={}), GroupSpec_V3(attributes={})])
-def test_grouplike(obj: GroupSpec_V3[Any, Any] | GroupSpec_V2[Any, Any]) -> None:
+def test_grouplike(obj: AnyGroupSpec_V3 | AnyGroupSpec_V2) -> None:
     """
     Test that the GroupLike protocol works correctly
     """
@@ -80,9 +83,12 @@ def test_multiscales_round_trip(s2_optimized_geozarr_group_example: zarr.Group) 
     """
     Ensure that we can round-trip multiscale metadata through the `Multiscales` model.
     """
-    source_untyped = GroupSpec_V3.from_zarr(s2_optimized_geozarr_group_example)
+    source_untyped: AnyGroupSpec_V3 = GroupSpec_V3.from_zarr(s2_optimized_geozarr_group_example)
     flat = source_untyped.to_flat()
-    meta = flat["/measurements/reflectance"].attributes["multiscales"]
+    attributes = flat["/measurements/reflectance"].attributes
+    assert isinstance(attributes, Mapping)
+    meta = attributes["multiscales"]
+    assert isinstance(meta, Mapping)
     # pull out the multiscales keys, ignore extra
     submodel = tuplify_json({k: meta[k] for k in ZCMMultiscales.model_fields if k in meta})
     assert ZCMMultiscales(**submodel).model_dump() == submodel
@@ -95,11 +101,11 @@ def test_projattrs_crs_required() -> None:
     with pytest.raises(
         ValueError, match=r"One of 'code', 'wkt2', or 'projjson' must be provided\."
     ):
-        ProjAttrs()
+        ProjAttrs()  # pyright: ignore[reportCallIssue]  # no-args construction tests the validation error
 
 
 def test_projattrs_json_examples(
-    proj_attrs_examples: dict[tuple[int, int], dict[str, Any]],
+    proj_attrs_examples: dict[tuple[int, int], dict[str, object]],
 ) -> None:
     """
     Test that proj attributes in the JSON examples of the proj extension README are valid.
@@ -108,19 +114,22 @@ def test_projattrs_json_examples(
 
     for json_block in proj_attrs_examples.values():
         # Check if this JSON block contains geo.proj attributes
-        if "attributes" in json_block and isinstance(json_block["attributes"], dict):
-            geo: Any = json_block["attributes"].get("geo")
+        attributes = json_block.get("attributes")
+        if isinstance(attributes, dict):
+            geo: object = attributes.get("geo")
             if geo and isinstance(geo, dict) and "proj" in geo:
                 proj_examples_found += 1
-                proj_data: dict[str, Any] = geo["proj"]
+                proj_data_obj: object = geo["proj"]
+                assert isinstance(proj_data_obj, dict)
+                proj_data: dict[str, object] = proj_data_obj
 
                 # Validate that ProjAttrs can parse this data
-                proj_attrs: ProjAttrs = ProjAttrs(**proj_data)
+                proj_attrs: ProjAttrs = ProjAttrs.model_validate(proj_data)
 
                 # Verify that all fields from the original data are present in the model
                 for key, value in proj_data.items():
                     if value is not None:
-                        model_value: Any = getattr(proj_attrs, key)
+                        model_value: object = getattr(proj_attrs, key)
                         # Handle tuple/list comparison for transform and bbox fields
                         if isinstance(value, list) and isinstance(model_value, tuple):
                             assert tuple(value) == model_value, f"Field {key} mismatch"
