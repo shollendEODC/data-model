@@ -713,20 +713,6 @@ class TestDiscoverAcquisitions:
         acqs = discover_s1tiling_acquisitions(tmp_path)
         assert len(acqs) == 0
 
-    def test_s3_uri_discovers_acquisitions(self) -> None:
-        """s3:// prefix is listed via s3fs; pathlib.glob is NOT used."""
-        s3_files = [
-            "bucket/prefix/s1a_32TQM_vv_ASC_037_20230115t061234_GammaNaughtRTC.tif",
-            "bucket/prefix/s1a_32TQM_vh_ASC_037_20230115t061234_GammaNaughtRTC.tif",
-            "bucket/prefix/s1a_32TQM_vv_ASC_037_20230115t061234_GammaNaughtRTC_BorderMask.tif",
-            "bucket/prefix/s1a_32TQM_vh_ASC_037_20230115t061234_GammaNaughtRTC_BorderMask.tif",
-        ]
-        with patch("s3fs.S3FileSystem.glob", return_value=s3_files):
-            acqs = discover_s1tiling_acquisitions("s3://bucket/prefix/")
-        assert len(acqs) == 1
-        expected_vv = "s3://bucket/prefix/s1a_32TQM_vv_ASC_037_20230115t061234_GammaNaughtRTC.tif"
-        assert acqs[0]["vv"] == expected_vv
-
     def test_resolves_masked_multiframe_stamp_from_tag(self, tmp_path: Path) -> None:
         """Multi-frame products whose filename time is masked (…txxxxxx) must still be discovered
         as a complete acquisition, with acq_stamp resolved from the GeoTIFF ACQUISITION_DATETIME
@@ -747,6 +733,20 @@ class TestDiscoverAcquisitions:
         assert acq["acq_stamp"] == "20230115t061234"
         for k in ("vv", "vh", "vv_mask", "vh_mask"):
             assert k in acq
+
+    def test_s3_uri_discovers_acquisitions(self) -> None:
+        """s3:// prefix is listed via s3fs; pathlib.glob is NOT used."""
+        s3_files = [
+            "bucket/prefix/s1a_32TQM_vv_ASC_037_20230115t061234_GammaNaughtRTC.tif",
+            "bucket/prefix/s1a_32TQM_vh_ASC_037_20230115t061234_GammaNaughtRTC.tif",
+            "bucket/prefix/s1a_32TQM_vv_ASC_037_20230115t061234_GammaNaughtRTC_BorderMask.tif",
+            "bucket/prefix/s1a_32TQM_vh_ASC_037_20230115t061234_GammaNaughtRTC_BorderMask.tif",
+        ]
+        with patch("s3fs.S3FileSystem.glob", return_value=s3_files):
+            acqs = discover_s1tiling_acquisitions("s3://bucket/prefix/")
+        assert len(acqs) == 1
+        expected_vv = "s3://bucket/prefix/s1a_32TQM_vv_ASC_037_20230115t061234_GammaNaughtRTC.tif"
+        assert acqs[0]["vv"] == expected_vv
 
 
 # =============================================================================

@@ -254,8 +254,10 @@ def test_write_store_root_bbox_reprojects_utm_to_wgs84(tmp_path: Path) -> None:
 
     root_attrs = dict(zarr.open_group(store_path, mode="r").attrs)
     bbox = root_attrs["spatial:bbox"]
+    assert isinstance(bbox, list)
+    assert all(isinstance(coord, float) for coord in bbox)
     assert len(bbox) == 4
-    xmin, ymin, xmax, ymax = bbox
+    xmin, ymin, xmax, ymax = (coord for coord in bbox if isinstance(coord, float))
     # Roughly 7.0-8.0E, 44.1-45.1N after reprojection
     assert 6.0 < xmin < 8.0, bbox
     assert 43.0 < ymin < 45.0, bbox

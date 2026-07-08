@@ -187,7 +187,7 @@ class TestS2DataConsolidator:
         }
 
         # Mock the dataset access
-        def mock_getitem(self, path: str) -> MagicMock:
+        def mock_getitem(self: object, path: str) -> MagicMock:
             mock_node = MagicMock()
             if "r10m" in path:
                 if "reflectance" in path:
@@ -220,7 +220,7 @@ class TestS2DataConsolidator:
         mock_dt.__getitem__ = mock_getitem
         return mock_dt
 
-    def test_init(self, sample_s2_datatree) -> None:
+    def test_init(self, sample_s2_datatree: MagicMock) -> None:
         """Test consolidator initialization."""
         consolidator = S2DataConsolidator(sample_s2_datatree)
 
@@ -229,7 +229,7 @@ class TestS2DataConsolidator:
         assert consolidator.geometry_data == {}
         assert consolidator.meteorology_data == {}
 
-    def test_consolidate_all_data(self, sample_s2_datatree) -> None:
+    def test_consolidate_all_data(self, sample_s2_datatree: MagicMock) -> None:
         """Test complete data consolidation."""
         consolidator = S2DataConsolidator(sample_s2_datatree)
         measurements, geometry, meteorology = consolidator.consolidate_all_data()
@@ -253,7 +253,7 @@ class TestS2DataConsolidator:
             assert "atmosphere" in measurements[resolution]
             assert "probability" in measurements[resolution]
 
-    def test_extract_reflectance_bands(self, sample_s2_datatree) -> None:
+    def test_extract_reflectance_bands(self, sample_s2_datatree: MagicMock) -> None:
         """Test reflectance band extraction."""
         consolidator = S2DataConsolidator(sample_s2_datatree)
         consolidator._extract_measurements_data()
@@ -274,7 +274,7 @@ class TestS2DataConsolidator:
         assert "b01" in consolidator.measurements_data[60]["bands"]
         assert "b09" in consolidator.measurements_data[60]["bands"]
 
-    def test_extract_quality_data(self, sample_s2_datatree) -> None:
+    def test_extract_quality_data(self, sample_s2_datatree: MagicMock) -> None:
         """Test quality data extraction."""
         consolidator = S2DataConsolidator(sample_s2_datatree)
         consolidator._extract_measurements_data()
@@ -283,7 +283,7 @@ class TestS2DataConsolidator:
         assert "quality_b02" in consolidator.measurements_data[10]["quality"]
         assert "quality_b03" in consolidator.measurements_data[10]["quality"]
 
-    def test_extract_detector_footprints(self, sample_s2_datatree) -> None:
+    def test_extract_detector_footprints(self, sample_s2_datatree: MagicMock) -> None:
         """Test detector footprint extraction."""
         consolidator = S2DataConsolidator(sample_s2_datatree)
         consolidator._extract_measurements_data()
@@ -292,7 +292,7 @@ class TestS2DataConsolidator:
         assert "detector_footprint_b02" in consolidator.measurements_data[10]["detector_footprints"]
         assert "detector_footprint_b03" in consolidator.measurements_data[10]["detector_footprints"]
 
-    def test_extract_atmosphere_data(self, sample_s2_datatree) -> None:
+    def test_extract_atmosphere_data(self, sample_s2_datatree: MagicMock) -> None:
         """Test atmosphere data extraction."""
         consolidator = S2DataConsolidator(sample_s2_datatree)
         consolidator._extract_measurements_data()
@@ -301,7 +301,7 @@ class TestS2DataConsolidator:
         assert "aot" in consolidator.measurements_data[20]["atmosphere"]
         assert "wvp" in consolidator.measurements_data[20]["atmosphere"]
 
-    def test_extract_classification_data(self, sample_s2_datatree) -> None:
+    def test_extract_classification_data(self, sample_s2_datatree: MagicMock) -> None:
         """Test classification data extraction."""
         consolidator = S2DataConsolidator(sample_s2_datatree)
         consolidator._extract_measurements_data()
@@ -309,7 +309,7 @@ class TestS2DataConsolidator:
         # Classification should be at 20m resolution
         assert "scl" in consolidator.measurements_data[20]["classification"]
 
-    def test_extract_probability_data(self, sample_s2_datatree) -> None:
+    def test_extract_probability_data(self, sample_s2_datatree: MagicMock) -> None:
         """Test probability data extraction."""
         consolidator = S2DataConsolidator(sample_s2_datatree)
         consolidator._extract_measurements_data()
@@ -318,7 +318,7 @@ class TestS2DataConsolidator:
         assert "cld" in consolidator.measurements_data[20]["probability"]
         assert "snw" in consolidator.measurements_data[20]["probability"]
 
-    def test_extract_geometry_data(self, sample_s2_datatree) -> None:
+    def test_extract_geometry_data(self, sample_s2_datatree: MagicMock) -> None:
         """Test geometry data extraction."""
         consolidator = S2DataConsolidator(sample_s2_datatree)
         consolidator._extract_geometry_data()
@@ -329,7 +329,7 @@ class TestS2DataConsolidator:
         assert "view_zenith_angle" in consolidator.geometry_data
         assert "view_azimuth_angle" in consolidator.geometry_data
 
-    def test_extract_meteorology_data(self, sample_s2_datatree) -> None:
+    def test_extract_meteorology_data(self, sample_s2_datatree: MagicMock) -> None:
         """Test meteorology data extraction."""
         consolidator = S2DataConsolidator(sample_s2_datatree)
         consolidator._extract_meteorology_data()
@@ -412,7 +412,9 @@ class TestCreateConsolidatedDataset:
             },
         }
 
-    def test_create_consolidated_dataset_success(self, sample_data_dict) -> None:
+    def test_create_consolidated_dataset_success(
+        self, sample_data_dict: dict[str, dict[str, xr.DataArray]]
+    ) -> None:
         """Test successful dataset creation."""
         ds = create_consolidated_dataset(sample_data_dict, resolution=10)
 
@@ -434,14 +436,20 @@ class TestCreateConsolidatedDataset:
 
     def test_create_consolidated_dataset_empty_data(self) -> None:
         """Test dataset creation with empty data."""
-        empty_data_dict = {"bands": {}, "quality": {}, "atmosphere": {}}
+        empty_data_dict: dict[str, dict[str, xr.DataArray]] = {
+            "bands": {},
+            "quality": {},
+            "atmosphere": {},
+        }
         ds = create_consolidated_dataset(empty_data_dict, resolution=20)
 
         # Should return empty dataset
         assert isinstance(ds, xr.Dataset)
         assert len(ds.data_vars) == 0
 
-    def test_create_consolidated_dataset_with_crs(self, sample_data_dict) -> None:
+    def test_create_consolidated_dataset_with_crs(
+        self, sample_data_dict: dict[str, dict[str, xr.DataArray]]
+    ) -> None:
         """Test dataset creation with CRS information."""
         # Add CRS to one of the data arrays
         sample_data_dict["bands"]["b02"] = sample_data_dict["bands"]["b02"].rio.write_crs(
@@ -513,7 +521,7 @@ class TestIntegration:
             coords={"time": time, "x": x_20m, "y": y_20m},
         )
 
-        def mock_getitem(self, path: str) -> MagicMock:
+        def mock_getitem(self: object, path: str) -> MagicMock:
             mock_node = MagicMock()
             if "/measurements/reflectance/r10m" in path:
                 mock_node.to_dataset.return_value = reflectance_10m
@@ -526,7 +534,7 @@ class TestIntegration:
         mock_dt.__getitem__ = mock_getitem
         return mock_dt
 
-    def test_end_to_end_consolidation(self, complete_s2_datatree) -> None:
+    def test_end_to_end_consolidation(self, complete_s2_datatree: MagicMock) -> None:
         """Test complete end-to-end consolidation and dataset creation."""
         # Step 1: Consolidate data
         consolidator = S2DataConsolidator(complete_s2_datatree)

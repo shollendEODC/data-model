@@ -14,7 +14,7 @@ class TestProj:
 
     def test_proj_with_epsg_code(self) -> None:
         """Test creation with EPSG code."""
-        proj = Proj(**{"proj:code": "EPSG:4326"})
+        proj = Proj.model_validate({"proj:code": "EPSG:4326"})
 
         assert proj.code == "EPSG:4326"
         assert proj.wkt2 is None
@@ -23,7 +23,7 @@ class TestProj:
     def test_proj_with_wkt2(self) -> None:
         """Test creation with WKT2 string."""
         wkt2_example = 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984"]]'
-        proj = Proj(**{"proj:wkt2": wkt2_example})
+        proj = Proj.model_validate({"proj:wkt2": wkt2_example})
 
         assert proj.wkt2 == wkt2_example
         assert proj.code is None
@@ -36,7 +36,7 @@ class TestProj:
             "type": "GeographicCRS",
             "name": "WGS 84",
         }
-        proj = Proj(**{"proj:projjson": projjson_data})
+        proj = Proj.model_validate({"proj:projjson": projjson_data})
 
         assert proj.projjson is not None
         assert proj.code is None
@@ -45,7 +45,7 @@ class TestProj:
     def test_proj_validation_error_no_crs(self) -> None:
         """Test that missing all CRS fields raises ValidationError."""
         with pytest.raises(ValidationError) as exc_info:
-            Proj()
+            Proj()  # pyright: ignore[reportCallIssue]  # no-args construction tests the validation error
 
         assert "At least one of proj:code, proj:wkt2, or proj:projjson must be provided" in str(
             exc_info.value
@@ -54,7 +54,7 @@ class TestProj:
     def test_proj_multiple_crs_fields(self) -> None:
         """Test that multiple CRS fields can be provided."""
         wkt2_example = 'GEOGCRS["WGS 84",DATUM["World Geodetic System 1984"]]'
-        proj = Proj(**{"proj:code": "EPSG:4326", "proj:wkt2": wkt2_example})
+        proj = Proj.model_validate({"proj:code": "EPSG:4326", "proj:wkt2": wkt2_example})
 
         assert proj.code == "EPSG:4326"
         assert proj.wkt2 == wkt2_example
@@ -62,7 +62,7 @@ class TestProj:
 
     def test_proj_serialization_by_alias(self) -> None:
         """Test that serialization uses aliases (proj: prefixes)."""
-        proj = Proj(**{"proj:code": "EPSG:32633"})
+        proj = Proj.model_validate({"proj:code": "EPSG:32633"})
         result = proj.model_dump()
 
         # Should serialize with proj: prefix
@@ -74,7 +74,7 @@ class TestProj:
 
     def test_proj_none_fields_excluded(self) -> None:
         """Test that None fields are excluded from serialization."""
-        proj = Proj(**{"proj:code": "EPSG:4326"})
+        proj = Proj.model_validate({"proj:code": "EPSG:4326"})
         result = proj.model_dump()
 
         # None fields should be excluded
@@ -86,8 +86,8 @@ class TestProj:
 
     def test_proj_extra_fields_allowed(self) -> None:
         """Test that extra fields are allowed."""
-        proj = Proj(
-            **{
+        proj = Proj.model_validate(
+            {
                 "proj:code": "EPSG:4326",
                 "custom_field": "custom_value",
                 "proj:custom": "also_allowed",
@@ -104,7 +104,7 @@ class TestProj:
         original_data = {"proj:code": "EPSG:32633", "proj:wkt2": 'PROJCRS["WGS 84 / UTM zone 33N"]'}
 
         # Create model, serialize, then recreate
-        proj1 = Proj(**original_data)
+        proj1 = Proj.model_validate(original_data)
         serialized = proj1.model_dump()
         proj2 = Proj(**serialized)
 
@@ -124,8 +124,8 @@ class TestBackwardsCompatibility:
     def test_geoproj_functionality(self) -> None:
         """Test that GeoProj works exactly like Proj."""
         # Create using both classes
-        proj_instance = Proj(**{"proj:code": "EPSG:4326"})
-        geoproj_instance = GeoProj(**{"proj:code": "EPSG:4326"})
+        proj_instance = Proj.model_validate({"proj:code": "EPSG:4326"})
+        geoproj_instance = GeoProj.model_validate({"proj:code": "EPSG:4326"})
 
         # Should be instances of the same class
         assert type(proj_instance) is type(geoproj_instance)

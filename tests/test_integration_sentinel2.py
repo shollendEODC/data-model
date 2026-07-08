@@ -230,7 +230,7 @@ def temp_output_dir() -> Generator[str, None, None]:
 
 
 def test_complete_sentinel2_conversion_notebook_workflow(
-    sample_sentinel2_datatree, temp_output_dir
+    sample_sentinel2_datatree: xr.DataTree, temp_output_dir: str
 ) -> None:
     """
     Test complete conversion following the notebook workflow.
@@ -290,7 +290,9 @@ def test_complete_sentinel2_conversion_notebook_workflow(
 
 
 @pytest.mark.slow
-def test_performance_characteristics(sample_sentinel2_datatree, temp_output_dir) -> None:
+def test_performance_characteristics(
+    sample_sentinel2_datatree: xr.DataTree, temp_output_dir: str
+) -> None:
     """
     Test performance characteristics following notebook analysis.
 

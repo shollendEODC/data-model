@@ -184,14 +184,14 @@ def convert_command(args: argparse.Namespace) -> None:
 
         # Convert to GeoZarr compliant format
         log.info("Converting to GeoZarr compliant format...")
-        if _is_sentinel2_input(dt):
+        if _is_sentinel2_input(dt) and not getattr(args, "no_s2_optimized", False):
             # Sentinel-2 inputs use the optimized flat multiscale layout
             # (sibling r{N}m levels), shared with `convert-s2-optimized`. The
             # generic per-group options below do not apply to that layout.
             log.info(
                 "Detected Sentinel-2 input; using optimized flat multiscale layout "
                 "(per-group options such as --groups/--crs-groups/--gcp-group/--min-dimension "
-                "do not apply)"
+                "do not apply; pass --no-s2-optimized to force the generic path)"
             )
             dt_geozarr = convert_s2_optimized(
                 dt_input=dt,
@@ -354,7 +354,7 @@ def _generate_optimized_tree_html(dt: xr.DataTree) -> str:
             # Fallback to simple format if xarray HTML fails
             vars_html = []
             for name, var in data_vars.items():
-                dims_str = format_dimensions(dict(zip(var.dims, var.shape, strict=True)))
+                dims_str = format_dimensions(dict(zip(map(str, var.dims), var.shape, strict=True)))
                 dtype_str = str(var.dtype)
                 vars_html.append(
                     f"""
@@ -450,7 +450,7 @@ def _generate_optimized_tree_html(dt: xr.DataTree) -> str:
                 <div class="tree-section">
                     <h4 class="section-title">Variables</h4>
                     <div class="tree-variables">
-                        {format_data_vars(node.ds.data_vars)}
+                        {format_data_vars({str(k): v for k, v in node.ds.data_vars.items()})}
                     </div>
                 </div>
             """
@@ -1142,7 +1142,16 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Convert command
     convert_parser = subparsers.add_parser(
-        "convert", help="Convert EOPF dataset to GeoZarr compliant format"
+        "convert",
+        help="Convert EOPF dataset to GeoZarr compliant format",
+        description=(
+            "Convert EOPF dataset to GeoZarr compliant format. Sentinel-2 inputs are "
+            "auto-detected and converted with the optimized flat multiscale layout "
+            "(equivalent to convert-s2-optimized with keep_scale_offset disabled); for "
+            "those inputs the per-group options --groups, --crs-groups, --gcp-group and "
+            "--min-dimension do not apply. Pass --no-s2-optimized to force the generic "
+            "conversion path, which honors all options."
+        ),
     )
     convert_parser.add_argument(
         "input_path", type=str, help="Path to input EOPF dataset (Zarr format)"
@@ -1157,7 +1166,7 @@ def create_parser() -> argparse.ArgumentParser:
         type=str,
         nargs="+",
         default=["/measurements/r10m", "/measurements/r20m", "/measurements/r60m"],
-        help="Groups to convert (default: Sentinel-2 resolution groups)",
+        help="Groups to convert (ignored for auto-detected Sentinel-2 inputs)",
     )
     convert_parser.add_argument(
         "--spatial-chunk",
@@ -1169,7 +1178,10 @@ def create_parser() -> argparse.ArgumentParser:
         "--min-dimension",
         type=int,
         default=256,
-        help="Minimum dimension for overview levels (default: 256)",
+        help=(
+            "Minimum dimension for overview levels (default: 256; ignored for "
+            "auto-detected Sentinel-2 inputs)"
+        ),
     )
     convert_parser.add_argument(
         "--max-retries",
@@ -1181,12 +1193,19 @@ def create_parser() -> argparse.ArgumentParser:
         "--crs-groups",
         type=str,
         nargs="*",
-        help="Groups that need CRS information added on best-effort basis (e.g., /conditions/geometry)",
+        help=(
+            "Groups that need CRS information added on best-effort basis "
+            "(e.g., /conditions/geometry; ignored for auto-detected Sentinel-2 inputs)"
+        ),
     )
     convert_parser.add_argument(
         "--gcp-group",
         type=str,
-        help="Groups where Ground Control Points (GCPs) are located (e.g., /conditions/gcp) (Sentinel-1)",
+        help=(
+            "Groups where Ground Control Points (GCPs) are located "
+            "(e.g., /conditions/gcp) (Sentinel-1; ignored for auto-detected "
+            "Sentinel-2 inputs)"
+        ),
     )
     convert_parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
     convert_parser.add_argument(
@@ -1198,6 +1217,14 @@ def create_parser() -> argparse.ArgumentParser:
         "--enable-sharding",
         action="store_true",
         help="Enable zarr sharding for spatial dimensions of each variable",
+    )
+    convert_parser.add_argument(
+        "--no-s2-optimized",
+        action="store_true",
+        help=(
+            "Disable Sentinel-2 auto-detection and use the generic conversion path, "
+            "honoring --groups/--crs-groups/--gcp-group/--min-dimension"
+        ),
     )
     convert_parser.set_defaults(func=convert_command)
 

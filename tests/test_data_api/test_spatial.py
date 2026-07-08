@@ -13,7 +13,8 @@ class TestSpatial:
 
     def test_minimal_required_fields(self) -> None:
         """Test creation with only required fields."""
-        spatial = Spatial(**{"spatial:dimensions": ["y", "x"]})
+        data: dict[str, object] = {"spatial:dimensions": ["y", "x"]}
+        spatial = Spatial.model_validate(data)
 
         assert spatial.dimensions == ["y", "x"]
         assert spatial.bbox is None
@@ -25,13 +26,13 @@ class TestSpatial:
     def test_missing_required_dimensions(self) -> None:
         """Test that missing dimensions field raises ValidationError."""
         with pytest.raises(ValidationError) as exc_info:
-            Spatial()
+            Spatial()  # type: ignore[call-arg]  # intentionally missing required field
 
         assert "spatial:dimensions" in str(exc_info.value)
 
     def test_full_spatial_metadata(self) -> None:
         """Test creation with all fields populated."""
-        data = {
+        data: dict[str, object] = {
             "spatial:dimensions": ["y", "x"],
             "spatial:bbox": [500000.0, 4900000.0, 600000.0, 5000000.0],
             "spatial:transform_type": "affine",
@@ -40,7 +41,7 @@ class TestSpatial:
             "spatial:registration": "pixel",
         }
 
-        spatial = Spatial(**data)
+        spatial = Spatial.model_validate(data)
 
         assert spatial.dimensions == ["y", "x"]
         assert spatial.bbox == [500000.0, 4900000.0, 600000.0, 5000000.0]
@@ -51,13 +52,13 @@ class TestSpatial:
 
     def test_3d_spatial_data(self) -> None:
         """Test spatial model with 3D data."""
-        data = {
+        data: dict[str, object] = {
             "spatial:dimensions": ["z", "y", "x"],
             "spatial:bbox": [500000.0, 4900000.0, 0.0, 600000.0, 5000000.0, 100.0],
             "spatial:shape": [10, 1000, 1000],
         }
 
-        spatial = Spatial(**data)
+        spatial = Spatial.model_validate(data)
 
         assert spatial.dimensions == ["z", "y", "x"]
         assert spatial.bbox == [500000.0, 4900000.0, 0.0, 600000.0, 5000000.0, 100.0]
@@ -65,14 +66,14 @@ class TestSpatial:
 
     def test_serialization_by_alias(self) -> None:
         """Test that serialization uses aliases (spatial: prefixes)."""
-        data = {
+        data: dict[str, object] = {
             "spatial:dimensions": ["y", "x"],
             "spatial:bbox": [0.0, 0.0, 100.0, 100.0],
             "spatial:transform": [1.0, 0.0, 0.0, 0.0, -1.0, 100.0],
             "spatial:shape": [100, 100],
         }
 
-        spatial = Spatial(**data)
+        spatial = Spatial.model_validate(data)
         result = spatial.model_dump()
 
         # Should serialize with spatial: prefixes
@@ -91,7 +92,8 @@ class TestSpatial:
 
     def test_none_fields_excluded(self) -> None:
         """Test that None fields are excluded from serialization."""
-        spatial = Spatial(**{"spatial:dimensions": ["y", "x"]})
+        data: dict[str, object] = {"spatial:dimensions": ["y", "x"]}
+        spatial = Spatial.model_validate(data)
         result = spatial.model_dump()
 
         # None fields should be excluded
@@ -105,27 +107,30 @@ class TestSpatial:
 
     def test_node_registration(self) -> None:
         """Test node registration type."""
-        data = {"spatial:dimensions": ["y", "x"], "spatial:registration": "node"}
+        data: dict[str, object] = {"spatial:dimensions": ["y", "x"], "spatial:registration": "node"}
 
-        spatial = Spatial(**data)
+        spatial = Spatial.model_validate(data)
         assert spatial.registration == "node"
 
     def test_non_affine_transform_type(self) -> None:
         """Test non-affine transform types."""
-        data = {"spatial:dimensions": ["y", "x"], "spatial:transform_type": "rpc"}
+        data: dict[str, object] = {
+            "spatial:dimensions": ["y", "x"],
+            "spatial:transform_type": "rpc",
+        }
 
-        spatial = Spatial(**data)
+        spatial = Spatial.model_validate(data)
         assert spatial.transform_type == "rpc"
 
     def test_extra_fields_allowed(self) -> None:
         """Test that extra fields are allowed."""
-        data = {
+        data: dict[str, object] = {
             "spatial:dimensions": ["y", "x"],
             "custom_field": "custom_value",
             "spatial:custom": "also_allowed",
         }
 
-        spatial = Spatial(**data)
+        spatial = Spatial.model_validate(data)
         result = spatial.model_dump()
 
         assert result["custom_field"] == "custom_value"
@@ -133,7 +138,7 @@ class TestSpatial:
 
     def test_roundtrip_serialization(self) -> None:
         """Test that serialization and deserialization preserves data."""
-        original_data = {
+        original_data: dict[str, object] = {
             "spatial:dimensions": ["y", "x"],
             "spatial:bbox": [500000.0, 4900000.0, 600000.0, 5000000.0],
             "spatial:transform": [10.0, 0.0, 500000.0, 0.0, -10.0, 5000000.0],
@@ -143,7 +148,7 @@ class TestSpatial:
         }
 
         # Create model, serialize, then recreate
-        spatial1 = Spatial(**original_data)
+        spatial1 = Spatial.model_validate(original_data)
         serialized = spatial1.model_dump()
         spatial2 = Spatial(**serialized)
 
@@ -157,23 +162,26 @@ class TestSpatial:
 
     def test_invalid_dimensions_none(self) -> None:
         """Test that None dimensions raise ValidationError."""
+        data: dict[str, object] = {"spatial:dimensions": None}  # intentionally invalid value
         with pytest.raises(ValidationError):
-            Spatial(**{"spatial:dimensions": None})
+            Spatial.model_validate(data)
 
     def test_empty_dimensions_not_allowed(self) -> None:
         """Test that empty dimensions raise ValidationError."""
+        empty_data: dict[str, object] = {"spatial:dimensions": []}
         with pytest.raises(ValidationError) as exc_info:
-            Spatial(**{"spatial:dimensions": []})
+            Spatial.model_validate(empty_data)
 
         assert "spatial:dimensions must contain at least one dimension" in str(exc_info.value)
-        data = {
+        data: dict[str, object] = {
             "spatial:dimensions": ["y", "x"],
             "spatial:transform_type": "affine",
             "spatial:transform": [10.0, 0.0, 500000.0, 0.0, -10.0],  # Only 5 elements
         }
 
         # Currently this will pass, but in the future we might want validation
-        spatial = Spatial(**data)
+        spatial = Spatial.model_validate(data)
+        assert spatial.transform is not None
         assert len(spatial.transform) == 5  # Current behavior
 
         # Future: might want to validate for exactly 6 elements for affine

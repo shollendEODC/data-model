@@ -3,7 +3,7 @@
 import json
 import os
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final, Literal, cast
 from urllib.parse import urlparse
 
 import s3fs
@@ -15,6 +15,8 @@ from eopf_geozarr.types import S3Credentials, S3FsOptions
 
 if TYPE_CHECKING:
     import xarray as xr
+
+ZarrOpenMode = Literal["r", "r+", "a", "w", "w-"]
 
 _MISSING = object()  # sentinel for missing optional attrs
 
@@ -52,18 +54,44 @@ def replace_json_invalid_floats(obj: object) -> object:
     return obj
 
 
+def _sanitize_attrs(attrs: Mapping[str, object]) -> dict[str, object]:
+    """Sanitize an attributes mapping, returning a typed ``dict``.
+
+    Wraps :func:`replace_json_invalid_floats` (which is typed ``object -> object``)
+    and verifies the dict-in/dict-out invariant at runtime instead of casting.
+    """
+    sanitized = replace_json_invalid_floats(dict(attrs))
+    if not isinstance(sanitized, dict):  # pragma: no cover - invariant guard
+        raise TypeError(f"expected a dict after sanitizing attrs, got {type(sanitized).__name__}")
+    return sanitized
+
+
+_ZARR_MODES: Final = ("r", "r+", "a", "w", "w-")
+
+
+def _zarr_mode(mode: str) -> ZarrOpenMode:
+    """Validate *mode* against zarr's accepted access modes and narrow its type.
+
+    Checks the value at runtime instead of casting a bare ``str`` to the
+    ``Literal`` zarr expects.
+    """
+    if mode not in _ZARR_MODES:
+        raise ValueError(f"Invalid zarr access mode {mode!r}; expected one of {_ZARR_MODES}")
+    return mode
+
+
 class NanCompatibleJSONEncoder(json.JSONEncoder):
     """
     Custom JSON encoder that converts NaN, Inf, -Inf values to JSON-safe equivalents
     to ensure valid JSON output.
     """
 
-    def encode(self, obj: Any) -> str:
+    def encode(self, o: Any) -> str:
         """
         Encode object to JSON string, converting NaN values to "NaN".
         """
 
-        converted_obj = replace_json_invalid_floats(obj)
+        converted_obj = replace_json_invalid_floats(o)
         return super().encode(converted_obj)
 
 
@@ -87,7 +115,7 @@ def sanitize_dataset_attributes(ds: "xr.Dataset") -> "xr.Dataset":
     ds_clean = ds.copy()
 
     # Sanitize dataset attributes
-    ds_clean.attrs = replace_json_invalid_floats(ds_clean.attrs)
+    ds_clean.attrs = _sanitize_attrs(ds_clean.attrs)
 
     # Sanitize variable attributes
     for var_name in ds_clean.data_vars:
@@ -95,14 +123,14 @@ def sanitize_dataset_attributes(ds: "xr.Dataset") -> "xr.Dataset":
         # Preserve _FillValue as-is — xarray encodes it via FillValueCoder on write;
         # converting np.nan to the string "NaN" would break FillValueCoder.encode.
         fill_value = var.attrs.get("_FillValue", _MISSING)
-        var.attrs = replace_json_invalid_floats(var.attrs)
+        var.attrs = _sanitize_attrs(var.attrs)
         if fill_value is not _MISSING:
             var.attrs["_FillValue"] = fill_value
 
     # Sanitize coordinate attributes
     for coord_name in ds_clean.coords:
         coord = ds_clean[coord_name]
-        coord.attrs = replace_json_invalid_floats(coord.attrs)
+        coord.attrs = _sanitize_attrs(coord.attrs)
 
     return ds_clean
 
@@ -405,7 +433,12 @@ def open_s3_zarr_group(s3_path: str, mode: str = "r", **s3_kwargs: Any) -> zarr.
         Zarr group
     """
     storage_options = get_s3_storage_options(s3_path, **s3_kwargs)
-    return zarr.open_group(s3_path, mode=mode, zarr_format=3, storage_options=storage_options)
+    return zarr.open_group(
+        s3_path,
+        mode=_zarr_mode(mode),
+        zarr_format=3,
+        storage_options=cast("dict[str, object]", storage_options),
+    )
 
 
 def get_s3_credentials_info() -> S3Credentials:
@@ -589,4 +622,9 @@ def open_zarr_group(path: str, mode: str = "r", **kwargs: Any) -> zarr.Group:
         Zarr group
     """
     storage_options = get_storage_options(path, **kwargs)
-    return zarr.open_group(path, mode=mode, zarr_format=3, storage_options=storage_options)
+    return zarr.open_group(
+        path,
+        mode=_zarr_mode(mode),
+        zarr_format=3,
+        storage_options=cast("dict[str, object] | None", storage_options),
+    )

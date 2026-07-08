@@ -103,7 +103,7 @@ def _format_array_html(arr: Any) -> str:
             if value is None:
                 continue
             dtype_str = str(value).strip()
-            value_str = dtype_str if dtype_str else "(not set)"
+            value_str = dtype_str or "(not set)"
         # Skip data_type if we already handled it via dtype
         elif prop_name == "data_type":
             if getattr(arr, "dtype", None) is not None:
@@ -149,13 +149,12 @@ def _format_array_html(arr: Any) -> str:
                 "<div style='margin-left: 20px; margin-top: 5px;'>"
             )
 
-            # Get items based on type
-            if is_dict_attrs:
-                attrs_dict = attributes
-                items = list(attrs_dict.items())
-            else:  # is_model_attrs
-                attrs_dict = attributes.model_dump()
-                items = list(attrs_dict.items())
+            # Get items based on type. Use direct isinstance checks (not the
+            # boolean flags) so the type checker narrows `attributes`.
+            if isinstance(attributes, dict):
+                items = list(attributes.items())
+            else:
+                items = list(attributes.model_dump().items())
 
             for key, value in items:
                 if isinstance(value, dict):
