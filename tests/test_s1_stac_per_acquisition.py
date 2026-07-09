@@ -23,12 +23,13 @@ from eopf_geozarr.stac.s1_rtc import (
     pick_slice,
     slice_coverages,
 )
+from eopf_geozarr.types import make_bounding_box, make_crs_code
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-CRS = "EPSG:32631"
-UTM_BBOX = [300000.0, 4900000.0, 400000.0, 5000000.0]
+CRS = make_crs_code("EPSG:32631")
+UTM_BBOX = make_bounding_box([300000.0, 4900000.0, 400000.0, 5000000.0])
 
 # Two acquisitions in PHYSICAL (append) order — deliberately NOT chronological, to prove each item's
 # datetime follows its own slice, not its list position.

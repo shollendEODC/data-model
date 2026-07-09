@@ -1,6 +1,6 @@
 """S1 GRD RTC GeoTIFF → GeoZarr V3 ingestion pipeline.
 
-Converts S1Tiling γ0T RTC GeoTIFF outputs into a sharded Zarr V3 store
+Converts S1Tiling γ⁰ RTC (GammaNaughtRTC) GeoTIFF outputs into a sharded Zarr V3 store
 with multiscale overviews, spatial coordinate arrays, and full GeoZarr
 convention metadata.
 
@@ -16,11 +16,10 @@ Public API:
 from __future__ import annotations
 
 import re
-from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Final, cast
 
 import numpy as np
 import rasterio
@@ -28,20 +27,24 @@ import structlog
 import zarr
 import zarr.codecs
 from pyproj import CRS as PyprojCRS
-from zarr.core.metadata.v3 import ArrayV3Metadata
 
 # `FillValueCoder` is xarray's internal CF fill-value encoder: the canonical way to produce
 # the base64 `_FillValue` xarray reads back under `use_zarr_fill_value_as_mask` (xarray
 # #11345); the S2 path relies on the same mechanism. Internal API — revisit if xarray moves it.
 from xarray.backends.zarr import FillValueCoder
+from zarr.core.metadata.v3 import ArrayV3Metadata
 from zarr_cm import geo_proj
 from zarr_cm import multiscales as multiscales_cm
 from zarr_cm import spatial as spatial_cm
 
 from eopf_geozarr.conversion.utils import calculate_aligned_chunk_size
+from eopf_geozarr.types import make_bounding_box, make_crs_code
 
 if TYPE_CHECKING:
-    from eopf_geozarr.data_api.geozarr.types import S1BackscatterAttrsJSON
+    from contextlib import AbstractContextManager
+
+    from eopf_geozarr.data_api.geozarr.types import S1BackscatterAttrsJSON, S1TimeCoordAttrsJSON
+    from eopf_geozarr.types import BoundingBox2D, CRSCode
 
 log = structlog.get_logger()
 
@@ -128,10 +131,10 @@ S1TILING_LIA_PATTERN = re.compile(
 class S1TilingMetadata:
     """Metadata extracted from an S1Tiling GeoTIFF."""
 
-    crs: str
+    crs: CRSCode
     spatial_transform: list[float]
     shape: list[int]
-    bounds: list[float]
+    bounds: BoundingBox2D
     datetime: str
     absolute_orbit: int
     relative_orbit: int
@@ -188,10 +191,12 @@ def extract_geotiff_metadata(path: str | Path) -> S1TilingMetadata:
         dt_normalised = _normalise_s1tiling_datetime(dt_raw)
 
         metadata = S1TilingMetadata(
-            crs=str(src.crs),
+            crs=make_crs_code(str(src.crs)),
             spatial_transform=spatial_transform,
             shape=[src.height, src.width],
-            bounds=[src.bounds.left, src.bounds.bottom, src.bounds.right, src.bounds.top],
+            bounds=make_bounding_box(
+                [src.bounds.left, src.bounds.bottom, src.bounds.right, src.bounds.top]
+            ),
             datetime=dt_normalised,
             absolute_orbit=int(tags["ORBIT_NUMBER"]),
             relative_orbit=int(tags["RELATIVE_ORBIT_NUMBER"]),
@@ -339,7 +344,7 @@ def _create_spatial_coordinate_arrays(
 # per-acquisition previews can only select positionally (`sel=time={index}`) — fragile once a cube's
 # time axis goes non-monotonic. With these attrs `time` decodes to datetime64 and previews can render by
 # `sel=time={datetime}` (order-immune). The stored dtype stays int64 nanoseconds. See data-model #192.
-TIME_CF_ATTRS = {
+TIME_CF_ATTRS: Final[S1TimeCoordAttrsJSON] = {
     "units": "nanoseconds since 1970-01-01",
     "calendar": "proleptic_gregorian",
     "standard_name": "time",
@@ -377,10 +382,12 @@ def _create_time_coordinate_array(level_group: zarr.Group) -> None:
         fill_value=0,
         dimension_names=["time"],
     )
-    t_arr.attrs.update({**TIME_CF_ATTRS, "_ARRAY_DIMENSIONS": ["time"]})
+    # cast: zarr's `attrs.update` is typed for its JSON union, which the TypedDict spread
+    # (inferred `str | object | list[str]` values) doesn't satisfy; the values are JSON-safe.
+    t_arr.attrs.update(cast("dict", {**TIME_CF_ATTRS, "_ARRAY_DIMENSIONS": ["time"]}))
 
 
-def _add_grid_mapping(group: zarr.Group, crs_string: str) -> None:
+def _add_grid_mapping(group: zarr.Group, crs_string: CRSCode) -> None:
     """Add a CF ``spatial_ref`` grid-mapping coordinate to a group holding (y, x) arrays.
 
     rioxarray -- and TiTiler's GeoZarr reader -- resolve the CRS from a CF
@@ -408,9 +415,7 @@ def _add_grid_mapping(group: zarr.Group, crs_string: str) -> None:
     for name, arr in group.arrays():
         # This store is always Zarr V3; only V3 metadata carries ``dimension_names``.
         dimension_names = (
-            arr.metadata.dimension_names
-            if isinstance(arr.metadata, ArrayV3Metadata)
-            else None
+            arr.metadata.dimension_names if isinstance(arr.metadata, ArrayV3Metadata) else None
         )
         if name != "spatial_ref" and {"y", "x"}.issubset(dimension_names or ()):
             arr.attrs["grid_mapping"] = "spatial_ref"
@@ -568,10 +573,7 @@ def _downsample_2d(data: np.ndarray, factor: int, method: str = "average") -> np
     # Average: block mean with edge padding for non-divisible sizes
     pad_h = new_h * factor - h
     pad_w = new_w * factor - w
-    if pad_h > 0 or pad_w > 0:
-        padded = np.pad(data, ((0, pad_h), (0, pad_w)), mode="edge")
-    else:
-        padded = data
+    padded = np.pad(data, ((0, pad_h), (0, pad_w)), mode="edge") if pad_h > 0 or pad_w > 0 else data
 
     reshaped = padded.reshape(new_h, factor, new_w, factor)
     if np.issubdtype(data.dtype, np.floating):
@@ -656,15 +658,11 @@ def ingest_s1tiling_acquisition(
             if store_crs != meta.crs:
                 raise ValueError(f"CRS mismatch: store has {store_crs}, GeoTIFF has {meta.crs}")
             multiscales = attrs.get("multiscales")
-            store_layout = (
-                multiscales.get("layout", []) if isinstance(multiscales, dict) else []
-            )
+            store_layout = multiscales.get("layout", []) if isinstance(multiscales, dict) else []
             if isinstance(store_layout, list) and store_layout:
                 native_entry = store_layout[0]
                 store_shape = (
-                    native_entry.get("spatial:shape")
-                    if isinstance(native_entry, dict)
-                    else None
+                    native_entry.get("spatial:shape") if isinstance(native_entry, dict) else None
                 )
                 if store_shape != meta.shape:
                     raise ValueError(
@@ -1014,9 +1012,9 @@ def ingest_s1tiling_conditions(
     orbit = _child_group(root, orbit_direction)
 
     # Read reference metadata from the first condition file
-    ref_label, ref_path = condition_inputs[0]
+    _ref_label, ref_path = condition_inputs[0]
     with _rasterio_env(ref_path), rasterio.open(str(ref_path)) as src:
-        ref_crs = str(src.crs)
+        ref_crs = make_crs_code(str(src.crs))
         t = src.transform
         ref_transform = [t.a, t.b, t.c, t.d, t.e, t.f]
         ref_shape = [src.height, src.width]
@@ -1024,9 +1022,7 @@ def ingest_s1tiling_conditions(
     # Validate CRS consistency with orbit group
     store_crs = dict(orbit.attrs).get("proj:code")
     if store_crs and store_crs != ref_crs:
-        raise ValueError(
-            f"CRS mismatch: store has {store_crs}, condition GeoTIFF has {ref_crs}"
-        )
+        raise ValueError(f"CRS mismatch: store has {store_crs}, condition GeoTIFF has {ref_crs}")
 
     # Create or open conditions group
     if "conditions" not in orbit:

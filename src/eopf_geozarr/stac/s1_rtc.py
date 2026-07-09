@@ -11,6 +11,8 @@ import pyproj
 import pystac
 import zarr
 
+from eopf_geozarr.types import BoundingBox2D, CRSCode, make_bounding_box, make_crs_code
+
 SAR_EXT = "https://stac-extensions.github.io/sar/v1.0.0/schema.json"
 SAT_EXT = "https://stac-extensions.github.io/sat/v1.0.0/schema.json"
 PROJ_EXT = "https://stac-extensions.github.io/projection/v2.0.0/schema.json"
@@ -72,17 +74,17 @@ def _gamma0_bands() -> list[dict[str, object]]:
     ]
 
 
-def _utm_to_wgs84(proj_code: str, utm_bbox: list[float]) -> tuple[float, float, float, float]:
-    """Convert UTM [xmin, ymin, xmax, ymax] to WGS84 (west, south, east, north)."""
+def _utm_to_wgs84(proj_code: CRSCode, utm_bbox: BoundingBox2D) -> BoundingBox2D:
+    """Convert UTM (xmin, ymin, xmax, ymax) to WGS84 (west, south, east, north)."""
     xmin, ymin, xmax, ymax = utm_bbox
     transformer = pyproj.Transformer.from_crs(proj_code, "EPSG:4326", always_xy=True)
     xs = [xmin, xmax, xmin, xmax]
     ys = [ymin, ymin, ymax, ymax]
     lons, lats = transformer.transform(xs, ys)
-    return min(lons), min(lats), max(lons), max(lats)
+    return BoundingBox2D((min(lons), min(lats), max(lons), max(lats)))
 
 
-def _bbox_to_geometry(bbox: list[float]) -> dict[str, object]:
+def _bbox_to_geometry(bbox: BoundingBox2D) -> dict[str, object]:
     """A closed rectangular Polygon for a WGS84 [west, south, east, north] bbox."""
     west, south, east, north = bbox
     return {
@@ -107,6 +109,16 @@ def _open_root(zarr_store: str) -> zarr.Group:
         if "consolidated metadata" not in str(exc).lower():
             raise
         return zarr.open_group(zarr_store, mode="r", zarr_format=3)
+
+
+class _OrbitInfo(NamedTuple):
+    """Per-orbit-group metadata driving assets, projection fields and the datacube extension."""
+
+    orbit: str
+    proj_code: CRSCode
+    utm_bbox: BoundingBox2D
+    shape: object | None
+    transform: object | None
 
 
 def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
@@ -136,17 +148,17 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
     root = _open_root(zarr_store)
 
     all_times_ns: list[int] = []
-    wgs84_bboxes: list[tuple[float, float, float, float]] = []
+    wgs84_bboxes: list[BoundingBox2D] = []
     # Per present orbit, in preference order: the metadata needed for assets, projection and datacube.
-    present: list[dict[str, object]] = []
+    present: list[_OrbitInfo] = []
 
     for orbit_dir in _ORBIT_PREFERENCE:
         if orbit_dir not in root:
             continue
         og = cast("zarr.Group", root[orbit_dir])
         attrs = dict(og.attrs)
-        proj_code = cast("str", attrs["proj:code"])
-        utm_bbox = cast("list[float]", attrs["spatial:bbox"])
+        proj_code = make_crs_code(attrs["proj:code"])
+        utm_bbox = make_bounding_box(attrs["spatial:bbox"])
 
         r10m = cast("zarr.Group", og["r10m"])
         times = np.array(cast("zarr.Array", r10m["time"])).tolist()
@@ -159,13 +171,13 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
         all_times_ns.extend(times)
         wgs84_bboxes.append(_utm_to_wgs84(proj_code, utm_bbox))
         present.append(
-            {
-                "orbit": orbit_dir,
-                "proj_code": proj_code,
-                "utm_bbox": utm_bbox,
-                "shape": r10m_attrs.get("spatial:shape"),
-                "transform": r10m_attrs.get("spatial:transform"),
-            }
+            _OrbitInfo(
+                orbit=orbit_dir,
+                proj_code=proj_code,
+                utm_bbox=utm_bbox,
+                shape=r10m_attrs.get("spatial:shape"),
+                transform=r10m_attrs.get("spatial:transform"),
+            )
         )
 
     if not all_times_ns:
@@ -180,16 +192,16 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
     south = min(b[1] for b in wgs84_bboxes)
     east = max(b[2] for b in wgs84_bboxes)
     north = max(b[3] for b in wgs84_bboxes)
-    wgs84_bbox = [west, south, east, north]
+    wgs84_bbox = BoundingBox2D((west, south, east, north))
 
     geometry = _bbox_to_geometry(wgs84_bbox)
 
     # The preferred orbit (ascending if present) drives the single-valued projection fields and the
     # default render/preview; every present orbit gets its own first-class asset below.
     preferred = present[0]
-    preferred_orbit = cast("str", preferred["orbit"])
-    preferred_proj_code = cast("str", preferred["proj_code"])
-    preferred_bbox = cast("list[float]", preferred["utm_bbox"])
+    preferred_orbit = preferred.orbit
+    preferred_proj_code = preferred.proj_code
+    preferred_bbox = preferred.utm_bbox
 
     properties: dict[str, object] = {
         "start_datetime": start_dt.isoformat(),
@@ -216,17 +228,17 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
         "sar:product_type": "GRD",
         # Projection extension
         "proj:code": preferred_proj_code,
-        "proj:bbox": preferred_bbox,
+        "proj:bbox": list(preferred_bbox),
         # Grid extension: the Sentinel-2 MGRS tile this cube is gridded onto — a queryable tile id
         # (enables tile-filtering the acquisitions collection and cube↔acquisition cross-links).
         "grid:code": f"MGRS-{tile_id}",
         # Render extension: dual-pol RGB composite for previews/tiles (defaults to the preferred orbit)
         "renders": {"rgb": _rgb_render(preferred_orbit)},
     }
-    if preferred["shape"] is not None:
-        properties["proj:shape"] = preferred["shape"]
-    if preferred["transform"] is not None:
-        properties["proj:transform"] = preferred["transform"]
+    if preferred.shape is not None:
+        properties["proj:shape"] = preferred.shape
+    if preferred.transform is not None:
+        properties["proj:transform"] = preferred.transform
 
     stac_extensions = [SAR_EXT, PROJ_EXT, RENDER_EXT, DATACUBE_EXT, TIMESTAMPS_EXT, GRID_EXT]
 
@@ -273,8 +285,8 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
         "extent": [ymin, ymax],
         "reference_system": epsg,
     }
-    if preferred["transform"] is not None:
-        transform = cast("list[float]", preferred["transform"])
+    if preferred.transform is not None:
+        transform = cast("list[float]", preferred.transform)
         x_dim["step"] = transform[0]
         y_dim["step"] = transform[4]
     properties["cube:dimensions"] = {"time": time_dim, "x": x_dim, "y": y_dim}
@@ -288,7 +300,7 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
     item = pystac.Item(
         id=f"s1-rtc-{tile_id}",
         geometry=geometry,
-        bbox=wgs84_bbox,
+        bbox=list(wgs84_bbox),
         datetime=None,
         properties=properties,
         stac_extensions=stac_extensions,
@@ -310,7 +322,7 @@ def build_s1_rtc_stac_item(zarr_store: str, collection_id: str) -> pystac.Item:
     # descending asset): VV/VH are addressable as named `bands`, not indistinguishable duplicate assets.
     # A separate border-mask asset exposes the valid-data mask variable in the same group.
     for info in present:
-        orbit = cast("str", info["orbit"])
+        orbit = info.orbit
         short = _ORBIT_SHORT[orbit]
         group_href = f"{store_str}/{orbit}"
         item.add_asset(
@@ -481,8 +493,8 @@ def build_s1_rtc_per_acquisition_items(
     # proj:code/shape/transform describe the shared MGRS grid (identical across orbits), so the values
     # inherited from the base (preferred orbit) are correct and are intentionally not recomputed here.
     og_attrs = dict(cast("zarr.Group", root[orbit]).attrs)
-    orbit_utm_bbox = cast("list[float]", og_attrs["spatial:bbox"])
-    orbit_wgs84_bbox = list(_utm_to_wgs84(cast("str", og_attrs["proj:code"]), orbit_utm_bbox))
+    orbit_utm_bbox = make_bounding_box(og_attrs["spatial:bbox"])
+    orbit_wgs84_bbox = _utm_to_wgs84(make_crs_code(og_attrs["proj:code"]), orbit_utm_bbox)
     orbit_geometry = _bbox_to_geometry(orbit_wgs84_bbox)
 
     items: list[pystac.Item] = []
@@ -490,7 +502,7 @@ def build_s1_rtc_per_acquisition_items(
         when = dt.datetime.fromtimestamp(t_ns / 1e9, tz=dt.UTC)
         item_dict = {**base_dict}
         item_dict["id"] = acquisition_id(tile_id, when)
-        item_dict["bbox"] = orbit_wgs84_bbox
+        item_dict["bbox"] = list(orbit_wgs84_bbox)
         item_dict["geometry"] = orbit_geometry
 
         props = {
@@ -500,7 +512,7 @@ def build_s1_rtc_per_acquisition_items(
         }
         props["datetime"] = when.isoformat()
         props["sat:orbit_state"] = orbit
-        props["proj:bbox"] = orbit_utm_bbox
+        props["proj:bbox"] = list(orbit_utm_bbox)
         # Per-acquisition title carries the datetime + orbit so sibling scenes are distinguishable
         # (the inherited cube title "… — tile {id}" is identical across all acquisitions).
         props["title"] = (

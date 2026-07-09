@@ -13,13 +13,17 @@ import pytest
 import zarr
 
 from eopf_geozarr.stac.s1_rtc import build_s1_rtc_stac_item
+from eopf_geozarr.types import make_bounding_box, make_crs_code
+
+if TYPE_CHECKING:
+    from eopf_geozarr.types import BoundingBox2D
 
 # =============================================================================
 # Constants
 # =============================================================================
 
-CRS = "EPSG:32631"
-UTM_BBOX = [300000.0, 4900000.0, 400000.0, 5000000.0]  # [xmin, ymin, xmax, ymax]
+CRS = make_crs_code("EPSG:32631")
+UTM_BBOX = make_bounding_box([300000.0, 4900000.0, 400000.0, 5000000.0])  # (xmin, ymin, xmax, ymax)
 
 # Nanoseconds since epoch for two acquisitions
 T1_NS = int(np.datetime64("2023-01-15T06:12:34", "ns").astype(np.int64))
@@ -36,7 +40,7 @@ def _make_s1_store(
     orbits: dict[str, list[tuple[int, str]]],
     tile_id: str = "31TCH",
     crs: str = CRS,
-    utm_bbox: list[float] | None = None,
+    utm_bbox: BoundingBox2D | None = None,
     consolidate: bool = True,
 ) -> Path:
     """Create a minimal S1 Zarr store.
@@ -243,7 +247,7 @@ def test_identity_and_projection_fields(tmp_path: Path) -> None:
     assert props["instruments"] == ["c-sar"]
     assert props["gsd"] == 10
     assert "platform" not in props  # per-acquisition; a cube can mix S1A/S1C
-    assert props["proj:bbox"] == UTM_BBOX
+    assert props["proj:bbox"] == list(UTM_BBOX)
     assert props["proj:shape"] == [4, 4]
     assert props["proj:transform"][0] == 10.0
 

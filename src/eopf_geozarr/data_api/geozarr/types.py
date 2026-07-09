@@ -72,6 +72,19 @@ class S1BackscatterAttrsJSON(TypedDict):
     _FillValue: str
 
 
+class S1TimeCoordAttrsJSON(TypedDict):
+    """CF datetime-encoding attrs for the S1 RTC ``time`` coordinate.
+
+    Lets xarray / TiTiler's ``open_datatree(decode_times=True)`` decode the int64-ns
+    axis to datetime64, enabling per-acquisition selection by exact datetime
+    (data-model #192).
+    """
+
+    units: Literal["nanoseconds since 1970-01-01"]
+    calendar: Literal["proleptic_gregorian"]
+    standard_name: Literal["time"]
+
+
 class TileMatrixJSON(TypedDict):
     id: str
     scaleDenominator: float
