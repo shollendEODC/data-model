@@ -176,7 +176,7 @@ def create_s1_store(
     meta: dict,
 ) -> None:
     """Create a new S1 GRD RTC Zarr V3 store with full conventions metadata."""
-    height, width = meta["shape"]
+    _height, _width = meta["shape"]
 
     root = zarr.open_group(str(store_path), mode="w", zarr_format=3)
     orbit_group = root.create_group(orbit_direction)
@@ -321,10 +321,7 @@ def downsample_2d(data: np.ndarray, factor: int, method: str = "average") -> np.
     # Average: use block mean, handling edge blocks with padding
     pad_h = new_h * factor - h
     pad_w = new_w * factor - w
-    if pad_h > 0 or pad_w > 0:
-        padded = np.pad(data, ((0, pad_h), (0, pad_w)), mode="edge")
-    else:
-        padded = data
+    padded = np.pad(data, ((0, pad_h), (0, pad_w)), mode="edge") if pad_h > 0 or pad_w > 0 else data
 
     reshaped = padded.reshape(new_h, factor, new_w, factor)
     if np.issubdtype(data.dtype, np.floating):
@@ -441,9 +438,11 @@ def validate_store(store_path: str | Path) -> None:
             errors.append(f"{orbit_dir}: missing zarr_conventions")
         else:
             conv_names = {c["name"] for c in attrs["zarr_conventions"]}
-            for required in ["multiscales", "proj:", "spatial:"]:
-                if required not in conv_names:
-                    errors.append(f"{orbit_dir}: missing convention {required}")
+            errors.extend(
+                f"{orbit_dir}: missing convention {required}"
+                for required in ["multiscales", "proj:", "spatial:"]
+                if required not in conv_names
+            )
 
         # Check proj:code
         if "proj:code" not in attrs:
@@ -466,7 +465,7 @@ def validate_store(store_path: str | Path) -> None:
                 errors.append(f"{orbit_dir}/{asset}: missing spatial:transform in layout")
 
         # Check array dimension_names and coordinate arrays
-        for level_name in orbit.keys():
+        for level_name in orbit:
             level = orbit[level_name]
             if not isinstance(level, zarr.Group):
                 continue
@@ -603,7 +602,7 @@ def main() -> None:
             assert actual == expected, f"{level}: expected {expected}, got {actual}"
         print("[6/6] Overview levels verified:")
         for level, shape in expected_shapes.items():
-            print(f"       {level}: {shape[1]}×{shape[2]} ({shape[0]} timesteps)")
+            print(f"       {level}: {shape[1]}x{shape[2]} ({shape[0]} timesteps)")
 
         # --- Read with xarray ---
         print()

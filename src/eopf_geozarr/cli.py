@@ -1073,7 +1073,7 @@ def ingest_s1_command(args: argparse.Namespace) -> None:
         )
         log.info("✅ Acquisition ingested", time_index=idx, store=args.store)
     except Exception as e:
-        log.error("❌ Error ingesting acquisition", error=str(e))
+        log.exception("❌ Error ingesting acquisition", error=str(e))
         sys.exit(1)
 
 
@@ -1092,7 +1092,7 @@ def ingest_s1_conditions_command(args: argparse.Namespace) -> None:
         )
         log.info("✅ Conditions ingested", store=args.store, orbit_dir=args.orbit_dir)
     except Exception as e:
-        log.error("❌ Error ingesting conditions", error=str(e))
+        log.exception("❌ Error ingesting conditions", error=str(e))
         sys.exit(1)
 
 
@@ -1104,7 +1104,7 @@ def consolidate_s1_command(args: argparse.Namespace) -> None:
         consolidate_s1_store(args.store, args.orbit_dir)
         log.info("✅ Metadata consolidated", store=args.store)
     except Exception as e:
-        log.error("❌ Error consolidating metadata", error=str(e))
+        log.exception("❌ Error consolidating metadata", error=str(e))
         sys.exit(1)
 
 

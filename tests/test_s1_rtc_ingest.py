@@ -217,9 +217,7 @@ class TestParseFilename:
     def test_masked_multiframe_time_stamp(self) -> None:
         """Multi-frame products carry a masked time (…txxxxxx); the parser must still match so
         the file isn't skipped (the real stamp is resolved later from the tag). See #183."""
-        result = parse_s1tiling_filename(
-            "s1a_32TQM_vv_ASC_037_20230115txxxxxx_GammaNaughtRTC.tif"
-        )
+        result = parse_s1tiling_filename("s1a_32TQM_vv_ASC_037_20230115txxxxxx_GammaNaughtRTC.tif")
         assert result is not None
         assert result["acq_stamp"] == "20230115txxxxxx"
         assert result["pol"] == "vv"
@@ -890,7 +888,9 @@ class TestIngestConditions:
             expected = src.read(1).astype(np.float32)
         # Read from Zarr
         root = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)
-        actual = np.asarray(_array(_group(_group(root, "ascending"), "conditions"), "gamma_area_037")[:])
+        actual = np.asarray(
+            _array(_group(_group(root, "ascending"), "conditions"), "gamma_area_037")[:]
+        )
         np.testing.assert_allclose(actual, expected, rtol=1e-6)
 
     def test_conditions_nodata_masked_to_nan(
@@ -1001,9 +1001,7 @@ class TestIngestConditions:
         assert "gamma_area_037" in conditions
         assert "lia_037" in conditions
 
-    def test_multiple_orbits(
-        self, s1_store_with_acquisition: Path, tmp_path: Path
-    ) -> None:
+    def test_multiple_orbits(self, s1_store_with_acquisition: Path, tmp_path: Path) -> None:
         """Conditions for different orbits create separate arrays."""
         rng = np.random.default_rng(101)
         ga_037 = tmp_path / "GAMMA_AREA_32TQM_037.tif"
@@ -1027,7 +1025,6 @@ class TestIngestConditions:
         self, s1_store_with_acquisition: Path, tmp_path: Path
     ) -> None:
         """Writing the same condition array twice overwrites data."""
-        rng = np.random.default_rng(102)
         ga_path = tmp_path / "GAMMA_AREA_32TQM_037.tif"
 
         data_v1 = np.ones((SIZE, SIZE), dtype=np.float32)
@@ -1043,27 +1040,25 @@ class TestIngestConditions:
         )
 
         root = zarr.open_group(str(s1_store_with_acquisition), mode="r", zarr_format=3)
-        actual = np.asarray(_array(_group(_group(root, "ascending"), "conditions"), "gamma_area_037")[:])
+        actual = np.asarray(
+            _array(_group(_group(root, "ascending"), "conditions"), "gamma_area_037")[:]
+        )
         np.testing.assert_allclose(actual, data_v2, rtol=1e-6)
 
-    def test_raises_no_conditions_provided(
-        self, s1_store_with_acquisition: Path
-    ) -> None:
+    def test_raises_no_conditions_provided(self, s1_store_with_acquisition: Path) -> None:
         with pytest.raises(ValueError, match="At least one condition"):
-            ingest_s1tiling_conditions(
-                s1_store_with_acquisition, "ascending", 37
-            )
+            ingest_s1tiling_conditions(s1_store_with_acquisition, "ascending", 37)
 
     def test_raises_store_not_exists(self, tmp_path: Path, gamma_area_geotiff: Path) -> None:
         with pytest.raises(ValueError, match="Store does not exist"):
             ingest_s1tiling_conditions(
-                tmp_path / "nonexistent.zarr", "ascending", 37,
+                tmp_path / "nonexistent.zarr",
+                "ascending",
+                37,
                 gamma_area_path=gamma_area_geotiff,
             )
 
-    def test_raises_orbit_not_exists(
-        self, tmp_path: Path, gamma_area_geotiff: Path
-    ) -> None:
+    def test_raises_orbit_not_exists(self, tmp_path: Path, gamma_area_geotiff: Path) -> None:
         """Raise if the orbit group hasn't been created yet."""
         # Create minimal empty store
         store_path = tmp_path / "empty-store.zarr"
@@ -1076,7 +1071,9 @@ class TestIngestConditions:
     def test_raises_file_not_found(self, s1_store_with_acquisition: Path) -> None:
         with pytest.raises(FileNotFoundError):
             ingest_s1tiling_conditions(
-                s1_store_with_acquisition, "ascending", 37,
+                s1_store_with_acquisition,
+                "ascending",
+                37,
                 gamma_area_path="/nonexistent/gamma_area.tif",
             )
 

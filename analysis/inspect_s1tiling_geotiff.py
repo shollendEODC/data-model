@@ -52,7 +52,7 @@ EXPECTED_TAGS_ORTHO = {
     "S2_TILE_CORRESPONDING_CODE": "MGRS tile code",
     "SPATIAL_RESOLUTION": "output spatial resolution",
     # --- RTC-specific ---
-    "GAMMA_AREA_FILE": "γ area map file used for RTC (when applies)",
+    "GAMMA_AREA_FILE": "gamma area map file used for RTC (when applies)",
     # --- Standard TIFF tags ---
     "TIFFTAG_DATETIME": "generation time",
     "TIFFTAG_IMAGEDESCRIPTION": "product description",
@@ -237,18 +237,23 @@ def validate_tags(info: dict) -> list[str]:
 
     # Report unexpected tags (informational)
     expected_names = set(expected.keys())
-    for tag_name in tags:
-        if tag_name not in expected_names:
-            issues.append(f"EXTRA tag found: {tag_name} = {tags[tag_name]!r}")
+    issues.extend(
+        f"EXTRA tag found: {tag_name} = {tags[tag_name]!r}"
+        for tag_name in tags
+        if tag_name not in expected_names
+    )
 
     # Cross-validate filename metadata against tags
     fname_meta = info["filename_metadata"]
-    if "flying_unit_code" in fname_meta and "FLYING_UNIT_CODE" in tags:
-        if fname_meta["flying_unit_code"] != tags["FLYING_UNIT_CODE"]:
-            issues.append(
-                f"MISMATCH flying_unit_code: filename={fname_meta['flying_unit_code']!r} "
-                f"vs tag={tags['FLYING_UNIT_CODE']!r}"
-            )
+    if (
+        "flying_unit_code" in fname_meta
+        and "FLYING_UNIT_CODE" in tags
+        and fname_meta["flying_unit_code"] != tags["FLYING_UNIT_CODE"]
+    ):
+        issues.append(
+            f"MISMATCH flying_unit_code: filename={fname_meta['flying_unit_code']!r} "
+            f"vs tag={tags['FLYING_UNIT_CODE']!r}"
+        )
     if "orbit_direction" in fname_meta and "ORBIT_DIRECTION" in tags:
         # Filename may use ASC/DES, tag may use ASCENDING/DESCENDING or vice versa
         fname_dir = fname_meta["orbit_direction"].upper()
@@ -329,7 +334,7 @@ def print_report(info: dict, validate: bool = False) -> None:
         print(f"  [{status:>7}] {tag}: {value!r}")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Inspect S1Tiling GeoTIFF outputs for metadata validation"
     )

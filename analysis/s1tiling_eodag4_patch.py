@@ -25,7 +25,7 @@ import re
 S1T_PKG = pathlib.Path("/opt/S1TilingEnv/lib/python3.10/site-packages/s1tiling/libs")
 
 
-def patch_s1filemanager():
+def patch_s1filemanager() -> None:
     """Fix search() call: add collection param, remove unsupported kwargs."""
     fpath = S1T_PKG / "S1FileManager.py"
     src = fpath.read_text()
@@ -67,7 +67,7 @@ def patch_s1filemanager():
     print(f"  Patched {fpath.name}")
 
 
-def patch_product_property():
+def patch_product_property() -> None:
     """Add STAC property name fallback to product_property()."""
     fpath = S1T_PKG / "s1" / "product.py"
     src = fpath.read_text()

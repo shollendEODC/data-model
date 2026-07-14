@@ -170,9 +170,7 @@ class S1RtcOverviewResolutionMembers(TypedDict, closed=True, total=False):
 # ============================================================================
 
 
-class S1RtcNativeResolutionDataset(
-    GroupSpec[S1RtcResolutionAttrs, S1RtcNativeResolutionMembers]
-):
+class S1RtcNativeResolutionDataset(GroupSpec[S1RtcResolutionAttrs, S1RtcNativeResolutionMembers]):
     """The r10m dataset: data variables + coordinate arrays."""
 
     @model_validator(mode="after")
@@ -240,9 +238,7 @@ class S1RtcOrbitGroupMembers(TypedDict, closed=True, total=False):
     conditions: S1RtcConditionsGroup
 
 
-class S1RtcOrbitGroup(
-    GroupSpec[S1RtcOrbitGroupAttrs, S1RtcOrbitGroupMembers]
-):
+class S1RtcOrbitGroup(GroupSpec[S1RtcOrbitGroupAttrs, S1RtcOrbitGroupMembers]):
     """One orbit direction (ascending or descending) with multiscale layout."""
 
     @model_validator(mode="after")

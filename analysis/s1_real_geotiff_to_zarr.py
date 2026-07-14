@@ -1,11 +1,11 @@
 """
 Phase 0 — Real GeoTIFF → GeoZarr V3 Conversion Test
 
-Reads actual S1Tiling γ0T RTC GeoTIFFs produced by the Docker pipeline
+Reads actual S1Tiling gamma0T RTC GeoTIFFs produced by the Docker pipeline
 and converts them into a Zarr V3 store following the implementation plan.
 
-Three acquisitions (orbits 008, 037, 110) × two polarisations (VV, VH)
-+ border masks.  Full 10980×10980 at 10m resolution, EPSG:32631.
+Three acquisitions (orbits 008, 037, 110) x two polarisations (VV, VH)
++ border masks.  Full 10980x10980 at 10m resolution, EPSG:32631.
 
 Usage:
     python analysis/s1_real_geotiff_to_zarr.py \
@@ -234,7 +234,7 @@ def create_s1_store(
     meta: dict,
 ) -> None:
     """Create a new S1 GRD RTC Zarr V3 store with full conventions metadata."""
-    height, width = meta["shape"]
+    _height, _width = meta["shape"]
 
     root = zarr.open_group(str(store_path), mode="w", zarr_format=3)
     orbit_group = root.create_group(orbit_direction)
@@ -328,10 +328,7 @@ def downsample_2d(data: np.ndarray, factor: int, method: str = "average") -> np.
     # Average with edge padding
     pad_h = new_h * factor - h
     pad_w = new_w * factor - w
-    if pad_h > 0 or pad_w > 0:
-        padded = np.pad(data, ((0, pad_h), (0, pad_w)), mode="edge")
-    else:
-        padded = data
+    padded = np.pad(data, ((0, pad_h), (0, pad_w)), mode="edge") if pad_h > 0 or pad_w > 0 else data
 
     reshaped = padded.reshape(new_h, factor, new_w, factor)
     if np.issubdtype(data.dtype, np.floating):
@@ -533,7 +530,7 @@ def validate_and_report(store_path: Path, orbit_direction: str) -> None:
         res = entry["spatial:transform"][0]
         derived = entry.get("derived_from", "—")
         scale = entry["transform"].get("scale", [1, 1])
-        print(f"    {name}: {shape[0]}×{shape[1]} @ {res}m  (from {derived}, scale {scale})")
+        print(f"    {name}: {shape[0]}x{shape[1]} @ {res}m  (from {derived}, scale {scale})")
 
     # 4. Array shapes and time dimension
     print("\n  Data arrays at r10m:")
@@ -571,7 +568,7 @@ def validate_and_report(store_path: Path, orbit_direction: str) -> None:
         print("\n  Conditions:")
         cond_attrs = dict(conditions.attrs)
         print(f"    proj:code: {cond_attrs.get('proj:code', 'MISSING')}")
-        for name in conditions.keys():
+        for name in conditions:
             item = conditions[name]
             if hasattr(item, "shape"):
                 print(f"    {name}: shape={item.shape}, dtype={item.dtype}")
