@@ -1,6 +1,6 @@
 """S1 GRD RTC GeoTIFF → GeoZarr V3 ingestion pipeline.
 
-Converts S1Tiling γ0T RTC GeoTIFF outputs into a sharded Zarr V3 store
+Converts S1Tiling γ⁰ RTC (GammaNaughtRTC) GeoTIFF outputs into a sharded Zarr V3 store
 with multiscale overviews, spatial coordinate arrays, and full GeoZarr
 convention metadata.
 
@@ -19,19 +19,60 @@ import re
 from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
+from typing import TYPE_CHECKING, Final, cast
 
 import numpy as np
 import rasterio
 import structlog
 import zarr
 import zarr.codecs
+from pyproj import CRS as PyprojCRS
+
+# `FillValueCoder` is xarray's internal CF fill-value encoder: the canonical way to produce
+# the base64 `_FillValue` xarray reads back under `use_zarr_fill_value_as_mask` (xarray
+# #11345); the S2 path relies on the same mechanism. Internal API — revisit if xarray moves it.
+from xarray.backends.zarr import FillValueCoder
+from zarr.core.metadata.v3 import ArrayV3Metadata
 from zarr_cm import geo_proj
 from zarr_cm import multiscales as multiscales_cm
 from zarr_cm import spatial as spatial_cm
 
 from eopf_geozarr.conversion.utils import calculate_aligned_chunk_size
+from eopf_geozarr.types import make_bounding_box, make_crs_code
+
+if TYPE_CHECKING:
+    from contextlib import AbstractContextManager
+
+    from eopf_geozarr.data_api.geozarr.types import S1BackscatterAttrsJSON, S1TimeCoordAttrsJSON
+    from eopf_geozarr.types import BoundingBox2D, CRSCode
 
 log = structlog.get_logger()
+
+
+# =============================================================================
+# Zarr member-access helpers
+# =============================================================================
+#
+# Under pyright, ``group[name]`` is typed ``zarr.Array | zarr.Group``. The store layout
+# guarantees which one a given child is, so these helpers narrow (and assert) the type at
+# the single point of access. The ``raise`` branches encode a store-layout invariant and
+# are effectively unreachable — the established idiom in this codebase (see geozarr.py and
+# s2_multiscale.py).
+
+
+def _child_group(group: zarr.Group, name: str) -> zarr.Group:
+    member = group[name]
+    if not isinstance(member, zarr.Group):
+        raise TypeError(f"expected a group at {name!r}, got {type(member).__name__}")
+    return member
+
+
+def _child_array(group: zarr.Group, name: str) -> zarr.Array:
+    member = group[name]
+    if not isinstance(member, zarr.Array):
+        raise TypeError(f"expected an array at {name!r}, got {type(member).__name__}")
+    return member
+
 
 # =============================================================================
 # Constants
@@ -90,10 +131,10 @@ S1TILING_LIA_PATTERN = re.compile(
 class S1TilingMetadata:
     """Metadata extracted from an S1Tiling GeoTIFF."""
 
-    crs: str
+    crs: CRSCode
     spatial_transform: list[float]
     shape: list[int]
-    bounds: list[float]
+    bounds: BoundingBox2D
     datetime: str
     absolute_orbit: int
     relative_orbit: int
@@ -130,7 +171,7 @@ def extract_geotiff_metadata(path: str | Path) -> S1TilingMetadata:
         If critical tags (ACQUISITION_DATETIME, ORBIT_NUMBER,
         RELATIVE_ORBIT_NUMBER, FLYING_UNIT_CODE) are missing.
     """
-    with rasterio.open(str(path)) as src:
+    with _rasterio_env(path), rasterio.open(str(path)) as src:
         tags = src.tags()
         t = src.transform
         spatial_transform = [t.a, t.b, t.c, t.d, t.e, t.f]
@@ -150,10 +191,12 @@ def extract_geotiff_metadata(path: str | Path) -> S1TilingMetadata:
         dt_normalised = _normalise_s1tiling_datetime(dt_raw)
 
         metadata = S1TilingMetadata(
-            crs=str(src.crs),
+            crs=make_crs_code(str(src.crs)),
             spatial_transform=spatial_transform,
             shape=[src.height, src.width],
-            bounds=[src.bounds.left, src.bounds.bottom, src.bounds.right, src.bounds.top],
+            bounds=make_bounding_box(
+                [src.bounds.left, src.bounds.bottom, src.bounds.right, src.bounds.top]
+            ),
             datetime=dt_normalised,
             absolute_orbit=int(tags["ORBIT_NUMBER"]),
             relative_orbit=int(tags["RELATIVE_ORBIT_NUMBER"]),
@@ -296,20 +339,137 @@ def _create_spatial_coordinate_arrays(
     )
 
 
-def create_s1_store(
-    store_path: str | Path,
-    orbit_direction: str,
-    metadata: S1TilingMetadata,
-) -> zarr.Group:
-    """Create a new S1 GRD RTC Zarr V3 store with full conventions metadata.
+# CF datetime encoding for the `time` coordinate. Without it the array is a bare int64 and readers
+# (xarray / TiTiler's `open_datatree(decode_times=True)`) cannot expose `time` as a datetime index, so
+# per-acquisition previews can only select positionally (`sel=time={index}`) — fragile once a cube's
+# time axis goes non-monotonic. With these attrs `time` decodes to datetime64 and previews can render by
+# `sel=time={datetime}` (order-immune). The stored dtype stays int64 nanoseconds. See data-model #192.
+TIME_CF_ATTRS: Final[S1TimeCoordAttrsJSON] = {
+    "units": "nanoseconds since 1970-01-01",
+    "calendar": "proleptic_gregorian",
+    "standard_name": "time",
+}
 
-    Returns the root group.
+# CF `_FillValue` for the float32 arrays, mirroring the S1 GRD converter (geozarr.py)
+# and S2 (data-model #172). This is what lets xarray mask NaN nodata via
+# `use_zarr_fill_value_as_mask=True` despite xarray #11345 — the zarr-level `fill_value`
+# field alone is not surfaced through xarray's encoding. We encode it with
+# `FillValueCoder` so the stored attribute matches the base64 form S2 writes
+# (`AAAAAAAA+H8=`). The S2 path gets this for free via `to_zarr`; this store is written
+# zarr-direct, so the attribute must be set explicitly.
+FLOAT32_NAN_FILL_VALUE = FillValueCoder.encode(np.nan, np.dtype("float32"))
+# CF metadata for the backscatter bands (vv/vh).
+BACKSCATTER_CF_ATTRS: S1BackscatterAttrsJSON = {
+    "standard_name": "surface_backwards_scattering_coefficient_of_radar_wave",
+    "units": "1",
+    "_FillValue": FLOAT32_NAN_FILL_VALUE,
+}
+
+
+def _create_time_coordinate_array(level_group: zarr.Group) -> None:
+    """Create the CF-encoded ``time`` coordinate (length 0, grown on append) on one level group.
+
+    Replicated at EVERY multiscale level (with identical values) so datetime ``.sel`` resolves at
+    whatever level a reader renders — TiTiler picks a coarse level for previews, and a level lacking a
+    ``time`` coordinate cannot be selected by datetime. Keeping the dtype/values consistent across
+    levels is also required for the datatree to open (mixed int64/datetime64 fails alignment).
+    """
+    t_arr = level_group.create_array(
+        "time",
+        shape=(0,),
+        dtype="int64",
+        chunks=(512,),
+        fill_value=0,
+        dimension_names=["time"],
+    )
+    # cast: zarr's `attrs.update` is typed for its JSON union, which the TypedDict spread
+    # (inferred `str | object | list[str]` values) doesn't satisfy; the values are JSON-safe.
+    t_arr.attrs.update(cast("dict", {**TIME_CF_ATTRS, "_ARRAY_DIMENSIONS": ["time"]}))
+
+
+def _add_grid_mapping(group: zarr.Group, crs_string: CRSCode) -> None:
+    """Add a CF ``spatial_ref`` grid-mapping coordinate to a group holding (y, x) arrays.
+
+    rioxarray -- and TiTiler's GeoZarr reader -- resolve the CRS from a CF
+    ``spatial_ref``/``crs_wkt`` coordinate; the GeoZarr ``proj:code`` attribute alone
+    is not read. This mirrors the S2 converter (which writes a ``spatial_ref``
+    grid-mapping variable via ``rio.write_crs``). The CF attributes come from
+    ``pyproj.CRS.to_cf()`` -- the same source rioxarray uses -- so the projection is
+    described correctly for any CRS rather than hard-coded.
+
+    The scalar ``spatial_ref`` array is created (if absent) and every (y, x) data
+    array in the group is given ``grid_mapping = "spatial_ref"``.
+    """
+    cf_attrs = PyprojCRS.from_user_input(crs_string).to_cf()
+    # rioxarray writes both ``crs_wkt`` and a ``spatial_ref`` attr holding the WKT.
+    cf_attrs["spatial_ref"] = cf_attrs["crs_wkt"]
+    cf_attrs["_ARRAY_DIMENSIONS"] = []
+
+    if "spatial_ref" in group:
+        sref = group["spatial_ref"]
+    else:
+        sref = group.create_array("spatial_ref", shape=(), dtype="int64", fill_value=0)
+        sref[...] = 0
+    sref.attrs.update(cf_attrs)
+
+    for name, arr in group.arrays():
+        # This store is always Zarr V3; only V3 metadata carries ``dimension_names``.
+        dimension_names = (
+            arr.metadata.dimension_names if isinstance(arr.metadata, ArrayV3Metadata) else None
+        )
+        if name != "spatial_ref" and {"y", "x"}.issubset(dimension_names or ()):
+            arr.attrs["grid_mapping"] = "spatial_ref"
+
+
+def _create_band_arrays(level_group: zarr.Group, level_h: int, level_w: int) -> None:
+    """Create the (time, y, x) data bands (vv, vh, border_mask) for one multiscale level.
+
+    Float backscatter bands (vv/vh) get the CF ``_FillValue``/``standard_name``/``units``
+    attributes so readers can mask NaN nodata (xarray #11345) — parity with the S1 GRD
+    converter and S2 (data-model #172). Shared by ``create_s1_store`` (new store) and
+    ``ingest_s1tiling_acquisition`` (new orbit added to an existing store) so the two
+    creation paths cannot drift.
+    """
+    inner_chunks = (
+        1,
+        calculate_aligned_chunk_size(level_h, 512),
+        calculate_aligned_chunk_size(level_w, 512),
+    )
+    shard_shape = (1, level_h, level_w)
+    for name, dtype, fill in [
+        ("vv", "float32", float("nan")),
+        ("vh", "float32", float("nan")),
+        ("border_mask", "uint8", 0),
+    ]:
+        band = level_group.create_array(
+            name,
+            shape=(0, level_h, level_w),
+            dtype=dtype,
+            chunks=inner_chunks,
+            shards=shard_shape,
+            compressors=zarr.codecs.BloscCodec(cname="zstd", clevel=5),
+            fill_value=fill,
+            dimension_names=["time", "y", "x"],
+        )
+        if name in ("vv", "vh"):
+            # cast: zarr's `attrs.update` is typed for its JSON union, which a TypedDict
+            # (invariant) doesn't satisfy structurally; the values are JSON-safe.
+            band.attrs.update(cast("dict", BACKSCATTER_CF_ATTRS))
+
+
+def _build_orbit_group(
+    root: zarr.Group, orbit_direction: str, metadata: S1TilingMetadata
+) -> zarr.Group:
+    """Create one orbit group (asc/desc) with full GeoZarr metadata.
+
+    Builds the multiscale level groups (bands + spatial coordinates + grid-mapping +
+    per-level ``time``) and the native-resolution per-acquisition metadata coordinates.
+    Shared by ``create_s1_store`` (new store) and ``ingest_s1tiling_acquisition`` (new
+    orbit added to an existing store) so the two creation paths cannot drift — the inline
+    path previously omitted ``proj:code`` on level groups.
     """
     layout = compute_multiscales_layout(metadata.shape, metadata.spatial_transform)
-
-    root = zarr.open_group(str(store_path), mode="w-", zarr_format=3)
     orbit_group = root.create_group(orbit_direction)
-
     orbit_group.attrs.update(
         {
             "zarr_conventions": ZARR_CONVENTIONS,
@@ -332,40 +492,22 @@ def create_s1_store(
             {
                 "spatial:shape": [level_h, level_w],
                 "spatial:transform": level_entry["spatial:transform"],
+                "proj:code": metadata.crs,
             }
         )
 
-        inner_chunks = (
-            1,
-            calculate_aligned_chunk_size(level_h, 512),
-            calculate_aligned_chunk_size(level_w, 512),
-        )
-        shard_shape = (1, level_h, level_w)
-
-        for name, dtype, fill in [
-            ("vv", "float32", float("nan")),
-            ("vh", "float32", float("nan")),
-            ("border_mask", "uint8", 0),
-        ]:
-            level_group.create_array(
-                name,
-                shape=(0, level_h, level_w),
-                dtype=dtype,
-                chunks=inner_chunks,
-                shards=shard_shape,
-                compressors=zarr.codecs.BloscCodec(cname="zstd", clevel=5),
-                fill_value=fill,
-                dimension_names=["time", "y", "x"],
-            )
+        _create_band_arrays(level_group, level_h, level_w)
 
         _create_spatial_coordinate_arrays(
             level_group, level_h, level_w, level_entry["spatial:transform"]
         )
+        _add_grid_mapping(level_group, metadata.crs)
+        # `time` coordinate on every level so datetime `.sel` resolves at any rendered scale (#192).
+        _create_time_coordinate_array(level_group)
 
-    # Coordinate variables at native resolution only
-    r10m = orbit_group["r10m"]
+    # Per-time metadata coordinates at native resolution only (not selected on by readers).
+    r10m = _child_group(orbit_group, "r10m")
     for name, dtype, fill in [
-        ("time", "int64", 0),
         ("absolute_orbit", "int32", 0),
         ("relative_orbit", "int32", 0),
     ]:
@@ -385,6 +527,20 @@ def create_s1_store(
         fill_value="",
         dimension_names=["time"],
     )
+    return orbit_group
+
+
+def create_s1_store(
+    store_path: str | Path,
+    orbit_direction: str,
+    metadata: S1TilingMetadata,
+) -> zarr.Group:
+    """Create a new S1 GRD RTC Zarr V3 store with full conventions metadata.
+
+    Returns the root group.
+    """
+    root = zarr.open_group(str(store_path), mode="w-", zarr_format=3)
+    _build_orbit_group(root, orbit_direction, metadata)
 
     log.info(
         "Created S1 store",
@@ -417,10 +573,7 @@ def _downsample_2d(data: np.ndarray, factor: int, method: str = "average") -> np
     # Average: block mean with edge padding for non-divisible sizes
     pad_h = new_h * factor - h
     pad_w = new_w * factor - w
-    if pad_h > 0 or pad_w > 0:
-        padded = np.pad(data, ((0, pad_h), (0, pad_w)), mode="edge")
-    else:
-        padded = data
+    padded = np.pad(data, ((0, pad_h), (0, pad_w)), mode="edge") if pad_h > 0 or pad_w > 0 else data
 
     reshaped = padded.reshape(new_h, factor, new_w, factor)
     if np.issubdtype(data.dtype, np.floating):
@@ -470,13 +623,13 @@ def ingest_s1tiling_acquisition(
     ValueError
         If the GeoTIFF CRS or shape does not match the existing store.
     """
-    vv_path = Path(vv_path)
-    vh_path = Path(vh_path)
-    border_mask_path = Path(border_mask_path)
+    vv_path = _coerce_input_path(vv_path)
+    vh_path = _coerce_input_path(vh_path)
+    border_mask_path = _coerce_input_path(border_mask_path)
     store_path = Path(store_path)
 
     for p in [vv_path, vh_path, border_mask_path]:
-        if not p.exists():
+        if not _input_path_exists(p):
             raise FileNotFoundError(f"GeoTIFF not found: {p}")
 
     # Extract metadata from VV file
@@ -494,101 +647,38 @@ def ingest_s1tiling_acquisition(
     else:
         root = zarr.open_group(str(store_path), mode="r+", zarr_format=3)
         if orbit_direction not in root:
-            # Create orbit direction group in existing store
-            orbit_group = root.create_group(orbit_direction)
-            layout = compute_multiscales_layout(meta.shape, meta.spatial_transform)
-            orbit_group.attrs.update(
-                {
-                    "zarr_conventions": ZARR_CONVENTIONS,
-                    "multiscales": {
-                        "layout": layout,
-                        "resampling_method": "average",
-                    },
-                    "proj:code": meta.crs,
-                    "spatial:dimensions": ["y", "x"],
-                    "spatial:bbox": meta.bounds,
-                }
-            )
-            for level_entry in layout:
-                level_name = level_entry["asset"]
-                level_h, level_w = level_entry["spatial:shape"]
-                level_group = orbit_group.create_group(level_name)
-                level_group.attrs.update(
-                    {
-                        "spatial:shape": [level_h, level_w],
-                        "spatial:transform": level_entry["spatial:transform"],
-                    }
-                )
-                inner_chunks = (
-                    1,
-                    calculate_aligned_chunk_size(level_h, 512),
-                    calculate_aligned_chunk_size(level_w, 512),
-                )
-                shard_shape = (1, level_h, level_w)
-                for name, dtype, fill in [
-                    ("vv", "float32", float("nan")),
-                    ("vh", "float32", float("nan")),
-                    ("border_mask", "uint8", 0),
-                ]:
-                    level_group.create_array(
-                        name,
-                        shape=(0, level_h, level_w),
-                        dtype=dtype,
-                        chunks=inner_chunks,
-                        shards=shard_shape,
-                        compressors=zarr.codecs.BloscCodec(cname="zstd", clevel=5),
-                        fill_value=fill,
-                        dimension_names=["time", "y", "x"],
-                    )
-                _create_spatial_coordinate_arrays(
-                    level_group, level_h, level_w, level_entry["spatial:transform"]
-                )
-            r10m = orbit_group["r10m"]
-            for name, dtype, fill in [
-                ("time", "int64", 0),
-                ("absolute_orbit", "int32", 0),
-                ("relative_orbit", "int32", 0),
-            ]:
-                r10m.create_array(
-                    name,
-                    shape=(0,),
-                    dtype=dtype,
-                    chunks=(512,),
-                    fill_value=fill,
-                    dimension_names=["time"],
-                )
-            r10m.create_array(
-                "platform",
-                shape=(0,),
-                dtype="<U4",
-                chunks=(512,),
-                fill_value="",
-                dimension_names=["time"],
-            )
+            # Create the new orbit group in the existing store (same builder as a fresh
+            # store, so per-level metadata — incl. `proj:code` — stays consistent).
+            _build_orbit_group(root, orbit_direction, meta)
         else:
             # Validate consistency on append
-            orbit_group = root[orbit_direction]
-            store_crs = dict(orbit_group.attrs).get("proj:code")
+            orbit_group = _child_group(root, orbit_direction)
+            attrs = dict(orbit_group.attrs)
+            store_crs = attrs.get("proj:code")
             if store_crs != meta.crs:
                 raise ValueError(f"CRS mismatch: store has {store_crs}, GeoTIFF has {meta.crs}")
-            store_layout = dict(orbit_group.attrs).get("multiscales", {}).get("layout", [])
-            if store_layout:
+            multiscales = attrs.get("multiscales")
+            store_layout = multiscales.get("layout", []) if isinstance(multiscales, dict) else []
+            if isinstance(store_layout, list) and store_layout:
                 native_entry = store_layout[0]
-                store_shape = native_entry.get("spatial:shape")
+                store_shape = (
+                    native_entry.get("spatial:shape") if isinstance(native_entry, dict) else None
+                )
                 if store_shape != meta.shape:
                     raise ValueError(
                         f"Shape mismatch: store has {store_shape}, GeoTIFF has {meta.shape}"
                     )
 
-    orbit = root[orbit_direction]
+    orbit = _child_group(root, orbit_direction)
 
     # Read GeoTIFF pixel data
-    with rasterio.open(str(vv_path)) as src:
-        vv_data = src.read(1)
-    with rasterio.open(str(vh_path)) as src:
-        vh_data = src.read(1)
-    with rasterio.open(str(border_mask_path)) as src:
-        mask_data = src.read(1).astype(np.uint8)
+    with _rasterio_env(vv_path):
+        with rasterio.open(str(vv_path)) as src:
+            vv_data = src.read(1)
+        with rasterio.open(str(vh_path)) as src:
+            vh_data = src.read(1)
+        with rasterio.open(str(border_mask_path)) as src:
+            mask_data = src.read(1).astype(np.uint8)
 
     log.info(
         "GeoTIFF read complete",
@@ -596,9 +686,16 @@ def ingest_s1tiling_acquisition(
         vv_max=float(np.nanmax(vv_data)),
     )
 
+    # nodata → NaN: s1tiling writes 0 out of swath, which titiler treats as valid data and renders
+    # opaque black. Store NaN there instead so it masks transparent like the S2 reference. The
+    # border mask is the authoritative valid-data mask (0 = no-data); `_downsample_2d` uses
+    # `np.nanmean` for floats, so NaN propagates to every overview level below.
+    vv_data = np.where(mask_data == 0, np.nan, vv_data).astype("float32")
+    vh_data = np.where(mask_data == 0, np.nan, vh_data).astype("float32")
+
     # Determine time index
-    r10m = orbit["r10m"]
-    current_size = r10m["vv"].shape[0]
+    r10m = _child_group(orbit, "r10m")
+    current_size = _child_array(r10m, "vv").shape[0]
     new_size = current_size + 1
 
     # Generate overviews
@@ -614,28 +711,63 @@ def ingest_s1tiling_acquisition(
 
     log.info("Overviews generated", levels=len(data_by_level))
 
-    # Write data at all levels
+    dt_ns = np.datetime64(meta.datetime).astype("datetime64[ns]").astype(np.int64)
+
+    # Heal a multiscale level missing `time` before the per-level resize below. A cube built before
+    # #192 -- or left half-built by an interrupted append -- can carry `r10m/time` yet lack it at a
+    # coarser level; the unconditional `level["time"].resize` then raises `KeyError: 'time'` and,
+    # because the consistency check above validates only CRS + shape, the append is non-convergent.
+    # Recreate the missing-level coordinate from `r10m/time` (backfilling the existing slices so prior
+    # timestamps are preserved), or raise if the cube is inconsistent in a way a backfill cannot fix.
+    if "time" in r10m:
+        ref_time = np.asarray(_child_array(r10m, "time")[:])
+        healed = []
+        for level_name in data_by_level:
+            level = _child_group(orbit, level_name)
+            if level_name == "r10m" or "time" in level:
+                continue
+            level_len = _child_array(level, "vv").shape[0]
+            if level_len != ref_time.shape[0]:
+                raise ValueError(
+                    f"Cannot append to {orbit_direction}/{level_name}: it has {level_len} slice(s) "
+                    f"but r10m/time has {ref_time.shape[0]}; the cube is half-built and `time` cannot "
+                    "be safely backfilled (wipe + reingest)"
+                )
+            _create_time_coordinate_array(level)
+            _child_array(level, "time").resize((ref_time.shape[0],))
+            _child_array(level, "time")[:] = ref_time
+            healed.append(level_name)
+        if healed:
+            log.info("Healed missing per-level `time`", levels=healed)
+    elif current_size > 0:
+        raise ValueError(
+            f"Cannot append to {orbit_direction}: r10m has {current_size} slice(s) but no `time` "
+            "coordinate (no backfill source -- wipe + reingest)"
+        )
+
+    # Write data + the `time` coordinate at all levels (time is replicated per level so datetime
+    # `.sel` resolves at any rendered scale, #192).
     for level_name, (vv_lev, vh_lev, mask_lev) in data_by_level.items():
-        level = orbit[level_name]
+        level = _child_group(orbit, level_name)
         h, w = vv_lev.shape
 
-        level["vv"].resize((new_size, h, w))
-        level["vh"].resize((new_size, h, w))
-        level["border_mask"].resize((new_size, h, w))
+        _child_array(level, "vv").resize((new_size, h, w))
+        _child_array(level, "vh").resize((new_size, h, w))
+        _child_array(level, "border_mask").resize((new_size, h, w))
 
-        level["vv"][current_size, :, :] = vv_lev
-        level["vh"][current_size, :, :] = vh_lev
-        level["border_mask"][current_size, :, :] = mask_lev
+        _child_array(level, "vv")[current_size, :, :] = vv_lev
+        _child_array(level, "vh")[current_size, :, :] = vh_lev
+        _child_array(level, "border_mask")[current_size, :, :] = mask_lev
 
-    # Append coordinate variables
-    for coord_name in ["time", "absolute_orbit", "relative_orbit", "platform"]:
-        r10m[coord_name].resize((new_size,))
+        _child_array(level, "time").resize((new_size,))
+        _child_array(level, "time")[current_size] = dt_ns
 
-    dt_ns = np.datetime64(meta.datetime).astype("datetime64[ns]").astype(np.int64)
-    r10m["time"][current_size] = dt_ns
-    r10m["absolute_orbit"][current_size] = meta.absolute_orbit
-    r10m["relative_orbit"][current_size] = meta.relative_orbit
-    r10m["platform"][current_size] = meta.platform
+    # Per-time metadata coordinates at native resolution only.
+    for coord_name in ["absolute_orbit", "relative_orbit", "platform"]:
+        _child_array(r10m, coord_name).resize((new_size,))
+    _child_array(r10m, "absolute_orbit")[current_size] = meta.absolute_orbit
+    _child_array(r10m, "relative_orbit")[current_size] = meta.relative_orbit
+    _child_array(r10m, "platform")[current_size] = meta.platform
 
     log.info(
         "Zarr write complete",
@@ -651,18 +783,83 @@ def ingest_s1tiling_acquisition(
 
 
 def consolidate_s1_store(store_path: str | Path, orbit_direction: str) -> None:
-    """Consolidate metadata at orbit direction and root levels.
+    """Consolidate metadata for every orbit-direction group and the root.
 
     Must be called AFTER all ingestions complete — consolidated metadata
     caches array shapes and will become stale if called mid-ingestion.
+
+    Consolidates *every* orbit group present, not just ``orbit_direction``: the
+    pipeline ingests acquisitions one orbit at a time after stripping all
+    consolidated metadata (so ``time`` can resize), so consolidating only the
+    passed orbit would leave the other orbit's group unconsolidated on disk
+    (readers opening that orbit standalone then fall back to a listing).
+    ``orbit_direction`` is retained for logging / caller compatibility.
     """
-    zarr.consolidate_metadata(str(store_path), path=orbit_direction, zarr_format=3)
+    root = zarr.open_group(str(store_path), mode="r", zarr_format=3)
+    for orbit_name, _ in root.groups():
+        zarr.consolidate_metadata(str(store_path), path=orbit_name, zarr_format=3)
     zarr.consolidate_metadata(str(store_path), zarr_format=3)
     log.info(
         "Metadata consolidated",
         store_path=str(store_path),
         orbit_direction=orbit_direction,
     )
+
+
+# =============================================================================
+# S3 / local filesystem helpers
+# =============================================================================
+
+
+def _list_tifs(input_dir: str | Path) -> list[str | Path]:
+    """List *.tif files; supports local paths and s3:// URIs."""
+    s = str(input_dir).rstrip("/")
+    if s.startswith("s3://"):
+        import s3fs as _s3
+
+        fs = _s3.S3FileSystem()
+        bucket_key = s[len("s3://") :]
+        return [f"s3://{p}" for p in sorted(fs.glob(f"{bucket_key}/*.tif"))]
+    return sorted(Path(input_dir).glob("*.tif"))
+
+
+def _coerce_input_path(p: str | Path) -> str | Path:
+    """Return str for s3:// URIs (preserves double-slash); Path otherwise."""
+    s = str(p)
+    return s if s.startswith("s3://") else Path(s)
+
+
+def _input_path_exists(p: str | Path) -> bool:
+    """Existence check for both local Path and s3:// URI."""
+    s = str(p)
+    if s.startswith("s3://"):
+        import s3fs as _s3
+
+        return _s3.S3FileSystem().exists(s.removeprefix("s3://"))
+    return Path(p).exists()
+
+
+def _rasterio_env(path: str | Path) -> AbstractContextManager[object]:
+    """rasterio.Env context for S3 paths; no-op context manager for local paths.
+
+    rasterio 1.5 passes endpoint_url verbatim as GDAL's AWS_S3_ENDPOINT.
+    GDAL expects hostname only (no scheme), so strip https:// from
+    AWS_ENDPOINT_URL if that is what the environment provides.
+    """
+    import contextlib
+    import os
+
+    if not str(path).startswith("s3://"):
+        return contextlib.nullcontext()
+
+    import boto3
+    import rasterio
+    from rasterio.session import AWSSession
+
+    raw = os.environ.get("AWS_S3_ENDPOINT") or os.environ.get("AWS_ENDPOINT_URL", "")
+    endpoint = raw.split("://", 1)[-1] if "://" in raw else raw
+    session = boto3.Session()
+    return rasterio.Env(AWSSession(session, endpoint_url=endpoint or None))
 
 
 # =============================================================================
@@ -689,12 +886,11 @@ def discover_s1tiling_acquisitions(input_dir: str | Path) -> list[dict]:
 
     Logs warnings for incomplete acquisitions (missing polarisation or mask files).
     """
-    input_dir = Path(input_dir)
-    files = sorted(input_dir.glob("*.tif"))
+    files = _list_tifs(input_dir)
     groups: dict[tuple, dict] = {}
 
     for f in files:
-        parsed = parse_s1tiling_filename(f.name)
+        parsed = parse_s1tiling_filename(Path(str(f)).name)
         if parsed is None:
             continue
 
@@ -785,15 +981,15 @@ def ingest_s1tiling_conditions(
     FileNotFoundError
         If any provided condition path does not exist.
     """
-    condition_inputs: list[tuple[str, Path]] = []
+    condition_inputs: list[tuple[str, str | Path]] = []
     for label, path in [
         ("gamma_area", gamma_area_path),
         ("lia", lia_path),
         ("incidence_angle", incidence_angle_path),
     ]:
         if path is not None:
-            p = Path(path)
-            if not p.exists():
+            p = _coerce_input_path(path)
+            if not _input_path_exists(p):
                 raise FileNotFoundError(f"Condition GeoTIFF not found: {p}")
             condition_inputs.append((label, p))
 
@@ -813,12 +1009,12 @@ def ingest_s1tiling_conditions(
             "Ingest at least one acquisition first."
         )
 
-    orbit = root[orbit_direction]
+    orbit = _child_group(root, orbit_direction)
 
     # Read reference metadata from the first condition file
-    ref_label, ref_path = condition_inputs[0]
-    with rasterio.open(str(ref_path)) as src:
-        ref_crs = str(src.crs)
+    _ref_label, ref_path = condition_inputs[0]
+    with _rasterio_env(ref_path), rasterio.open(str(ref_path)) as src:
+        ref_crs = make_crs_code(str(src.crs))
         t = src.transform
         ref_transform = [t.a, t.b, t.c, t.d, t.e, t.f]
         ref_shape = [src.height, src.width]
@@ -826,9 +1022,7 @@ def ingest_s1tiling_conditions(
     # Validate CRS consistency with orbit group
     store_crs = dict(orbit.attrs).get("proj:code")
     if store_crs and store_crs != ref_crs:
-        raise ValueError(
-            f"CRS mismatch: store has {store_crs}, condition GeoTIFF has {ref_crs}"
-        )
+        raise ValueError(f"CRS mismatch: store has {store_crs}, condition GeoTIFF has {ref_crs}")
 
     # Create or open conditions group
     if "conditions" not in orbit:
@@ -843,34 +1037,45 @@ def ingest_s1tiling_conditions(
         )
         log.info("Created conditions group", orbit_direction=orbit_direction)
     else:
-        conditions = orbit["conditions"]
+        conditions = _child_group(orbit, "conditions")
 
     # Write each condition array
     for label, cond_path in condition_inputs:
         array_name = f"{label}_{orbit_suffix}"
 
-        with rasterio.open(str(cond_path)) as src:
-            data = src.read(1).astype(np.float32)
+        with _rasterio_env(cond_path), rasterio.open(str(cond_path)) as src:
+            # nodata → NaN via the GeoTIFF's declared nodata (border_mask is N/A for static
+            # conditions), so out-of-coverage pixels mask transparent like vv/vh. A no-op when
+            # the GeoTIFF declares no nodata.
+            data = src.read(1, masked=True).filled(np.nan).astype(np.float32)
 
         h, w = data.shape
 
         if array_name in conditions:
             # Overwrite existing array
-            conditions[array_name][:, :] = data
+            _child_array(conditions, array_name)[:, :] = data
             log.info("Overwrote condition array", array_name=array_name)
         else:
+            # Shard like the vv/vh pyramid: one shard over the full (y, x) extent so a 10980²
+            # condition array is a single object, not ~900 tiny 366²-chunk objects.
+            # calculate_aligned_chunk_size returns a divisor of the dimension, so (h, w) is a clean
+            # multiple of the inner chunk — the Zarr v3 shard-divisibility requirement.
+            inner_chunks = (
+                calculate_aligned_chunk_size(h, 512),
+                calculate_aligned_chunk_size(w, 512),
+            )
             arr = conditions.create_array(
                 array_name,
                 shape=(h, w),
                 dtype="float32",
-                chunks=(
-                    calculate_aligned_chunk_size(h, 512),
-                    calculate_aligned_chunk_size(w, 512),
-                ),
+                chunks=inner_chunks,
+                shards=(h, w),
                 compressors=zarr.codecs.BloscCodec(cname="zstd", clevel=5),
                 fill_value=float("nan"),
                 dimension_names=["y", "x"],
             )
+            # CF `_FillValue` so readers mask NaN nodata (xarray #11345), like vv/vh (#172).
+            arr.attrs["_FillValue"] = FLOAT32_NAN_FILL_VALUE
             arr[:, :] = data
             log.info(
                 "Wrote condition array",
@@ -879,6 +1084,8 @@ def ingest_s1tiling_conditions(
                 min=float(np.nanmin(data)),
                 max=float(np.nanmax(data)),
             )
+
+    _add_grid_mapping(conditions, ref_crs)
 
     log.info(
         "Conditions ingestion complete",
@@ -901,12 +1108,11 @@ def discover_s1tiling_conditions(input_dir: str | Path) -> list[dict]:
 
     Groups by (tile, orbit).
     """
-    input_dir = Path(input_dir)
-    files = sorted(input_dir.glob("*.tif"))
+    files = _list_tifs(input_dir)
     groups: dict[tuple[str, str], dict] = {}
 
     for f in files:
-        m = S1TILING_GAMMA_AREA_PATTERN.match(f.name)
+        m = S1TILING_GAMMA_AREA_PATTERN.match(Path(str(f)).name)
         if m:
             tile = m.group("tile")
             orbit = m.group("orbit")
@@ -916,7 +1122,7 @@ def discover_s1tiling_conditions(input_dir: str | Path) -> list[dict]:
             groups[key]["gamma_area"] = f
             continue
 
-        m = S1TILING_LIA_PATTERN.match(f.name)
+        m = S1TILING_LIA_PATTERN.match(Path(str(f)).name)
         if m:
             tile = m.group("tile")
             orbit = m.group("orbit")

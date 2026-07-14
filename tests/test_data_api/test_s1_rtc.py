@@ -17,24 +17,37 @@ import pytest
 from eopf_geozarr.data_api.s1_rtc import S1RtcRoot
 
 
+def _nav(node: object, *keys: str) -> dict[str, object]:
+    """Walk a path of string keys through a nested JSON dict (test helper).
+
+    Narrows each level to ``dict`` so mutating the raw fixture stays type-safe.
+    """
+    for key in keys:
+        assert isinstance(node, dict), f"expected a dict at {key!r}"
+        node = node[key]
+    assert isinstance(node, dict), "expected the leaf to be a dict"
+    return node
+
+
 def test_s1_rtc_roundtrip(s1_rtc_json_example: dict[str, object]) -> None:
     """Test that we can round-trip JSON data without loss."""
-    model1 = S1RtcRoot(**s1_rtc_json_example)
+    model1 = S1RtcRoot.model_validate(s1_rtc_json_example)
     dumped = model1.model_dump()
-    model2 = S1RtcRoot(**dumped)
+    model2 = S1RtcRoot.model_validate(dumped)
     assert model1.model_dump() == model2.model_dump()
 
 
 def test_s1_rtc_descending_present(s1_rtc_json_example: dict[str, object]) -> None:
     """Test that the fixture has a descending orbit group."""
-    model = S1RtcRoot(**s1_rtc_json_example)
+    model = S1RtcRoot.model_validate(s1_rtc_json_example)
     assert model.descending is not None
     assert model.ascending is None
 
 
 def test_s1_rtc_r10m_has_data_arrays(s1_rtc_json_example: dict[str, object]) -> None:
     """Test that r10m contains vv, vh, border_mask and coordinate arrays."""
-    model = S1RtcRoot(**s1_rtc_json_example)
+    model = S1RtcRoot.model_validate(s1_rtc_json_example)
+    assert model.descending is not None
     r10m = model.descending.r10m
     assert r10m.vv is not None
     assert r10m.vh is not None
@@ -47,8 +60,9 @@ def test_s1_rtc_r10m_has_data_arrays(s1_rtc_json_example: dict[str, object]) -> 
 
 def test_s1_rtc_overview_levels(s1_rtc_json_example: dict[str, object]) -> None:
     """Test that overview levels r20m-r720m exist and have vv/vh/border_mask."""
-    model = S1RtcRoot(**s1_rtc_json_example)
+    model = S1RtcRoot.model_validate(s1_rtc_json_example)
     orbit = model.descending
+    assert orbit is not None
     for level in ("r20m", "r60m", "r120m", "r360m", "r720m"):
         group = orbit.get_resolution(level)
         assert group is not None, f"Missing overview level {level}"
@@ -61,7 +75,8 @@ def test_s1_rtc_overview_levels(s1_rtc_json_example: dict[str, object]) -> None:
 
 def test_s1_rtc_conditions(s1_rtc_json_example: dict[str, object]) -> None:
     """Test that conditions group has gamma_area per-orbit arrays."""
-    model = S1RtcRoot(**s1_rtc_json_example)
+    model = S1RtcRoot.model_validate(s1_rtc_json_example)
+    assert model.descending is not None
     conditions = model.descending.conditions
     assert conditions is not None
     gamma_keys = [k for k in conditions.members if k.startswith("gamma_area_")]
@@ -70,7 +85,8 @@ def test_s1_rtc_conditions(s1_rtc_json_example: dict[str, object]) -> None:
 
 def test_s1_rtc_orbit_attrs(s1_rtc_json_example: dict[str, object]) -> None:
     """Test that orbit group attributes contain required conventions and metadata."""
-    model = S1RtcRoot(**s1_rtc_json_example)
+    model = S1RtcRoot.model_validate(s1_rtc_json_example)
+    assert model.descending is not None
     attrs = model.descending.attributes
     assert len(attrs.zarr_conventions) == 3
     assert attrs.proj_code.startswith("EPSG:")
@@ -85,33 +101,33 @@ def test_s1_rtc_rejects_no_orbit(s1_rtc_json_example: dict[str, object]) -> None
     data = copy.deepcopy(s1_rtc_json_example)
     data["members"] = {}
     with pytest.raises(Exception, match="at least one orbit"):
-        S1RtcRoot(**data)
+        S1RtcRoot.model_validate(data)
 
 
 def test_s1_rtc_rejects_missing_r10m(s1_rtc_json_example: dict[str, object]) -> None:
     """Reject an orbit group that lacks r10m."""
     data = copy.deepcopy(s1_rtc_json_example)
-    del data["members"]["descending"]["members"]["r10m"]
+    del _nav(data, "members", "descending", "members")["r10m"]
     with pytest.raises(Exception, match="r10m"):
-        S1RtcRoot(**data)
+        S1RtcRoot.model_validate(data)
 
 
 def test_s1_rtc_rejects_missing_convention_uuid(s1_rtc_json_example: dict[str, object]) -> None:
     """Reject orbit attrs with missing convention UUIDs."""
     data = copy.deepcopy(s1_rtc_json_example)
-    data["members"]["descending"]["attributes"]["zarr_conventions"] = [
+    _nav(data, "members", "descending", "attributes")["zarr_conventions"] = [
         {"uuid": "fake-uuid", "name": "fake"}
     ]
     with pytest.raises(Exception, match="Missing required zarr_conventions"):
-        S1RtcRoot(**data)
+        S1RtcRoot.model_validate(data)
 
 
 def test_s1_rtc_rejects_bad_spatial_dimensions(s1_rtc_json_example: dict[str, object]) -> None:
     """Reject orbit attrs with wrong spatial:dimensions."""
     data = copy.deepcopy(s1_rtc_json_example)
-    data["members"]["descending"]["attributes"]["spatial:dimensions"] = ["lat", "lon"]
+    _nav(data, "members", "descending", "attributes")["spatial:dimensions"] = ["lat", "lon"]
     with pytest.raises(Exception, match="spatial:dimensions"):
-        S1RtcRoot(**data)
+        S1RtcRoot.model_validate(data)
 
 
 def test_s1_rtc_rejects_conditions_without_gamma_area(
@@ -119,10 +135,10 @@ def test_s1_rtc_rejects_conditions_without_gamma_area(
 ) -> None:
     """Reject conditions group with no gamma_area_* arrays."""
     data = copy.deepcopy(s1_rtc_json_example)
-    cond_members = data["members"]["descending"]["members"]["conditions"]["members"]
+    cond_members = _nav(data, "members", "descending", "members", "conditions", "members")
     # Replace all keys with non-gamma_area names
-    data["members"]["descending"]["members"]["conditions"]["members"] = {
+    _nav(data, "members", "descending", "members", "conditions")["members"] = {
         "some_other": next(iter(cond_members.values()))
     }
     with pytest.raises(Exception, match="gamma_area"):
-        S1RtcRoot(**data)
+        S1RtcRoot.model_validate(data)
