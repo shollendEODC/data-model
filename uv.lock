@@ -792,7 +792,7 @@ wheels = [
 
 [[package]]
 name = "eopf-geozarr"
-version = "0.10.1"
+version = "0.10.2"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -856,7 +856,7 @@ requires-dist = [
     { name = "structlog", specifier = ">=25.5.0" },
     { name = "typing-extensions", specifier = ">=4.15.0" },
     { name = "xarray", specifier = ">=2025.7.1" },
-    { name = "zarr", extras = ["cast-value-rs"], specifier = ">=3.2.0" },
+    { name = "zarr", extras = ["cast-value-rs"], specifier = ">=3.2.0,<3.3.0" },
     { name = "zarr-cm", specifier = ">=0.4.1" },
 ]
 
