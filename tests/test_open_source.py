@@ -87,6 +87,23 @@ def test_explicit_storage_options_are_forwarded_to_xarray(monkeypatch) -> None:
     assert captured["chunks"] == {}
 
 
+def test_mask_and_scale_is_forwarded_to_xarray(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_open_datatree(path: object, **kwargs: object) -> None:
+        captured.update(kwargs)
+        raise InterruptedError("stop before any I/O")
+
+    monkeypatch.setattr("xarray.open_datatree", fake_open_datatree)
+    with pytest.raises(InterruptedError):
+        open_source_datatree("/some/store.zarr", storage_options={})
+    assert captured["mask_and_scale"] is True
+
+    with pytest.raises(InterruptedError):
+        open_source_datatree("/some/store.zarr", storage_options={}, mask_and_scale=False)
+    assert captured["mask_and_scale"] is False
+
+
 @pytest.fixture
 def http_source(source_store) -> Iterator[str]:
     """Serve the source store over local HTTP (mimics the EODC https source)."""

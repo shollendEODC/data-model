@@ -244,10 +244,8 @@ def convert_command(args: argparse.Namespace) -> None:
             # the generic path, so close it and re-open raw, matching
             # convert_s3_olci_optimized_command.
             dt.close()
-            dt_raw = xr.open_datatree(
+            dt_raw = open_source_datatree(
                 str(input_path),
-                engine="zarr",
-                chunks="auto",
                 storage_options=storage_options,
                 mask_and_scale=False,
             )
@@ -1406,14 +1404,7 @@ def add_s3_olci_optimization_commands(subparsers: argparse._SubParsersAction) ->
 
 def convert_s3_olci_optimized_command(args: argparse.Namespace) -> None:
     """Execute S3 OLCI optimized conversion command."""
-    storage_options = get_storage_options(str(args.input_path))
-    dt_input = xr.open_datatree(
-        str(args.input_path),
-        engine="zarr",
-        chunks="auto",
-        storage_options=storage_options,
-        mask_and_scale=False,
-    )
+    dt_input = open_source_datatree(str(args.input_path), mask_and_scale=False)
     convert_olci_optimized(
         dt_input,
         output_path=args.output_path,
