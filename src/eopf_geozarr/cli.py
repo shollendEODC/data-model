@@ -24,6 +24,7 @@ from .conversion.fs_utils import (
     validate_s3_access,
 )
 from .conversion.geozarr import get_zarr_group
+from .conversion.open_source import open_source_datatree
 
 if TYPE_CHECKING:
     from dask.distributed import Client
@@ -1243,10 +1244,7 @@ def convert_s2_optimized_command(args: argparse.Namespace) -> None:
     try:
         # Load input dataset
         log.info("Loading Sentinel-2 dataset from", input_path=args.input_path)
-        storage_options = get_storage_options(str(args.input_path))
-        dt_input = xr.open_datatree(
-            str(args.input_path), engine="zarr", chunks="auto", storage_options=storage_options
-        )
+        dt_input = open_source_datatree(str(args.input_path))
 
         # Convert
         convert_s2_optimized(
