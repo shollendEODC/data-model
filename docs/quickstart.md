@@ -21,7 +21,7 @@ eopf-geozarr convert input.zarr output.zarr
 That's it! The converter will:
 
 - Analyze your EOPF dataset structure
-- Apply GeoZarr 0.4 specification compliance
+- Apply the GeoZarr conventions
 - Create multiscale overviews
 - Preserve native CRS and scientific accuracy
 
@@ -186,7 +186,7 @@ client.close()
 
 Your converted dataset now includes:
 
-✅ **GeoZarr 0.4 Compliance** - Full specification adherence  
+✅ **GeoZarr Conventions** - multiscales, geo-proj and spatial  
 ✅ **Native CRS Preservation** - No unnecessary reprojection  
 ✅ **Multiscale Pyramids** - Efficient overview levels  
 ✅ **Optimized Chunking** - Aligned chunks for performance  

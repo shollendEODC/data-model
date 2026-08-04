@@ -6,13 +6,13 @@ Common questions and solutions for using the EOPF GeoZarr library.
 
 ### What is EOPF GeoZarr?
 
-EOPF GeoZarr is a Python library that converts EOPF (Earth Observation Processing Framework) datasets to GeoZarr-spec 0.4 compliant format. It maintains scientific accuracy while optimizing for cloud-native workflows and performance.
+EOPF GeoZarr is a Python library that converts EOPF (Earth Observation Processing Framework) datasets to GeoZarr format. It maintains scientific accuracy while optimizing for cloud-native workflows and performance.
 
 ### What makes this different from standard Zarr?
 
-GeoZarr is a specification that extends Zarr with geospatial metadata standards. Our library specifically:
+GeoZarr is a set of modular [Zarr conventions](https://geozarr.org/conventions) that extend Zarr with geospatial metadata standards. The conventions are still in development, and GeoZarr V1 is not released yet (see the [GeoZarr roadmap](https://geozarr.org/roadmap)). Our library specifically:
 
-- Ensures GeoZarr 0.4 specification compliance
+- Applies the GeoZarr conventions (`multiscales`, `geo-proj`, `spatial`)
 - Preserves native coordinate reference systems
 - Creates multiscale pyramids for efficient visualization
 - Maintains CF conventions for scientific interoperability

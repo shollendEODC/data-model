@@ -1,7 +1,7 @@
 """
-GeoZarr-spec 0.4 compliant conversion tools for EOPF datasets.
+GeoZarr compliant conversion tools for EOPF datasets.
 
-This module provides functions to convert EOPF datasets to GeoZarr-spec 0.4 compliant format
+This module provides functions to convert EOPF datasets to GeoZarr format
 while maintaining native projections and using /2 downsampling logic.
 
 Key compliance features:
@@ -69,7 +69,7 @@ def create_geozarr_dataset(
     enable_sharding: bool = False,
 ) -> xr.DataTree:
     """
-    Create a GeoZarr-spec 0.4 compliant dataset from EOPF data.
+    Create a GeoZarr-spec compliant dataset from EOPF data.
 
     Parameters
     ----------
@@ -487,7 +487,7 @@ def write_geozarr_group(
     # Create encoding for all variables
     encoding = _create_geozarr_encoding(ds, compressor, spatial_chunk, enable_sharding)
 
-    # Write native data directly at the group path (GeoZarr 0.4 layout)
+    # Write native data directly at the group path (GeoZarr multiscales layout)
     native_dataset_group_name = group_name
     native_dataset_path = f"{output_path}/{native_dataset_group_name.lstrip('/')}"
 
@@ -555,7 +555,7 @@ def create_geozarr_compliant_multiscales(
     enable_sharding: bool = False,
 ) -> dict[str, Any]:
     """
-    Create GeoZarr-spec 0.4 compliant multiscales for a group.
+    Create GeoZarr-spec compliant multiscales for a group.
 
     Native data is expected to already be written at ``group_name``.
     Overview sub-groups are written at ``{group_name}/r{scale}``
