@@ -1,0 +1,124 @@
+"""Tests for the CPM writer plugin (eopf_geozarr.cpm.writer).
+
+These tests require the ``eopf`` package (the eopf-cpm distribution) and are
+skipped when it is not installed. Run them with the ``cpm`` extra, e.g.::
+
+    uv run --python 3.13 --extra cpm --group test pytest tests/test_cpm_writer.py
+"""
+
+# eopf is an optional dependency (the `cpm` extra, Python >= 3.13 only), so it
+# is absent from the default type-checking environment.
+# pyright: reportMissingImports=false
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+import numpy as np
+import pytest
+import xarray as xr
+import zarr
+
+if TYPE_CHECKING:
+    import pathlib
+
+pytest.importorskip("eopf")
+
+from eopf.exceptions.errors import EOStoreProductAlreadyExistsError
+from eopf.store.writer_dispatcher import get_writer_by_name, write_datatree
+from eopf.store.writer_registry import EOWriterRegistry
+
+from eopf_geozarr.cpm.writer import ENGINE_NAME, GeoZarrWriter, get_cli_command
+
+from .conftest import create_group_from_json, s2_example_json_paths
+
+
+def test_engine_registered() -> None:
+    """Importing the plugin registers the engine, retrievable by name only."""
+    assert EOWriterRegistry.contains(ENGINE_NAME)
+    assert get_writer_by_name(ENGINE_NAME) is GeoZarrWriter
+    # By-target discovery must stay with cpm_zarr; the geozarr engine is name-only.
+    assert not EOWriterRegistry.is_discoverable_by_target(ENGINE_NAME)
+
+
+def test_get_cli_command_builds_click_command() -> None:
+    """The eopf.cli entry-point hook returns a click command."""
+    import click
+
+    command = get_cli_command()
+    assert isinstance(command, click.Command)
+    assert command.name == "convert-geozarr"
+
+
+def test_write_s2_end_to_end(tmp_path: pathlib.Path) -> None:
+    """A zarr-backed S2 tree written via CPM's dispatcher yields the flat pyramid."""
+    source = create_group_from_json(s2_example_json_paths[0], tmp_path / "source")
+    dtree = xr.open_datatree(source, engine="zarr", chunks="auto")
+    target = tmp_path / "output.zarr"
+
+    write_datatree(dtree, target, engine=ENGINE_NAME)
+
+    root = zarr.open_group(str(target), mode="r")
+    reflectance = root["measurements/reflectance"]
+    for resolution in ("r10m", "r20m", "r60m", "r120m", "r360m", "r720m"):
+        assert resolution in reflectance, f"missing pyramid level {resolution}"
+    assert "multiscales" in reflectance.attrs
+    # Store-root summary footprint written by the S2 pipeline.
+    assert "spatial:bbox" in root.attrs
+
+
+def test_write_generic_requires_groups(tmp_path: pathlib.Path) -> None:
+    """The generic pipeline fails loudly when 'groups' is not provided."""
+    tree = xr.DataTree()
+    tree["measurements"] = xr.Dataset({"var": (["y", "x"], np.zeros((4, 4)))})
+    with pytest.raises(ValueError, match="groups"):
+        GeoZarrWriter().write(tree, tmp_path / "out.zarr", s2_optimized=False)
+
+
+def test_write_rejects_zarr_format_2(tmp_path: pathlib.Path) -> None:
+    with pytest.raises(NotImplementedError, match="Zarr format 3"):
+        GeoZarrWriter().write(xr.DataTree(), tmp_path / "out.zarr", zarr_format=2)
+
+
+def test_write_rejects_unconsolidated(tmp_path: pathlib.Path) -> None:
+    with pytest.raises(NotImplementedError, match="consolidated"):
+        GeoZarrWriter().write(xr.DataTree(), tmp_path / "out.zarr", consolidated=False)
+
+
+def test_write_rejects_unsupported_mode(tmp_path: pathlib.Path) -> None:
+    with pytest.raises(ValueError, match="mode"):
+        GeoZarrWriter().write(xr.DataTree(), tmp_path / "out.zarr", mode="a")
+
+
+def test_write_rejects_unknown_options(tmp_path: pathlib.Path) -> None:
+    with pytest.raises(NotImplementedError, match="storage_options"):
+        GeoZarrWriter().write(xr.DataTree(), tmp_path / "out.zarr", storage_options={"anon": True})
+
+
+def test_write_rejects_remote_target() -> None:
+    with pytest.raises(NotImplementedError, match="stage_target"):
+        GeoZarrWriter().write(xr.DataTree(), "s3://bucket/out.zarr")
+
+
+def test_write_rejects_non_path_target() -> None:
+    with pytest.raises(TypeError, match="str or Path"):
+        GeoZarrWriter().write(xr.DataTree(), {"not": "a path"})
+
+
+def test_write_mode_w_dash_refuses_existing_target(tmp_path: pathlib.Path) -> None:
+    target = tmp_path / "out.zarr"
+    target.mkdir()
+    with pytest.raises(EOStoreProductAlreadyExistsError):
+        GeoZarrWriter().write(xr.DataTree(), target, mode="w-")
+
+
+def test_validate_write_options_checks_without_writing(tmp_path: pathlib.Path) -> None:
+    """validate_write_options raises the same errors as write, touching nothing."""
+    writer = GeoZarrWriter()
+    target = tmp_path / "out.zarr"
+    with pytest.raises(NotImplementedError, match="Zarr format 3"):
+        writer.validate_write_options(target, zarr_format=2)
+    with pytest.raises(NotImplementedError, match="storage_options"):
+        writer.validate_write_options(target, storage_options={"anon": True})
+    writer.validate_write_options(target, mode="w", spatial_chunk=512)
+    assert not target.exists()

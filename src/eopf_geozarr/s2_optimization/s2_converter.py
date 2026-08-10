@@ -110,6 +110,23 @@ def initialize_crs_from_dataset(dt_input: xr.DataTree) -> CRS | None:
     return None
 
 
+def _validate_s2_input(dt_input: xr.DataTree) -> None:
+    """
+    Validate that the input DataTree is a Sentinel-2 product.
+
+    Validation runs against the DataTree's backing zarr store. Trees built in
+    memory (e.g. by the CPM SAFE reader) have no backing group; callers on
+    that path are responsible for routing only Sentinel-2 products here.
+    """
+    try:
+        backing_group = get_zarr_group(dt_input)
+    except TypeError:
+        log.info("Input DataTree has no zarr backend; skipping input store validation")
+        return
+    if not is_sentinel2_dataset(backing_group):
+        raise ValueError("Input dataset is not a Sentinel-2 product")
+
+
 def convert_s2(
     dt_input: xr.DataTree,
     output_path: str,
@@ -137,9 +154,7 @@ def convert_s2(
         output_path=output_path,
     )
 
-    # Validate input is S2
-    if not is_sentinel2_dataset(get_zarr_group(dt_input)):
-        raise ValueError("Input dataset is not a Sentinel-2 product")
+    _validate_s2_input(dt_input)
 
     # Step 1: Process data while preserving original structure
     log.info("Step 1: Processing data with original structure preserved")
@@ -222,9 +237,7 @@ def convert_s2_optimized(
         num_groups=len(dt_input.groups),
         output_path=output_path,
     )
-    # Validate input is S2
-    if not is_sentinel2_dataset(get_zarr_group(dt_input)):
-        raise ValueError("Input dataset is not a Sentinel-2 product")
+    _validate_s2_input(dt_input)
 
     # Initialize CRS from dataset
     crs = initialize_crs_from_dataset(dt_input)
