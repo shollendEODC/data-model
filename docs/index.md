@@ -1,6 +1,6 @@
 # EOPF GeoZarr Documentation
 
-Welcome to the EOPF GeoZarr library documentation. This library provides tools to convert EOPF (Earth Observation Processing Framework) datasets to GeoZarr-spec 0.4 compliant format while maintaining scientific accuracy and optimizing for cloud-native workflows.
+Welcome to the EOPF GeoZarr library documentation. This library provides tools to convert EOPF (Earth Observation Processing Framework) datasets to GeoZarr format while maintaining scientific accuracy and optimizing for cloud-native workflows.
 
 ## Quick Navigation
 
@@ -29,7 +29,7 @@ The EOPF GeoZarr library bridges the gap between EOPF datasets and the emerging 
 ✅ **Scientific Accuracy** - Preserves native CRS and data integrity  
 ✅ **Cloud-Native** - Optimized for S3 and distributed processing  
 ✅ **Performance** - Intelligent chunking and multiscale pyramids  
-✅ **Standards Compliant** - Full GeoZarr 0.4 and CF conventions support  
+✅ **Standards Aligned** - GeoZarr and CF conventions support  
 ✅ **Production Ready** - Robust error handling and validation  
 
 ## Key Features
@@ -52,7 +52,7 @@ Full support for AWS S3 and S3-compatible storage with automatic credential dete
 
 ### 📋 Standards Compliance
 
-- **GeoZarr 0.4 specification** compliance
+- **GeoZarr conventions** (`multiscales`, `geo-proj`, `spatial`)
 - **CF conventions** for scientific metadata
 - **`_ARRAY_DIMENSIONS`** attributes on all arrays
 - **Grid mapping** variables with proper CRS information

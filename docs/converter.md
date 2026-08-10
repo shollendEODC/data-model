@@ -1,6 +1,6 @@
 # Using the GeoZarr Converter
 
-The GeoZarr converter provides tools to transform EOPF datasets into GeoZarr-spec 0.4 compliant format. This guide explains how to use the converter effectively.
+The GeoZarr converter provides tools to transform EOPF datasets into GeoZarr format. This guide explains how to use the converter effectively.
 
 ## Command Line Interface
 

@@ -4,11 +4,13 @@ GeoZarr compliant data model for EOPF (Earth Observation Processing Framework) d
 
 ## Overview
 
-This library provides tools to convert EOPF datasets to GeoZarr-spec 0.4 compliant format while maintaining native projections and using /2 downsampling logic for multiscale support.
+This library provides tools to convert EOPF datasets to GeoZarr format while maintaining native projections and using /2 downsampling logic for multiscale support.
+
+GeoZarr is a set of modular [Zarr conventions](https://geozarr.org/conventions) developed by the OGC GeoZarr Standards Working Group. The conventions are still in development and GeoZarr V1 is not released yet (see the [GeoZarr roadmap](https://geozarr.org/roadmap)). This library therefore targets the current conventions, not a numbered specification release. See the [GeoZarr Mini Spec](docs/geozarr-minispec.md) for the exact subset it implements.
 
 ## Key Features
 
-- **GeoZarr Specification Compliance**: Full compliance with GeoZarr spec 0.4
+- **GeoZarr Conventions**: Implements the `multiscales`, `geo-proj` and `spatial` conventions
 - **Native CRS Preservation**: No reprojection to TMS, maintains original coordinate reference systems
 - **Multiscale Support**: COG-style /2 downsampling with overview levels as children groups
 - **CF Conventions**: Proper CF standard names and grid_mapping attributes
@@ -24,7 +26,7 @@ This library provides tools to convert EOPF datasets to GeoZarr-spec 0.4 complia
 - `grid_mapping` attributes referencing CF grid_mapping variables
 - `GeoTransform` attributes in grid_mapping variables
 - Proper multiscales metadata structure
-- Native CRS tile matrix sets
+- Native CRS preservation
 
 ## Installation
 
@@ -216,7 +218,7 @@ dt_geozarr = create_geozarr_dataset(
 
 #### `create_geozarr_dataset`
 
-Create a GeoZarr-spec 0.4 compliant dataset from EOPF data.
+Create a GeoZarr compliant dataset from EOPF data.
 
 **Parameters:**
 
@@ -291,12 +293,12 @@ The library is organized into the following modules:
 
 ## GeoZarr Specification Compliance
 
-This library implements the GeoZarr specification 0.4 with the following key requirements:
+This library implements the GeoZarr conventions with the following key requirements:
 
 1. **Array Dimensions**: All arrays must have `_ARRAY_DIMENSIONS` attributes
 2. **CF Standard Names**: All variables must have CF-compliant `standard_name` attributes
 3. **Grid Mapping**: Data variables must reference CF grid_mapping variables via `grid_mapping` attributes
-4. **Multiscales Structure**: Overview levels are stored as children groups with proper tile matrix metadata
+4. **Multiscales Structure**: Overview levels are stored as children groups with proper `multiscales` convention metadata
 5. **Native CRS**: Coordinate reference systems are preserved without reprojection
 
 ## Contributing to GeoZarr Specification
