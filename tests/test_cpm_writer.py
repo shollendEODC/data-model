@@ -12,15 +12,14 @@ skipped when it is not installed. Run them with the ``cpm`` extra, e.g.::
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import pathlib
+import subprocess
+import sys
 
 import numpy as np
 import pytest
 import xarray as xr
 import zarr
-
-if TYPE_CHECKING:
-    import pathlib
 
 pytest.importorskip("eopf")
 
@@ -64,6 +63,35 @@ def test_write_s2_end_to_end(tmp_path: pathlib.Path) -> None:
         assert resolution in reflectance, f"missing pyramid level {resolution}"
     assert "multiscales" in reflectance.attrs
     # Store-root summary footprint written by the S2 pipeline.
+    assert "spatial:bbox" in root.attrs
+
+
+def test_cli_convert_geozarr_end_to_end(tmp_path: pathlib.Path) -> None:
+    """`eopf convert-geozarr` converts a product through CPM's convert() machinery.
+
+    Exercises the whole operator-facing path: entry-point discovery in CPM's
+    CLI, the click option wiring, convert()'s reader dispatch (cpm_zarr source),
+    and the geozarr engine selected by name.
+    """
+    source = create_group_from_json(s2_example_json_paths[0], tmp_path / "source")
+    target = tmp_path / "out.zarr"
+    # The eopf console script installed next to the current interpreter.
+    eopf_cli = pathlib.Path(sys.executable).parent / "eopf"
+    assert eopf_cli.exists(), "eopf console script not found in the test environment"
+
+    result = subprocess.run(
+        [str(eopf_cli), "convert-geozarr", str(source), str(target)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    root = zarr.open_group(str(target), mode="r")
+    reflectance = root["measurements/reflectance"]
+    for resolution in ("r10m", "r20m", "r60m", "r120m", "r360m", "r720m"):
+        assert resolution in reflectance, f"missing pyramid level {resolution}"
+    assert "multiscales" in reflectance.attrs
     assert "spatial:bbox" in root.attrs
 
 
