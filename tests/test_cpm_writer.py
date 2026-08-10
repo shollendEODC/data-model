@@ -75,6 +75,37 @@ def test_write_generic_requires_groups(tmp_path: pathlib.Path) -> None:
         GeoZarrWriter().write(tree, tmp_path / "out.zarr", s2_optimized=False)
 
 
+def test_write_option_errors_do_not_destroy_existing_target(tmp_path: pathlib.Path) -> None:
+    """Argument-derivable failures must be raised before the mode='w' store removal."""
+    target = tmp_path / "out.zarr"
+    target.mkdir()
+    sentinel = target / "previous-product-content"
+    sentinel.touch()
+    tree = xr.DataTree()
+    tree["measurements"] = xr.Dataset({"var": (["y", "x"], np.zeros((4, 4)))})
+    # Missing 'groups' on the generic pipeline: must fail with the old store intact.
+    with pytest.raises(ValueError, match="groups"):
+        GeoZarrWriter().write(tree, target, s2_optimized=False)
+    assert sentinel.exists()
+
+
+def test_write_accepts_compute_true(tmp_path: pathlib.Path) -> None:
+    """CPM's staged-output path injects compute=True; the writer must accept it."""
+    writer = GeoZarrWriter()
+    writer.validate_write_options(tmp_path / "out.zarr", compute=True)
+    # And through write(): compute=True with a missing-groups error means the
+    # option itself was accepted (rejection would raise NotImplementedError first).
+    tree = xr.DataTree()
+    tree["measurements"] = xr.Dataset({"var": (["y", "x"], np.zeros((4, 4)))})
+    with pytest.raises(ValueError, match="groups"):
+        writer.write(tree, tmp_path / "out.zarr", s2_optimized=False, compute=True)
+
+
+def test_write_rejects_compute_false(tmp_path: pathlib.Path) -> None:
+    with pytest.raises(NotImplementedError, match="compute"):
+        GeoZarrWriter().write(xr.DataTree(), tmp_path / "out.zarr", compute=False)
+
+
 def test_write_rejects_zarr_format_2(tmp_path: pathlib.Path) -> None:
     with pytest.raises(NotImplementedError, match="Zarr format 3"):
         GeoZarrWriter().write(xr.DataTree(), tmp_path / "out.zarr", zarr_format=2)
@@ -120,5 +151,9 @@ def test_validate_write_options_checks_without_writing(tmp_path: pathlib.Path) -
         writer.validate_write_options(target, zarr_format=2)
     with pytest.raises(NotImplementedError, match="storage_options"):
         writer.validate_write_options(target, storage_options={"anon": True})
+    with pytest.raises(NotImplementedError, match="stage_target"):
+        writer.validate_write_options("s3://bucket/out.zarr")
+    with pytest.raises(TypeError, match="str or Path"):
+        writer.validate_write_options({"not": "a path"})
     writer.validate_write_options(target, mode="w", spatial_chunk=512)
     assert not target.exists()

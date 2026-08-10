@@ -123,7 +123,14 @@ def _validate_s2_input(dt_input: xr.DataTree) -> None:
     except TypeError:
         log.info("Input DataTree has no zarr backend; skipping input store validation")
         return
-    if not is_sentinel2_dataset(backing_group):
+    try:
+        is_s2 = is_sentinel2_dataset(backing_group)
+    except TypeError:
+        # is_sentinel2_dataset validates against a Zarr v2 model and raises
+        # TypeError for Zarr v3 stores (e.g. CPM 3.x products).
+        log.info("Backing zarr store is not Zarr v2; skipping input store validation")
+        return
+    if not is_s2:
         raise ValueError("Input dataset is not a Sentinel-2 product")
 
 

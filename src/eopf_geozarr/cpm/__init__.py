@@ -25,16 +25,28 @@ ENGINE_NAME = "geozarr"
 __all__ = ["ENGINE_NAME", "GeoZarrWriter", "get_cli_command", "register"]
 
 
+def _import_writer() -> Any:
+    """Import the writer module, translating a missing eopf into a clear error."""
+    try:
+        from eopf_geozarr.cpm import writer
+    except ModuleNotFoundError as exc:
+        if exc.name is not None and exc.name.split(".")[0] == "eopf":
+            raise ImportError(
+                "The eopf_geozarr.cpm integration requires the 'eopf' package "
+                "(eopf-cpm), which supports Python >= 3.13 only. On Python 3.13+ "
+                "install it with: pip install 'eopf-geozarr[cpm]'. Note that on "
+                "older interpreters that command succeeds without installing eopf.",
+            ) from exc
+        raise
+    return writer
+
+
 def get_cli_command() -> click.Command:
     """Build the ``eopf convert-geozarr`` command (entry-point hook for CPM's CLI)."""
-    from eopf_geozarr.cpm.writer import get_cli_command as build
-
-    return build()
+    return _import_writer().get_cli_command()
 
 
 def __getattr__(name: str) -> Any:
     if name in {"GeoZarrWriter", "register"}:
-        from eopf_geozarr.cpm import writer
-
-        return getattr(writer, name)
+        return getattr(_import_writer(), name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

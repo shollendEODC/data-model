@@ -14,11 +14,38 @@ import pytest
 import xarray as xr
 
 from eopf_geozarr.s2_optimization.s2_converter import (
+    _validate_s2_input,
     convert_s2_optimized,
     initialize_crs_from_dataset,
     simple_root_consolidation,
     write_store_root_bbox,
 )
+
+
+def test_validate_s2_input_skips_trees_without_zarr_backend() -> None:
+    """In-memory DataTrees (e.g. from the CPM SAFE reader) skip store validation."""
+    tree = xr.DataTree()
+    tree["measurements"] = xr.Dataset({"var": (["y", "x"], np.zeros((4, 4)))})
+    _validate_s2_input(tree)  # must not raise
+
+
+def test_validate_s2_input_rejects_non_s2_zarr_backed_tree(tmp_path: Path) -> None:
+    """Zarr-v2-backed trees that are not Sentinel-2 products are still rejected."""
+    store = tmp_path / "not_s2.zarr"
+    source = xr.DataTree(xr.Dataset({"var": (["y", "x"], np.zeros((4, 4)))}))
+    source.to_zarr(store, zarr_format=2, consolidated=False)
+    backed = xr.open_datatree(store, engine="zarr")
+    with pytest.raises(ValueError, match="not a Sentinel-2 product"):
+        _validate_s2_input(backed)
+
+
+def test_validate_s2_input_skips_zarr_v3_backed_tree(tmp_path: Path) -> None:
+    """Zarr-v3-backed trees skip validation (the S2 model only reads Zarr v2)."""
+    store = tmp_path / "v3.zarr"
+    source = xr.DataTree(xr.Dataset({"var": (["y", "x"], np.zeros((4, 4)))}))
+    source.to_zarr(store, zarr_format=3, consolidated=False)
+    backed = xr.open_datatree(store, engine="zarr")
+    _validate_s2_input(backed)  # must not raise
 
 
 @pytest.fixture

@@ -91,6 +91,7 @@ class GeoZarrWriter(EOWriter):
         mode: str = "w",
         zarr_format: int | None = None,
         consolidated: bool = True,
+        compute: bool = True,
         s2_optimized: bool | None = None,
         spatial_chunk: int | None = None,
         enable_sharding: bool = False,
@@ -124,6 +125,10 @@ class GeoZarrWriter(EOWriter):
             Only Zarr format 3 is supported; ``None`` means 3.
         consolidated
             Must be True for now; consolidation is always performed.
+        compute
+            Must be True: writes are synchronous. Accepted because CPM's
+            staged-output path injects ``compute=True`` when a remote Dask
+            client is active; ``compute=False`` (lazy write) is not supported.
         s2_optimized
             Force (True) or suppress (False) the Sentinel-2 optimized
             pipeline; None auto-detects from the product type.
@@ -165,17 +170,32 @@ class GeoZarrWriter(EOWriter):
         Any
             The DataTree returned by the selected conversion pipeline.
         """
+        # Everything that can fail from arguments alone must run before
+        # _prepare_target, which is destructive for existing mode="w" targets.
         self._validate_options(
             mode=mode,
             zarr_format=zarr_format,
             consolidated=consolidated,
+            compute=compute,
             **kwargs,
         )
-        output_path = self._prepare_target(filename_or_obj, mode=mode)
+        target_str = self._check_target(filename_or_obj)
+        if mode == "w-" and Path(target_str).exists():
+            raise EOStoreProductAlreadyExistsError(f"Product already exists in {target_str}")
         pipeline = select_pipeline(dtree, force_s2_optimized=s2_optimized)
+        generic_groups: list[str] | None = None
+        if pipeline == "generic":
+            if groups is None:
+                raise ValueError(
+                    "The generic GeoZarr pipeline requires the 'groups' option naming the "
+                    "DataTree groups to convert (e.g. groups=['/measurements']). Sentinel-1 "
+                    "products additionally require 'gcp_group' (e.g. '/conditions/gcp').",
+                )
+            generic_groups = list(groups)
         resolved_spatial_chunk = (
             spatial_chunk if spatial_chunk is not None else _DEFAULT_SPATIAL_CHUNK[pipeline]
         )
+        output_path = self._prepare_target(filename_or_obj, mode=mode)
         log.info(
             "Writing GeoZarr product",
             engine=ENGINE_NAME,
@@ -197,15 +217,9 @@ class GeoZarrWriter(EOWriter):
                 max_retries=max_retries,
             )
 
-        if groups is None:
-            raise ValueError(
-                "The generic GeoZarr pipeline requires the 'groups' option naming the "
-                "DataTree groups to convert (e.g. groups=['/measurements']). Sentinel-1 "
-                "products additionally require 'gcp_group' (e.g. '/conditions/gcp').",
-            )
         return create_geozarr_dataset(
             dt_input=dtree,
-            groups=list(groups),
+            groups=generic_groups if generic_groups is not None else [],
             output_path=output_path,
             spatial_chunk=resolved_spatial_chunk,
             min_dimension=min_dimension,
@@ -222,10 +236,12 @@ class GeoZarrWriter(EOWriter):
     ) -> None:
         """Validate writer options without writing data."""
         super().validate_write_options(filename_or_obj, **kwargs)
+        self._check_target(filename_or_obj)
         option_names = (
             "mode",
             "zarr_format",
             "consolidated",
+            "compute",
             "s2_optimized",
             "spatial_chunk",
             "enable_sharding",
@@ -244,6 +260,7 @@ class GeoZarrWriter(EOWriter):
             mode=kwargs.get("mode", "w"),
             zarr_format=kwargs.get("zarr_format"),
             consolidated=kwargs.get("consolidated", True),
+            compute=kwargs.get("compute", True),
             **unknown,
         )
 
@@ -253,6 +270,7 @@ class GeoZarrWriter(EOWriter):
         mode: str,
         zarr_format: int | None,
         consolidated: bool,
+        compute: bool,
         **kwargs: Any,
     ) -> None:
         """Reject unsupported writer options loudly."""
@@ -277,10 +295,15 @@ class GeoZarrWriter(EOWriter):
                 "Consolidated metadata is currently always written by the "
                 f"{ENGINE_NAME} engine; consolidated=False is not supported yet.",
             )
+        if compute is not True:
+            raise NotImplementedError(
+                f"The {ENGINE_NAME} engine writes synchronously; compute=False (lazy "
+                "write) is not supported.",
+            )
 
     @staticmethod
-    def _prepare_target(filename_or_obj: str | Path | Any, *, mode: str) -> str:
-        """Resolve the output target to a local path string and apply mode semantics."""
+    def _check_target(filename_or_obj: str | Path | Any) -> str:
+        """Check that the output target is a supported local path, without touching it."""
         if not isinstance(filename_or_obj, (str, Path)):
             raise TypeError(
                 f"The {ENGINE_NAME} engine expects a str or Path target; "
@@ -295,6 +318,12 @@ class GeoZarrWriter(EOWriter):
                 "Use CPM's output staging (stage_target=True / --stage-output) to write "
                 "locally and upload.",
             )
+        return path_str
+
+    @staticmethod
+    def _prepare_target(filename_or_obj: str | Path | Any, *, mode: str) -> str:
+        """Resolve the output target to a local path string and apply mode semantics."""
+        path_str = GeoZarrWriter._check_target(filename_or_obj)
         target = Path(path_str)
         if target.exists():
             if mode == "w-":

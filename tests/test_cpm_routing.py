@@ -35,6 +35,8 @@ def make_tree(
         ("S02MSIL1C", False, None, "s2-optimized"),
         ("S02MSIL2A", False, None, "s2-optimized"),
         ("S01SIWGRH", False, None, "generic"),
+        ("S02MSIL0_", False, None, "generic"),  # MSI but not L1C/L2A imagery
+        ("S02MSIRAW", False, None, "generic"),
         ("S03OLCERR", True, None, "generic"),  # declared type wins over structure
         # Structural fallback when no product type is declared.
         (None, True, None, "s2-optimized"),

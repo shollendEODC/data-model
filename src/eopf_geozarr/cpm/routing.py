@@ -21,9 +21,11 @@ if TYPE_CHECKING:
 
 PipelineName = Literal["s2-optimized", "generic"]
 
-#: CPM product types routed to the Sentinel-2 optimized pipeline
-#: (e.g. ``S02MSIL1C``, ``S02MSIL2A``).
-S2_PRODUCT_TYPE_PREFIX = "S02MSI"
+#: CPM product types routed to the Sentinel-2 optimized pipeline. Deliberately
+#: only the L1C/L2A imagery products: other MSI product types (S02MSIL0_,
+#: S02MSIRAW, ...) do not have the reflectance pyramid structure the optimized
+#: pipeline expects.
+S2_PRODUCT_TYPE_PREFIXES = ("S02MSIL1C", "S02MSIL2A")
 
 #: Native Sentinel-2 resolution groups expected under measurements/reflectance.
 _S2_NATIVE_RESOLUTIONS = frozenset({"r10m", "r20m", "r60m"})
@@ -74,7 +76,7 @@ def looks_like_sentinel2(dtree: xr.DataTree) -> bool:
     """
     product_type = product_type_of(dtree)
     if product_type is not None:
-        return product_type.startswith(S2_PRODUCT_TYPE_PREFIX)
+        return product_type.startswith(S2_PRODUCT_TYPE_PREFIXES)
 
     measurements = dtree.children.get("measurements")
     if measurements is None:
