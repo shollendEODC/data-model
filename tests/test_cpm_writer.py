@@ -30,6 +30,7 @@ from eopf.store.writer_registry import EOWriterRegistry
 from eopf_geozarr.cpm.writer import ENGINE_NAME, GeoZarrWriter, get_cli_command
 
 from .conftest import create_group_from_json, s2_example_json_paths
+from .test_olci_integration import build_synthetic_olci
 
 
 def test_engine_registered() -> None:
@@ -64,6 +65,91 @@ def test_write_s2_end_to_end(tmp_path: pathlib.Path) -> None:
     assert "multiscales" in reflectance.attrs
     # Store-root summary footprint written by the S2 pipeline.
     assert "spatial:bbox" in root.attrs
+
+
+def test_write_olci_end_to_end(tmp_path: pathlib.Path) -> None:
+    """An in-memory OLCI tree (no zarr backend) is auto-detected and written.
+
+    Uses ``build_synthetic_olci``, unbacked by any zarr store -- the same
+    shape the CPM SAFE reader hands writers -- to exercise both the
+    structural-fallback routing (no stac_discovery attrs are set) and the
+    "no backing store" path the S2 pipeline already has to tolerate.
+
+    1024x1024 with the default min_dimension=256 yields r0 + two overview
+    levels (see test_olci_integration.py::test_convert_olci_creates_overviews);
+    the default 512x480 fixture size yields only r0.
+    """
+    dtree = build_synthetic_olci(rows=1024, cols=1024)
+    target = tmp_path / "output.zarr"
+
+    write_datatree(dtree, target, engine=ENGINE_NAME)
+
+    root = zarr.open_group(str(target), mode="r")
+    measurements = root["measurements"]
+    for level in ("r0", "r2", "r4"):
+        assert level in measurements, f"missing pyramid level {level}"
+    assert "multiscales" in measurements.attrs
+    # Unlike the S2 pipeline, native-mode OLCI output has no projected CRS,
+    # so there is no store-root spatial:bbox to assert here.
+
+
+def test_write_olci_forced_pipeline(tmp_path: pathlib.Path) -> None:
+    """s3_olci_optimized=True selects the OLCI pipeline explicitly."""
+    dtree = build_synthetic_olci()
+    target = tmp_path / "output.zarr"
+
+    write_datatree(dtree, target, engine=ENGINE_NAME, s3_olci_optimized=True)
+
+    root = zarr.open_group(str(target), mode="r")
+    assert "r0" in root["measurements"]
+
+
+def test_write_rejects_both_s2_and_olci_forced(tmp_path: pathlib.Path) -> None:
+    """s2_optimized=True and s3_olci_optimized=True together is a usage error."""
+    with pytest.raises(ValueError, match="cannot both be True"):
+        GeoZarrWriter().write(
+            xr.DataTree(),
+            tmp_path / "out.zarr",
+            s2_optimized=True,
+            s3_olci_optimized=True,
+        )
+
+
+def test_resolve_forced_pipeline_olci_suppressed_without_s2_structure() -> None:
+    """s3_olci_optimized=False on an OLCI-only tree falls back to generic (no S2 shape)."""
+    tree = xr.DataTree()
+    tree.attrs = {"stac_discovery": {"properties": {"product:type": "S03OLCEFR"}}}
+    resolved = GeoZarrWriter._resolve_forced_pipeline(
+        tree,
+        s2_optimized=None,
+        s3_olci_optimized=False,
+    )
+    assert resolved == "generic"
+
+
+def test_resolve_forced_pipeline_olci_suppressed_with_s2_structure() -> None:
+    """s3_olci_optimized=False falls back to s2-optimized when the tree also has S2 shape.
+
+    Contrived (a real product would not carry both structures at once), but
+    exercises the branch directly: with no declared product:type, structural
+    detection is what select_pipeline itself would use, and S2 is checked
+    ahead of OLCI there too.
+    """
+    tree = xr.DataTree()
+    ds = xr.Dataset({"b01": (["y", "x"], np.zeros((2, 2)))})
+    for resolution in ("r10m", "r20m", "r60m"):
+        tree[f"measurements/reflectance/{resolution}"] = ds
+    # oa01_radiance as a data variable directly on "measurements" (not a
+    # child node), alongside the "reflectance" child group added above.
+    tree["measurements"].dataset = xr.Dataset(
+        {"oa01_radiance": (["y", "x"], np.zeros((2, 2)))},
+    )
+    resolved = GeoZarrWriter._resolve_forced_pipeline(
+        tree,
+        s2_optimized=None,
+        s3_olci_optimized=False,
+    )
+    assert resolved == "s2-optimized"
 
 
 def test_cli_convert_geozarr_end_to_end(tmp_path: pathlib.Path) -> None:

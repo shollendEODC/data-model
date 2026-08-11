@@ -45,8 +45,14 @@ from eopf.store.abstract import EOWriter
 from eopf.store.writer_registry import EOWriterRegistry
 
 from eopf_geozarr.conversion import create_geozarr_dataset
-from eopf_geozarr.cpm.routing import select_pipeline
+from eopf_geozarr.cpm.routing import (
+    PipelineName,
+    looks_like_sentinel2,
+    looks_like_sentinel3_olci,
+    select_pipeline,
+)
 from eopf_geozarr.s2_optimization.s2_converter import convert_s2_optimized
+from eopf_geozarr.s3_olci_optimization.olci_converter import convert_olci_optimized
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -62,7 +68,7 @@ ENGINE_NAME = "geozarr"
 _SUPPORTED_MODES = ("w", "w-")
 
 #: Default spatial chunk size per pipeline, matching the eopf-geozarr CLI.
-_DEFAULT_SPATIAL_CHUNK = {"s2-optimized": 256, "generic": 4096}
+_DEFAULT_SPATIAL_CHUNK = {"s2-optimized": 256, "s3-olci-optimized": 1024, "generic": 4096}
 
 
 class GeoZarrWriter(EOWriter):
@@ -70,8 +76,10 @@ class GeoZarrWriter(EOWriter):
     CPM writer producing the GeoZarr layout defined by eopf-geozarr.
 
     The writer routes to the Sentinel-2 optimized pipeline (flat sibling
-    ``r{N}m`` multiscale groups) or the generic pipeline (nested ``r{2**N}``
-    overview groups) based on the product's declared ``product:type``; see
+    ``r{N}m`` multiscale groups), the Sentinel-3 OLCI optimized pipeline
+    (flat sibling ``r0``/``r2``/``r4``/... multiscale groups), or the generic
+    pipeline (nested ``r{2**N}`` overview groups) based on the product's
+    declared ``product:type``; see
     :func:`eopf_geozarr.cpm.routing.select_pipeline`.
 
     Output is always Zarr format 3. Consolidated metadata is currently always
@@ -93,6 +101,7 @@ class GeoZarrWriter(EOWriter):
         consolidated: bool = True,
         compute: bool = True,
         s2_optimized: bool | None = None,
+        s3_olci_optimized: bool | None = None,
         spatial_chunk: int | None = None,
         enable_sharding: bool = False,
         max_retries: int = 3,
@@ -104,6 +113,7 @@ class GeoZarrWriter(EOWriter):
         keep_scale_offset: bool = False,
         experimental_scale_offset_codec: bool = False,
         validate_output: bool = False,
+        output_grid: str = "native",
         **kwargs: Any,
     ) -> Any:
         """
@@ -131,10 +141,15 @@ class GeoZarrWriter(EOWriter):
             client is active; ``compute=False`` (lazy write) is not supported.
         s2_optimized
             Force (True) or suppress (False) the Sentinel-2 optimized
-            pipeline; None auto-detects from the product type.
+            pipeline; None auto-detects from the product type. Mutually
+            exclusive with ``s3_olci_optimized=True``.
+        s3_olci_optimized
+            Force (True) or suppress (False) the Sentinel-3 OLCI optimized
+            pipeline; None auto-detects from the product type. Mutually
+            exclusive with ``s2_optimized=True``.
         spatial_chunk
-            Spatial chunk size; defaults to 256 (S2 optimized) or 4096
-            (generic).
+            Spatial chunk size; defaults to 256 (S2 optimized), 1024 (OLCI
+            optimized), or 4096 (generic).
         enable_sharding
             Enable Zarr v3 sharding for spatial dimensions.
         max_retries
@@ -161,6 +176,10 @@ class GeoZarrWriter(EOWriter):
             codec pipeline.
         validate_output
             S2 optimized pipeline only: run output validation after writing.
+        output_grid
+            OLCI optimized pipeline only: ``"native"`` (default) preserves
+            the instrument swath geometry; any other value is a CRS string
+            (e.g. ``"EPSG:4326"``) to warp onto a regular grid.
         kwargs
             No other options are supported; unknown keys raise
             ``NotImplementedError``.
@@ -182,9 +201,16 @@ class GeoZarrWriter(EOWriter):
         target_str = self._check_target(filename_or_obj)
         if mode == "w-" and Path(target_str).exists():
             raise EOStoreProductAlreadyExistsError(f"Product already exists in {target_str}")
-        pipeline = select_pipeline(dtree, force_s2_optimized=s2_optimized)
+        selected_pipeline = select_pipeline(
+            dtree,
+            force=self._resolve_forced_pipeline(
+                dtree,
+                s2_optimized=s2_optimized,
+                s3_olci_optimized=s3_olci_optimized,
+            ),
+        )
         generic_groups: list[str] | None = None
-        if pipeline == "generic":
+        if selected_pipeline == "generic":
             if groups is None:
                 raise ValueError(
                     "The generic GeoZarr pipeline requires the 'groups' option naming the "
@@ -193,18 +219,18 @@ class GeoZarrWriter(EOWriter):
                 )
             generic_groups = list(groups)
         resolved_spatial_chunk = (
-            spatial_chunk if spatial_chunk is not None else _DEFAULT_SPATIAL_CHUNK[pipeline]
+            spatial_chunk if spatial_chunk is not None else _DEFAULT_SPATIAL_CHUNK[selected_pipeline]
         )
         output_path = self._prepare_target(filename_or_obj, mode=mode)
         log.info(
             "Writing GeoZarr product",
             engine=ENGINE_NAME,
-            pipeline=pipeline,
+            pipeline=selected_pipeline,
             output_path=output_path,
             spatial_chunk=resolved_spatial_chunk,
         )
 
-        if pipeline == "s2-optimized":
+        if selected_pipeline == "s2-optimized":
             return convert_s2_optimized(
                 dt_input=dtree,
                 output_path=output_path,
@@ -215,6 +241,18 @@ class GeoZarrWriter(EOWriter):
                 keep_scale_offset=keep_scale_offset,
                 experimental_scale_offset_codec=experimental_scale_offset_codec,
                 max_retries=max_retries,
+            )
+
+        if selected_pipeline == "s3-olci-optimized":
+            return convert_olci_optimized(
+                dt_input=dtree,
+                output_path=output_path,
+                enable_sharding=enable_sharding,
+                spatial_chunk=resolved_spatial_chunk,
+                compression_level=compression_level,
+                min_dimension=min_dimension,
+                keep_scale_offset=keep_scale_offset,
+                output_grid=output_grid,
             )
 
         return create_geozarr_dataset(
@@ -243,6 +281,7 @@ class GeoZarrWriter(EOWriter):
             "consolidated",
             "compute",
             "s2_optimized",
+            "s3_olci_optimized",
             "spatial_chunk",
             "enable_sharding",
             "max_retries",
@@ -254,6 +293,7 @@ class GeoZarrWriter(EOWriter):
             "keep_scale_offset",
             "experimental_scale_offset_codec",
             "validate_output",
+            "output_grid",
         )
         unknown = {key: value for key, value in kwargs.items() if key not in option_names}
         self._validate_options(
@@ -300,6 +340,43 @@ class GeoZarrWriter(EOWriter):
                 f"The {ENGINE_NAME} engine writes synchronously; compute=False (lazy "
                 "write) is not supported.",
             )
+
+    @staticmethod
+    def _resolve_forced_pipeline(
+        dtree: DataTree,
+        *,
+        s2_optimized: bool | None,
+        s3_olci_optimized: bool | None,
+    ) -> PipelineName | None:
+        """
+        Translate the ``s2_optimized``/``s3_olci_optimized`` flags into a single
+        ``force`` value for :func:`select_pipeline`.
+
+        Returns None (full auto-detection, S2 then OLCI then generic) unless
+        one of the flags pins the outcome:
+
+        - ``s2_optimized=True`` or ``s3_olci_optimized=True`` forces that
+          pipeline outright (the two cannot both be True).
+        - ``s2_optimized=False`` forces the generic pipeline, matching the
+          pre-OLCI behavior of this flag exactly.
+        - ``s3_olci_optimized=False`` only has an effect when the product
+          would otherwise auto-detect as OLCI: it falls back to the
+          S2-vs-generic decision instead, leaving S2 auto-detection intact.
+        """
+        if s2_optimized is True and s3_olci_optimized is True:
+            raise ValueError(
+                "s2_optimized and s3_olci_optimized cannot both be True; set at most one "
+                "to force a specific pipeline.",
+            )
+        if s2_optimized is True:
+            return "s2-optimized"
+        if s3_olci_optimized is True:
+            return "s3-olci-optimized"
+        if s2_optimized is False:
+            return "generic"
+        if s3_olci_optimized is False and looks_like_sentinel3_olci(dtree):
+            return "s2-optimized" if looks_like_sentinel2(dtree) else "generic"
+        return None
 
     @staticmethod
     def _check_target(filename_or_obj: str | Path | Any) -> str:
@@ -383,12 +460,29 @@ def get_cli_command() -> click.Command:
         "--min-dimension",
         type=int,
         default=256,
-        help="Generic pipeline: minimum dimension of the coarsest overview level.",
+        help=(
+            "Generic and S3 OLCI optimized pipelines: minimum dimension of the coarsest "
+            "overview level."
+        ),
     )
     @click.option(
         "--no-s2-optimized",
         is_flag=True,
         help="Force the generic pipeline for Sentinel-2 inputs.",
+    )
+    @click.option(
+        "--no-s3-olci-optimized",
+        is_flag=True,
+        help="Fall back to Sentinel-2/generic auto-detection for Sentinel-3 OLCI inputs.",
+    )
+    @click.option(
+        "--output-grid",
+        type=str,
+        default="native",
+        help=(
+            "S3 OLCI optimized pipeline: 'native' (default) preserves the instrument swath "
+            "geometry; any other value is a CRS string (e.g. 'EPSG:4326') to warp onto."
+        ),
     )
     @click.option(
         "--stage-source",
@@ -410,6 +504,8 @@ def get_cli_command() -> click.Command:
         gcp_group: str | None,
         min_dimension: int,
         no_s2_optimized: bool,
+        no_s3_olci_optimized: bool,
+        output_grid: str,
         stage_source: bool,
         stage_output: bool,
     ) -> None:
@@ -429,6 +525,10 @@ def get_cli_command() -> click.Command:
             target_store_kwargs["min_dimension"] = min_dimension
         if no_s2_optimized:
             target_store_kwargs["s2_optimized"] = False
+        if no_s3_olci_optimized:
+            target_store_kwargs["s3_olci_optimized"] = False
+        if output_grid != "native":
+            target_store_kwargs["output_grid"] = output_grid
         convert(
             source_path=source_path,
             target_path=target_path,
