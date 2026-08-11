@@ -14,6 +14,10 @@ Convert an EOPF dataset to GeoZarr format:
 eopf-geozarr convert input.zarr output.zarr
 ```
 
+Sentinel-2 inputs are auto-detected and converted with the optimized flat
+multiscale layout (see [Sentinel-2 Optimized Conversion](#sentinel-2-optimized-conversion)).
+Pass `--no-s2-optimized` to force the generic per-group conversion path.
+
 ### S3 Output
 
 Convert and save the output directly to an S3 bucket:
@@ -32,11 +36,28 @@ eopf-geozarr convert input.zarr output.zarr --dask-cluster
 
 ### Validation
 
-Validate the GeoZarr compliance of a dataset:
+Validate a dataset against the [GeoZarr Mini Spec](geozarr-minispec.md):
 
 ```bash
 eopf-geozarr validate output.zarr
 ```
+
+The validator checks the store root (conventions declaration, `spatial:bbox`,
+CRS), every multiscale group (layout completeness, per-level georeferencing),
+every node using the `proj:` / `spatial:` conventions, and the structural
+Dataset rules (no scalar arrays, unique string `dimension_names`, matching
+1-D coordinate arrays for every data-variable dimension). Each violation is
+reported with its Zarr node path, and the command exits non-zero when the
+store is not compliant.
+
+> [!Note]
+> **Migration**: earlier releases' `validate` command always exited 0 and only
+> warned about per-variable CF attributes. Stores converted with
+> eopf-geozarr <= 0.10.x predate the store-root `zarr_conventions`
+> requirement and will report as non-compliant until reconverted (or until the
+> root metadata is added, e.g. via
+> `eopf_geozarr.conversion.utils.write_store_root_geo_metadata`). Pipelines
+> that scripted against the old output text or exit code need updating.
 
 ## Python API
 
@@ -55,7 +76,7 @@ dt = xr.open_datatree("path/to/eopf/dataset.zarr", engine="zarr")
 # Convert to GeoZarr format
 dt_geozarr = create_geozarr_dataset(
     dt_input=dt,
-    groups=["/measurements/r10m", "/measurements/r20m", "/measurements/r60m"],
+    groups=["/measurements/reflectance/r10m", "/measurements/reflectance/r20m", "/measurements/reflectance/r60m"],
     output_path="path/to/output/geozarr.zarr",
     spatial_chunk=4096,
     min_dimension=256,
@@ -77,7 +98,7 @@ os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
 # Convert and save to S3
 dt_geozarr = create_geozarr_dataset(
     dt_input=dt,
-    groups=["/measurements/r10m", "/measurements/r20m", "/measurements/r60m"],
+    groups=["/measurements/reflectance/r10m", "/measurements/reflectance/r20m", "/measurements/reflectance/r60m"],
     output_path="s3://my-bucket/output.zarr",
     spatial_chunk=4096,
     min_dimension=256,

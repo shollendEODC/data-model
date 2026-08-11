@@ -52,11 +52,11 @@ Full support for AWS S3 and S3-compatible storage with automatic credential dete
 
 ### 📋 Standards Compliance
 
-- **GeoZarr conventions** (`multiscales`, `geo-proj`, `spatial`)
-- **CF conventions** for scientific metadata
-- **`_ARRAY_DIMENSIONS`** attributes on all arrays
-- **Grid mapping** variables with proper CRS information
-- **Multiscales** metadata structure
+- **GeoZarr conventions** (`multiscales`, `geo-proj`, `spatial`) with `zarr_conventions` declarations
+- **Store-root spatial footprint** (`spatial:bbox` + `proj:code`)
+- **CF conventions** for scientific metadata (legacy-reader compatibility)
+- **Multiscales** metadata structure with per-level georeferencing
+- **Built-in validator** (`eopf-geozarr validate`) for minispec compliance
 
 ### 🚀 Performance Optimized
 
@@ -97,7 +97,7 @@ dt = xr.open_datatree("sentinel2_l2a.zarr", engine="zarr")
 # Convert to GeoZarr
 dt_geozarr = create_geozarr_dataset(
     dt_input=dt,
-    groups=["/measurements/r10m", "/measurements/r20m", "/measurements/r60m"],
+    groups=["/measurements/reflectance/r10m", "/measurements/reflectance/r20m", "/measurements/reflectance/r60m"],
     output_path="s3://my-bucket/geozarr.zarr",
     spatial_chunk=4096
 )

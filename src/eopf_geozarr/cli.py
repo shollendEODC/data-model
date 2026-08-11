@@ -9,7 +9,7 @@ import argparse
 import sys
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 import xarray as xr
@@ -1033,13 +1033,20 @@ def _generate_html_output(
 
 def validate_command(args: argparse.Namespace) -> None:
     """
-    Validate GeoZarr compliance of a dataset.
+    Validate GeoZarr minispec compliance of a dataset.
+
+    Runs the declarative minispec validator
+    (:func:`eopf_geozarr.data_api.geozarr.validation.validate_store`) and
+    reports every violation with its Zarr node path. Exits non-zero when the
+    store is not compliant.
 
     Parameters
     ----------
     args : argparse.Namespace
         Command line arguments
     """
+    from eopf_geozarr.data_api.geozarr.validation import validate_store
+
     # Handle both local paths and URLs
     input_path_str = args.input_path
     if input_path_str.startswith(("http://", "https://", "s3://", "gs://")):
@@ -1047,76 +1054,20 @@ def validate_command(args: argparse.Namespace) -> None:
         input_path = input_path_str
     else:
         # Local path - validate existence
-        input_path = Path(input_path_str)
-        if not input_path.exists():
-            log.info("Error: Input path does not exist", input_path=str(input_path))
+        local_path = Path(input_path_str)
+        if not local_path.exists():
+            log.info("Error: Input path does not exist", input_path=str(local_path))
             sys.exit(1)
-        input_path = str(input_path)
+        input_path = str(local_path)
 
     try:
-        log.info("Validating GeoZarr compliance for", input_path=input_path)
-        # Use unified storage options for S3 support
+        log.info("Validating GeoZarr minispec compliance", input_path=input_path)
         storage_options = get_storage_options(input_path)
-        dt = xr.open_datatree(
-            input_path, engine="zarr", chunks="auto", storage_options=storage_options
+        report = validate_store(
+            input_path,
+            # get_storage_options returns the narrower S3FsOptions TypedDict
+            storage_options=cast("dict[str, Any] | None", storage_options),
         )
-
-        compliance_issues = []
-        total_variables = 0
-        compliant_variables = 0
-
-        log.info("\nValidation Results:")
-        log.info("==================")
-
-        for group_name, group in dt.children.items():
-            log.info("\nGroup", group_name=group_name)
-
-            if not hasattr(group, "data_vars") or not group.data_vars:
-                log.info("  ⚠️  No data variables found")
-                continue
-
-            for var_name, var in group.data_vars.items():
-                total_variables += 1
-                issues = []
-
-                # Check for _ARRAY_DIMENSIONS
-                if "_ARRAY_DIMENSIONS" not in var.attrs:
-                    issues.append("Missing _ARRAY_DIMENSIONS attribute")
-
-                # Check for standard_name
-                if "standard_name" not in var.attrs:
-                    issues.append("Missing standard_name attribute")
-
-                # Check for grid_mapping (for data variables, not grid_mapping variables)
-                if "grid_mapping" not in var.attrs and "grid_mapping_name" not in var.attrs:
-                    issues.append("Missing grid_mapping attribute")
-
-                if issues:
-                    log.info("  ❌", var_name=var_name, issues=", ".join(issues))
-                    compliance_issues.extend(issues)
-                else:
-                    log.info("  ✅", var_name=var_name, status="Compliant")
-                    compliant_variables += 1
-
-        log.info("\nSummary:")
-        log.info("========")
-        log.info("Total variables checked", total_variables=total_variables)
-        log.info("Compliant variables", compliant_variables=compliant_variables)
-        log.info(
-            "Non-compliant variables",
-            non_compliant=total_variables - compliant_variables,
-        )
-
-        if compliance_issues:
-            log.info("\n❌ Dataset is NOT GeoZarr compliant")
-            log.info("Issues found", issue_count=len(compliance_issues))
-            if args.verbose:
-                log.info("Detailed issues:")
-                for issue in set(compliance_issues):
-                    log.info("  -", issue=issue)
-        else:
-            log.info("\n✅ Dataset appears to be GeoZarr compliant")
-
     except Exception as e:
         log.info("❌ Error validating dataset", error=str(e))
         if args.verbose:
@@ -1124,6 +1075,19 @@ def validate_command(args: argparse.Namespace) -> None:
 
             traceback.print_exc()
         sys.exit(1)
+
+    log.info("\n%s", report.summary())
+    if report.issues:
+        log.info("\nIssues:")
+        for issue in report.issues:
+            log.info("  ❌ %s", str(issue))
+        log.info("\n❌ Dataset is NOT compliant with the GeoZarr minispec")
+        sys.exit(1)
+
+    if args.verbose:
+        for path, node_roles in sorted(report.roles.items()):
+            log.info("  ✅ %s (%s)", path, ", ".join(node_roles))
+    log.info("\n✅ Dataset is compliant with the GeoZarr minispec")
 
 
 def create_parser() -> argparse.ArgumentParser:

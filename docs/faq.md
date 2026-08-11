@@ -75,9 +75,9 @@ print(dt)  # Shows the full structure
 
 # Common Sentinel-2 groups:
 groups = [
-    "/measurements/r10m",  # 10m bands: B02, B03, B04, B08
-    "/measurements/r20m",  # 20m bands: B05, B06, B07, B8A, B11, B12
-    "/measurements/r60m"   # 60m bands: B01, B09, B10
+    "/measurements/reflectance/r10m",  # 10m bands: B02, B03, B04, B08
+    "/measurements/reflectance/r20m",  # 20m bands: B05, B06, B07, B8A, B11, B12
+    "/measurements/reflectance/r60m"   # 60m bands: B01, B09, B10
 ]
 ```
 
@@ -113,7 +113,7 @@ client = Client('scheduler-address:8786')
 # Use smaller chunks for distributed processing
 dt_geozarr = create_geozarr_dataset(
     dt_input=dt,
-    groups=["/measurements/r10m"],
+    groups=["/measurements/reflectance/r10m"],
     output_path="output.zarr",
     spatial_chunk=2048  # Smaller chunks work better with Dask
 )
@@ -127,14 +127,14 @@ Currently, the library processes all bands within a group. To process specific b
 # test: skip
 # Create subset with specific bands
 dt_subset = dt.copy()
-ds_10m = dt_subset["/measurements/r10m"].ds
+ds_10m = dt_subset["/measurements/reflectance/r10m"].ds
 ds_subset = ds_10m[["b02", "b03", "b04"]]  # Only RGB bands
-dt_subset["/measurements/r10m"].ds = ds_subset
+dt_subset["/measurements/reflectance/r10m"].ds = ds_subset
 
 # Then convert
 dt_geozarr = create_geozarr_dataset(
     dt_input=dt_subset,
-    groups=["/measurements/r10m"],
+    groups=["/measurements/reflectance/r10m"],
     output_path="rgb_only.zarr"
 )
 ```
@@ -187,7 +187,7 @@ groups = [g for g in dt.groups if "measurements" in g]
 # 1. Use smaller chunks
 dt_geozarr = create_geozarr_dataset(
     dt_input=dt,
-    groups=["/measurements/r10m"],
+    groups=["/measurements/reflectance/r10m"],
     output_path="output.zarr",
     spatial_chunk=1024  # Smaller chunks
 )
@@ -197,7 +197,7 @@ from dask.distributed import Client
 client = Client()
 
 # 3. Process groups one at a time
-for group in ["/measurements/r10m", "/measurements/r20m"]:
+for group in ["/measurements/reflectance/r10m", "/measurements/reflectance/r20m"]:
     dt_geozarr = create_geozarr_dataset(
         dt_input=dt,
         groups=[group],
@@ -258,7 +258,7 @@ zarr.consolidate_metadata("input.zarr")
 ```python
 # test: skip
 # Check CRS information
-ds = dt["/measurements/r10m"].ds
+ds = dt["/measurements/reflectance/r10m"].ds
 print("CRS variables:", [v for v in ds.data_vars if 'crs' in v.lower() or 'spatial_ref' in v])
 
 # Check coordinate attributes
@@ -375,7 +375,7 @@ Yes, the library supports mixed storage:
 dt = xr.open_datatree("local_input.zarr", engine="zarr")
 dt_geozarr = create_geozarr_dataset(
     dt_input=dt,
-    groups=["/measurements/r10m"],
+    groups=["/measurements/reflectance/r10m"],
     output_path="s3://bucket/output.zarr"
 )
 
@@ -383,7 +383,7 @@ dt_geozarr = create_geozarr_dataset(
 dt = xr.open_datatree("s3://bucket/input.zarr", engine="zarr")
 dt_geozarr = create_geozarr_dataset(
     dt_input=dt,
-    groups=["/measurements/r10m"],
+    groups=["/measurements/reflectance/r10m"],
     output_path="local_output.zarr"
 )
 ```
@@ -440,7 +440,7 @@ dt_input = xr.open_datatree("input.zarr", engine="zarr")
 dt_output = xr.open_datatree("output.zarr", engine="zarr")
 
 # Compare native resolution data
-ds_input = dt_input["/measurements/r10m"].ds
+ds_input = dt_input["/measurements/reflectance/r10m"].ds
 ds_output = dt_output["/measurements/reflectance/r10m"].ds
 
 # Check data values (should be identical)
@@ -475,7 +475,7 @@ def process_sentinel2_scene(input_path: str, output_path: str):
         dt = xr.open_datatree(input_path, engine="zarr")
         dt_geozarr = create_geozarr_dataset(
             dt_input=dt,
-            groups=["/measurements/r10m", "/measurements/r20m"],
+            groups=["/measurements/reflectance/r10m", "/measurements/reflectance/r20m"],
             output_path=output_path,
             spatial_chunk=4096
         )

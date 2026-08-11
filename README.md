@@ -21,12 +21,12 @@ GeoZarr is a set of modular [Zarr conventions](https://geozarr.org/conventions) 
 
 ## GeoZarr Compliance Features
 
-- `_ARRAY_DIMENSIONS` attributes on all arrays
-- CF standard names for all variables
-- `grid_mapping` attributes referencing CF grid_mapping variables
-- `GeoTransform` attributes in grid_mapping variables
-- Proper multiscales metadata structure
+- `zarr_conventions` declarations on every node that uses a convention
+- `proj:` and `spatial:` convention attributes on datasets and the store root
+- `multiscales` convention metadata with per-level `spatial:shape` / `spatial:transform`
+- Store-root spatial footprint (`spatial:bbox` + `proj:code` in EPSG:4326)
 - Native CRS preservation
+- CF metadata (`standard_name`, `grid_mapping`) retained for legacy readers
 
 ## Installation
 
@@ -181,7 +181,7 @@ dt = xr.open_datatree("path/to/eopf/dataset.zarr", engine="zarr")
 # Convert directly to S3
 dt_geozarr = create_geozarr_dataset(
     dt_input=dt,
-    groups=["/measurements/r10m", "/measurements/r20m", "/measurements/r60m"],
+    groups=["/measurements/reflectance/r10m", "/measurements/reflectance/r20m", "/measurements/reflectance/r60m"],
     output_path="s3://my-bucket/geozarr-data/output.zarr",
     spatial_chunk=4096,
     min_dimension=256,
@@ -199,7 +199,7 @@ from eopf_geozarr import create_geozarr_dataset
 dt = xr.open_datatree("path/to/eopf/dataset.zarr", engine="zarr")
 
 # Define groups to convert (e.g., resolution groups)
-groups = ["/measurements/r10m", "/measurements/r20m", "/measurements/r60m"]
+groups = ["/measurements/reflectance/r10m", "/measurements/reflectance/r20m", "/measurements/reflectance/r60m"]
 
 # Convert to GeoZarr compliant format
 dt_geozarr = create_geozarr_dataset(
@@ -360,13 +360,23 @@ The library is organized into the following modules:
 
 ## GeoZarr Specification Compliance
 
-This library implements the GeoZarr conventions with the following key requirements:
+This library implements the GeoZarr conventions as specified in the
+[GeoZarr Mini Spec](docs/geozarr-minispec.md):
 
-1. **Array Dimensions**: All arrays must have `_ARRAY_DIMENSIONS` attributes
-2. **CF Standard Names**: All variables must have CF-compliant `standard_name` attributes
-3. **Grid Mapping**: Data variables must reference CF grid_mapping variables via `grid_mapping` attributes
-4. **Multiscales Structure**: Overview levels are stored as children groups with proper `multiscales` convention metadata
+1. **Convention Declarations**: Every node using a convention declares it in `zarr_conventions`
+2. **Store Root Footprint**: The store root carries `spatial:bbox` and `proj:code` (EPSG:4326)
+3. **Geospatial Datasets**: Groups carry `proj:` (CRS) and `spatial:` (georeferencing) convention attributes
+4. **Multiscales Structure**: Multiscale groups carry a `multiscales.layout` whose entries have `spatial:shape` and `spatial:transform`; each level qualifies as a GeoZarr dataset
 5. **Native CRS**: Coordinate reference systems are preserved without reprojection
+
+Compliance can be checked with the built-in validator:
+
+```bash
+eopf-geozarr validate output.zarr
+```
+
+The validator walks the store and reports every minispec violation with its
+Zarr node path, exiting non-zero when the store is not compliant.
 
 ## Contributing to GeoZarr Specification
 
