@@ -26,6 +26,7 @@ def open_source_datatree(
     storage_options: S3FsOptions | dict[str, Any] | None = None,
     cache_dir: str | None = None,
     engine: str = "zarr",
+    mask_and_scale: bool = True,
 ) -> xr.DataTree:
     """Open a source datatree with dask chunks matching the native zarr chunks.
 
@@ -46,6 +47,10 @@ def open_source_datatree(
         ephemeral directory.
     engine : str
         xarray backend engine, default ``"zarr"``.
+    mask_and_scale : bool
+        Forwarded to ``xr.open_datatree``. Pass ``False`` to keep variables
+        packed (e.g. uint16 with CF scale_factor/add_offset in ``.attrs``)
+        instead of CF-decoding to floats, as the OLCI converter requires.
 
     Returns
     -------
@@ -61,6 +66,7 @@ def open_source_datatree(
             engine=engine,
             chunks={},
             storage_options=storage_options,
+            mask_and_scale=mask_and_scale,
         )
     # Imported lazily: CacheStore is zarr's experimental API, so a relocation
     # in a future zarr release must not break importing this package.
@@ -87,4 +93,9 @@ def open_source_datatree(
     cached = CacheStore(source, cache_store=LocalStore(source_cache))
     # xarray's open_datatree accepts a zarr store at runtime, but its stub does
     # not list Store among the accepted input types.
-    return xr.open_datatree(cached, engine=engine, chunks={})  # pyright: ignore[reportArgumentType]
+    return xr.open_datatree(
+        cached,  # pyright: ignore[reportArgumentType]
+        engine=engine,
+        chunks={},
+        mask_and_scale=mask_and_scale,
+    )

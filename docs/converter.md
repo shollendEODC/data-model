@@ -177,6 +177,74 @@ dt_optimized = convert_s2_optimized(
 
 The result is a space-efficient multiscale pyramid: `/measurements/reflectance/{r10m, r20m, r60m, r120m, r360m, r720m}` where the native resolutions are preserved as-is and only the coarser levels are computed.
 
+## Sentinel-3 OLCI L1 EFR Conversion
+
+Sentinel-3 OLCI (Ocean and Land Colour Instrument) Level-1 EFR (Full Resolution)
+products are supported.  OLCI measurements keep **native swath geometry by
+default**: a per-pixel 2-D lat/lon grid, with no reprojection.  Passing
+`--output-grid <CRS>` opts into a one-time warp of the swath measurements onto
+a regular grid (e.g. `EPSG:4326`) using the swath geolocation arrays.  Either
+way, the converter then generates /2 fill-aware block-averaged overview
+subgroups for multi-resolution access.
+
+### Auto-detection
+
+The generic `convert` command detects OLCI products automatically:
+
+```bash
+eopf-geozarr convert S3A_OL_1_EFR.zarr output.zarr
+```
+
+### Dedicated command
+
+A dedicated command offers fine-grained control:
+
+```bash
+eopf-geozarr convert-s3-olci-optimized S3A_OL_1_EFR.zarr output.zarr \
+    --spatial-chunk 1024 \
+    --min-dimension 256 \
+    --compression-level 3
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--spatial-chunk` | 1024 | Target spatial chunk size in pixels |
+| `--compression-level` | 3 | Blosc/zstd compression level (1–9) |
+| `--min-dimension` | 256 | Minimum spatial dimension for overview levels |
+| `--enable-sharding` | off | Accepted but not yet wired into encoding (follow-up task) |
+| `--keep-scale-offset` | off | Accepted but not yet wired into encoding (follow-up task) |
+| `--output-grid` | native | `native` preserves instrument geometry; any CRS string (e.g. `EPSG:4326`) warps onto a regular grid |
+
+### Output layout
+
+```
+output.zarr/
+├── measurements/        # Carries multiscales + spatial: convention metadata
+│                        # (+ proj: when --output-grid is a CRS)
+│   ├── r0/             # Native-resolution bands (instrument grid by default; regular
+│   │                   # y/x grid with spatial_ref when --output-grid is a CRS)
+│   ├── r2/             # 1/2-resolution overview
+│   ├── r4/             # 1/4-resolution overview
+│   └── ...
+├── conditions/          # Copied through unmodified (tie-point geometry, meteorology)
+└── quality/             # Copied through unmodified (quality flags)
+```
+
+Each measurement group carries GeoZarr `spatial:` convention metadata (plus
+`proj:` metadata when a CRS is selected).
+In native mode (`--output-grid native`, the default) bands keep per-pixel 2-D
+`latitude`/`longitude`/`altitude` and per-row `time_stamp`, with no projected CRS.
+When `--output-grid <CRS>` is given, bands are warped onto a regular grid with 1-D
+`y`/`x` dimension coordinates and a `spatial_ref` variable referenced by
+`grid_mapping` on every band; per-scan-line `time_stamp` has no representation on
+a regular grid and is dropped (it remains in the source product).
+
+> **Note:** OLCI support is initial/measurements-focused (v1).  Tie-point grid
+> groups in `conditions/geometry`, `meteorology`, and `instrument` are copied
+> through but not converted to GeoZarr convention.  Encoding wiring for
+> `--enable-sharding`, `--spatial-chunk`, `--compression-level`, and
+> `--keep-scale-offset` is accepted but scheduled as a follow-up task.
+
 ## Error Handling
 
 The converter includes robust error handling and retry logic for network operations, ensuring reliable processing even in challenging environments.

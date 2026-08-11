@@ -282,6 +282,73 @@ Check if a variable is a grid_mapping variable by looking for references to it.
 
 Validate that a specific band exists and is complete in the dataset.
 
+## Supported Products
+
+### Sentinel-2 MSI
+
+Sentinel-2 MSI (MultiSpectral Instrument) L1C and L2A products are detected
+automatically by `eopf-geozarr convert` and routed to the optimized multiscale
+layout (`convert-s2-optimized`).  The three native resolution groups (10 m, 20 m,
+60 m) are reused as-is and coarser overviews (120 m, 360 m, 720 m) are computed
+via /2 downsampling.
+
+### Sentinel-3 OLCI L1 EFR
+
+Sentinel-3 OLCI (Ocean and Land Colour Instrument) Level-1 EFR (Full Resolution)
+products are detected automatically by `eopf-geozarr convert` and routed to the
+dedicated OLCI converter.  Unlike Sentinel-2, OLCI data starts out on **native
+swath geometry**: measurements are stored on a per-pixel 2-D lat/lon grid.  By
+default the exporter preserves that instrument geometry; pass
+`--output-grid <CRS>` (e.g. `EPSG:4326`) to warp the swath once onto a regular
+grid so the output is a standard, tileable GeoZarr raster.
+
+#### Auto-detection
+
+```bash
+eopf-geozarr convert S3A_OL_1_EFR.zarr output.zarr
+```
+
+#### Dedicated command
+
+```bash
+eopf-geozarr convert-s3-olci-optimized S3A_OL_1_EFR.zarr output.zarr \
+    --spatial-chunk 1024 \
+    --min-dimension 256 \
+    --compression-level 3
+```
+
+Key flags:
+
+- `--spatial-chunk` — target spatial chunk size in pixels (default: 1024)
+- `--compression-level` — Blosc/zstd compression level 1–9 (default: 3)
+- `--min-dimension` — stop generating /2 overview levels once either spatial
+  dimension would drop below this value (default: 256)
+- `--enable-sharding` — accepted but not yet wired into encoding (follow-up task)
+- `--keep-scale-offset` — accepted but not yet wired into encoding (follow-up task)
+- `--output-grid` — `native` (default) preserves the instrument swath geometry; any other value is parsed as a CRS (e.g. `EPSG:4326`) and the swath is warped once onto a regular grid
+
+#### What is converted
+
+- **`/measurements/r0`**: all 21 OLCI radiance bands. By default
+  (`output_grid="native"`) the instrument swath geometry is preserved:
+  raw bands with per-pixel 2-D `latitude`/`longitude`/`altitude` and
+  per-row `time_stamp`, and no projected CRS. With `--output-grid
+  <CRS>` (e.g. `EPSG:4326`) the swath is warped once onto a regular
+  grid with 1-D `y`/`x` coordinates, a `spatial_ref` variable, and
+  `grid_mapping` on every band (per-scan-line `time_stamp` has no home
+  on a regular grid and is dropped; it remains in the source product).
+- **Overview subgroups** (`r2`, `r4`, …): /2 fill-aware block-averaged
+  copies as sibling groups next to `r0`. In native mode overview
+  lat/lon are per-block geodesic centroids; in regridded mode each
+  level carries its own CRS metadata.
+- **`/conditions` and `/quality`**: copied through unmodified.
+
+> **Note:** OLCI support is initial/measurements-focused (v1).  Tie-point grid
+> groups (`conditions/geometry`, `meteorology`, `instrument`) are copied through but
+> not converted to GeoZarr convention.  Encoding wiring for `--enable-sharding`,
+> `--spatial-chunk`, `--compression-level`, and `--keep-scale-offset` is accepted
+> but scheduled as a follow-up task.
+
 ## Architecture
 
 The library is organized into the following modules:

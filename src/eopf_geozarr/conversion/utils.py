@@ -117,6 +117,12 @@ def sanitize_array_attrs(
       carried), not in its attributes; callers that need a CF ``_FillValue``
       attribute (e.g. the NaN workaround for xarray issue #11345) must re-add
       it after sanitizing.
+
+      .. warning:: The Sentinel-3 OLCI converter has its own deliberately
+         divergent sanitizer
+         (``s3_olci_optimization.olci_converter._sanitize_olci_array_attrs_keep_fill``)
+         that **preserves** ``_FillValue`` for raw (non-mask-scaled) input.
+         Edits to the strip-list here do not apply there, and vice versa.
     - For decoded float measurement arrays (*is_decoded_float=True*), also
       removes raw-encoding leftovers ``dtype``, ``fill_value``,
       ``valid_min``, ``valid_max`` and rewrites
