@@ -219,3 +219,9 @@ uv.lock
 src/eopf_geozarr/_version.py
 analysis/.edh_token
 docs/superpowers/
+
+
+#shollend
+main.py
+.vscode/*
+mappers/*
