@@ -137,10 +137,18 @@ def _coarsen_variable(var_name: str, var_data: xr.DataArray, factor: int) -> xr.
     based on `determine_variable_type`.  Preserves encoding and dtype.
     """
     var_type = determine_variable_type(var_name, var_data)
+
     coarsened = var_data.coarsen({"x": factor, "y": factor}, boundary="trim")
     if var_type in ("reflectance", "probability"):
-        # xarray stubs omit reduction methods on DataArrayCoarsen.
-        result = coarsened.mean()  # type: ignore[attr-defined]
+        # adding the consideration (they are not considered during aggregation) of nan values during resampling -> recast and reassigned later
+        fill_value = var_data.fill_value
+        if fill_value is not None:
+            # mask all 0 as nan -> recast to int later anyway
+            masked = var_data.where(var_data != fill_value)
+            # redefine coarsen operation
+            result = masked.coarsen({"x": factor, "y": factor}, boundary="trim").mean(skipna=True).fillna(fill_value) # type: ignore
+        else:
+            result = coarsened.mean() # type: ignore
     elif var_type == "classification":
         result = coarsened.reduce(subsample_2)
     elif var_type == "quality_mask":
@@ -296,7 +304,7 @@ def create_multiscale_from_datatree(
             and "/measurements/" in group_path
         )
 
-        if is_measurement_group:
+        if is_measurement_group:    
             # Inject bands whose native resolution is finer than this group's
             # (e.g. b08 native at 10m into r20m/r60m) so they propagate through
             # the full overview chain (r120m … r720m).
