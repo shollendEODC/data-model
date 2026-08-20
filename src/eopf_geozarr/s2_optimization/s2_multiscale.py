@@ -167,6 +167,11 @@ def _coarsen_variable(var_name: str, var_data: xr.DataArray, factor: int) -> xr.
     return cast_result
 
 
+def _rechunk_ds(ds: xr.Dataset, spatial_chunk: int) -> xr.Dataset:
+    chunks = {dim: (min(spatial_chunk, size)) for dim, size in ds.sizes.items()}
+    return ds.chunk(chunks)
+
+
 def inject_missing_bands(
     dataset: xr.Dataset,
     dt_input: xr.DataTree,
@@ -287,14 +292,21 @@ def create_multiscale_from_datatree(
         if hasattr(group_node, "children") and len(group_node.children) > 0:
             continue
 
-        dataset = group_node.to_dataset()
+        base_dataset = group_node.to_dataset()
 
         # Skip empty groups
-        if not dataset.data_vars:
+        if not base_dataset.data_vars:
             log.info("Skipping empty group: {}", group_path=group_path)
             continue
 
         log.info("Copying original group: {}", group_path=group_path)
+
+        # first rechunk the dataset
+        if next(iter(base_dataset.data_vars.values())).chunksizes:
+            dataset = _rechunk_ds(base_dataset, spatial_chunk)
+            pass
+        else:
+            dataset = base_dataset
 
         # Determine if this is a measurement-related resolution group
         group_name = group_path.split("/")[-1]
@@ -1243,7 +1255,8 @@ def stream_write_dataset(
     # Add the geo metadata before writing for
     # - /measurements/ groups
     # - /quality/ groups
-    if "/measurements/" in path or "/quality/" in path:
+    # - /consitions/mask groups
+    if "/measurements/" in path or "/quality/" in path or "/conditions/mask" in path:
         write_geo_metadata(dataset, crs=crs)
 
     # Sanitize NaN values in dataset attributes before writing

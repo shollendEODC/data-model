@@ -225,3 +225,4 @@ docs/superpowers/
 main.py
 .vscode/*
 mappers/*
+overwrite_mapper.py
