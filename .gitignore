@@ -223,6 +223,6 @@ docs/superpowers/
 
 #shollend
 main.py
-.vscode/*
+.vscode/ownlaunch.json
 mappers/*
 overwrite_mapper.py
