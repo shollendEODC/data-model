@@ -176,6 +176,7 @@ def inject_missing_bands(
     dataset: xr.Dataset,
     dt_input: xr.DataTree,
     target_resolution: int,
+    spatial_chunk: int,
     *,
     bands: set[str] | None = None,
 ) -> xr.Dataset:
@@ -214,6 +215,7 @@ def inject_missing_bands(
             continue
 
         source_ds = dt_input[source_path].to_dataset()
+        
         if band_name not in source_ds.data_vars:
             continue
 
@@ -221,13 +223,20 @@ def inject_missing_bands(
         factor = target_resolution // native_res
         band_ds = _coarsen_variable(band_name, band_src, factor)
 
+        # add attribute value acknoleding the own resampling
+        trgt_attrs = band_src.attrs
+        trgt_attrs.update({'_processing_mode': 'Own method. This band was added by ds.coarsening(...) to allow a full colelction of bands at the spatial resolution of 60m to allow the uniform calcualtion of multiscales. Do not use these bands for computation.',
+                           '_derived_from': f"r{native_res}m",
+                           '_factor': factor,
+                           '_resampling_mode': 'mean'})
+
         # Replace coordinates with the target dataset's coordinates so that
         # xarray.Dataset.assign does not try to align on mismatched values.
         band_ds = xr.DataArray(
             band_ds.values,
             dims=band_ds.dims,
             coords={d: dataset.coords[d] for d in band_ds.dims if d in dataset.coords},
-            attrs=band_ds.attrs,
+            attrs=trgt_attrs,
             name=band_name,
         )
 
@@ -243,7 +252,7 @@ def inject_missing_bands(
             shape=band_ds.shape,
         )
 
-    return dataset
+    return _rechunk_ds(dataset, spatial_chunk)
 
 
 def create_multiscale_from_datatree(
@@ -273,6 +282,16 @@ def create_multiscale_from_datatree(
     processed_groups: dict[str, Any] = {}
     # The scale levels in the output data. 10, 20, 60 already exist in the source data.
 
+    # cheap dEtermination if its L2A or L1C
+    filename = dt_input.name
+    if filename and 'L2A' in filename:
+        s2_type = 'L2A'
+    elif filename and 'L1C' in filename:
+        s2_type = 'L1C'
+    else:
+        s2_type = None
+        log.info("not found a matching s2_type {}: is not matching L2A or L1C", s2_type=s2_type)
+        
     # Step 1: Copy all original groups as-is
     for group_path in dt_input.groups:
         if group_path == ".":
@@ -304,7 +323,6 @@ def create_multiscale_from_datatree(
         # first rechunk the dataset
         if next(iter(base_dataset.data_vars.values())).chunksizes:
             dataset = _rechunk_ds(base_dataset, spatial_chunk)
-            pass
         else:
             dataset = base_dataset
 
@@ -325,14 +343,37 @@ def create_multiscale_from_datatree(
                     group_resolution = int(group_name[1:-1])
                 except ValueError:
                     group_resolution = 0
-                if group_resolution > 10:
-                    dataset = inject_missing_bands(
-                        dataset,
-                        dt_input,
-                        group_resolution,
-                        bands={"b08"},
-                    )
 
+                # just add the b08 band
+                if s2_type == 'L2A':
+                    if group_resolution > 10:
+                        dataset = inject_missing_bands(
+                            dataset,
+                            dt_input,
+                            group_resolution,
+                            spatial_chunk,
+                            bands={"b08"},
+                        )
+
+                # add all lower level bands here!
+                elif s2_type == 'L1C':
+                    if group_resolution == 20:
+                        dataset = inject_missing_bands(
+                            dataset,
+                            dt_input,
+                            group_resolution,
+                            spatial_chunk,
+                            bands={"b02", "b03", "b04", "b08",},
+                        )
+                    elif group_resolution == 60:
+                        dataset = inject_missing_bands(
+                            dataset,
+                            dt_input,
+                            group_resolution,
+                            spatial_chunk,
+                            bands={"b02", "b03", "b04", "b08", "b05", "b06",  "b07", "b8a", "b11", "b12"},
+                        )
+                
             # Measurement groups: apply custom encoding
             encoding = create_uniform_encoding(
                 dataset,
