@@ -52,7 +52,7 @@ from eopf_geozarr.cpm.routing import (
     select_pipeline,
 )
 from eopf_geozarr.s2_optimization.s2_converter import convert_s2_optimized
-from eopf_geozarr.s3_olci_optimization.olci_converter import convert_olci_optimized
+from eopf_geozarr.s3_olci_optimization.olci_converter import convert_olci_optimized, own_convert_olci_optimized
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -244,7 +244,7 @@ class GeoZarrWriter(EOWriter):
             )
 
         if selected_pipeline == "s3-olci-optimized":
-            return convert_olci_optimized(
+            return own_convert_olci_optimized(
                 dt_input=dtree,
                 output_path=output_path,
                 enable_sharding=enable_sharding,
