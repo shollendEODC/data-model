@@ -532,8 +532,14 @@ def get_chunking_for_encoding(var_data: xr.DataArray) -> Tuple[int, ...]:
     if var_data.chunks:
         # get the maximal chunk shape for zarr encoding -> theoretically it wouldnt be necessary to take the max, as non-uniform chukning (1024, 806) 
         # has irregular chunksizes trailing, but the syntax and goal of the code is much clearer this way
-        max_chunksize = max([max(c) for c in var_data.chunks])
-        encoding_chunks = (max_chunksize, max_chunksize)
+        max_chunksizes = [max(c) for c in var_data.chunks]
+
+        # consider the occurance of 1dim arrays, provide the encoding chunk ndim times
+        if var_data.ndim == 1:
+            encoding_chunks = (max_chunksizes[0], )
+        else:
+            encoding_chunks = tuple(max_chunksizes)
+
         return encoding_chunks
     else:
         # create a single shard for whole array
@@ -548,6 +554,7 @@ def create_uniform_encoding(
     enable_sharding: bool = True,
     keep_scale_offset: bool = True,
     experimental_scale_offset_codec: bool = False,
+    compression_level: int = 3,
 ) -> dict[str, XarrayDataArrayEncoding]:
     """
     Create encoding (compression, chunking, sharding) for a dataset.
@@ -569,7 +576,7 @@ def create_uniform_encoding(
     from zarr.codecs import BloscCodec
 
     encoding: dict[str, XarrayDataArrayEncoding] = {}
-    compressor = BloscCodec(cname="zstd", clevel=3, shuffle="shuffle", blocksize=0)
+    compressor = BloscCodec(cname="zstd", clevel=compression_level, shuffle="shuffle", blocksize=0)
 
     for var_name, var_data in dataset.data_vars.items():
         var_encoding: XarrayDataArrayEncoding = {}
@@ -581,11 +588,7 @@ def create_uniform_encoding(
 
         # --- Shards: cover the whole array, one shard per array -----------
         if enable_sharding:
-            # select next largest mutliple of chunksize to fit full array
-            shards = tuple(
-                math.ceil(shape / chunk) * chunk
-                for shape, chunk in zip(var_data.shape, encoding_chunks)
-            )
+            shards = tuple(math.ceil(shape / chunk) * chunk for shape, chunk in zip(var_data.shape, encoding_chunks))
             var_encoding["shards"] = shards
         else:
             var_encoding["shards"] = None
