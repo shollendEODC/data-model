@@ -6,7 +6,7 @@ Uses lazy evaluation to minimize memory usage during dataset preparation.
 from __future__ import annotations
 
 from itertools import pairwise
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast, Tuple
 
 import numpy as np
 import structlog
@@ -17,6 +17,7 @@ from dask.delayed import delayed
 from pydantic.experimental.missing_sentinel import MISSING
 from pyproj import CRS
 from zarr.codecs import CastValue
+from enum import Enum
 
 from eopf_geozarr.conversion import utils
 from eopf_geozarr.conversion.fs_utils import sanitize_dataset_attributes
@@ -41,6 +42,21 @@ if TYPE_CHECKING:
     from zarr_cm import spatial as spatial_cm
 
     from eopf_geozarr.types import OverviewLevelJSON
+
+
+class S2Type(Enum):
+    L1C = "L1C"
+    L2A = "L2A"
+
+    @classmethod
+    def from_filename(cls, filename: str | None) -> S2Type | None:
+        if not filename:
+            return None
+        for member in cls:
+            if member.value in filename:
+                return member
+        return None
+
 
 log = structlog.get_logger()
 
@@ -140,12 +156,16 @@ def _coarsen_variable(var_name: str, var_data: xr.DataArray, factor: int) -> xr.
 
     coarsened = var_data.coarsen({"x": factor, "y": factor}, boundary="trim")
     if var_type in ("reflectance", "probability"):
-        # adding the consideration (they are not considered during aggregation) of nan values during resampling -> recast and reassigned later
+        # Cast the input array to float and ignore nans during the .coarsen() operation, which could not be considered in int array with "nan-value" == 0.
+        # This prohibits the inclusion of 0 values in the mean calculation of multiscales, mainly impacting the boder regions of arrays
+        
+        # nan values are later refilled again with 0s (or fillna values) to conform with int array requirements
         fill_value = var_data.fill_value
         if fill_value is not None:
-            # mask all 0 as nan -> recast to int later anyway
+            # mask all 0 as nan in float array
             masked = var_data.where(var_data != fill_value)
-            # redefine coarsen operation
+
+            #redefine coarsen operation to ignore nans and fill up with fill_value later
             result = masked.coarsen({"x": factor, "y": factor}, boundary="trim").mean(skipna=True).fillna(fill_value) # type: ignore
         else:
             result = coarsened.mean() # type: ignore
@@ -195,6 +215,7 @@ def inject_missing_bands(
         dt_input: The full input DataTree (used to locate finer-resolution
             source bands).
         target_resolution: Target resolution in metres (e.g. 20 or 60).
+        spatial_chunk: Spatial chunk size
         bands: If provided, only inject these band names.  If `None`
             (default), inject every eligible band from `BAND_INFO`.
 
@@ -225,8 +246,7 @@ def inject_missing_bands(
 
         # add attribute value acknoleding the own resampling
         trgt_attrs = band_src.attrs
-        trgt_attrs.update({'_processing_mode': 'Own method. This band was added by ds.coarsening(...) to allow a full colelction of bands at the spatial resolution of 60m to allow the uniform calcualtion of multiscales. Do not use these bands for computation.',
-                           '_derived_from': f"r{native_res}m",
+        trgt_attrs.update({'_derived_from': f"r{native_res}m",
                            '_factor': factor,
                            '_resampling_mode': 'mean'})
 
@@ -284,12 +304,9 @@ def create_multiscale_from_datatree(
 
     # cheap dEtermination if its L2A or L1C
     filename = dt_input.name
-    if filename and 'L2A' in filename:
-        s2_type = 'L2A'
-    elif filename and 'L1C' in filename:
-        s2_type = 'L1C'
-    else:
-        s2_type = None
+    s2_type = S2Type.from_filename(filename)
+
+    if s2_type is None:
         log.info("not found a matching s2_type {}: is not matching L2A or L1C", s2_type=s2_type)
         
     # Step 1: Copy all original groups as-is
@@ -501,6 +518,29 @@ def create_multiscale_from_datatree(
     return processed_groups
 
 
+def get_chunking_for_encoding(var_data: xr.DataArray) -> Tuple[int, ...]:
+    """ 
+        requires a prior rechunking of the dataset by calling _rechunk_ds() to rechunk non-metadata arrays to spatial_chunk
+        get a tuple of maximal chunksize for the dataarray 
+        -> (1024, 1024) for spatial arrays
+        -> (x, y, z, ..) for multidimensional metadata arrays (just to allow sharding later on)
+
+        Args:
+            var_data: DataArray to get the chunks from
+
+    """
+    if var_data.chunks:
+        # get the maximal chunk shape for zarr encoding -> theoretically it wouldnt be necessary to take the max, as non-uniform chukning (1024, 806) 
+        # has irregular chunksizes trailing, but the syntax and goal of the code is much clearer this way
+        max_chunksize = max([max(c) for c in var_data.chunks])
+        encoding_chunks = (max_chunksize, max_chunksize)
+        return encoding_chunks
+    else:
+        # create a single shard for whole array
+        encoding_chunks = var_data.shape
+        return encoding_chunks
+
+
 def create_uniform_encoding(
     dataset: xr.Dataset,
     *,
@@ -534,36 +574,21 @@ def create_uniform_encoding(
     for var_name, var_data in dataset.data_vars.items():
         var_encoding: XarrayDataArrayEncoding = {}
 
-        # --- Chunks: preserve input chunking, only compute if absent -------
-        if var_data.chunks:
-            # var_data.chunks is a tuple of per-dimension chunk-size tuples
-            # (e.g. dask/xarray chunks). Take the first chunk size along each
-            # dim as the zarr chunk size for that dim.
-            max_chunksize = max([max(c) for c in var_data.chunks])
-            chunks = (max_chunksize, max_chunksize)
-        else:
-            if var_data.ndim >= 2:
-                # assign full chuknsize for multidiomensional metadata chukns
-                chunks = var_data.shape
-            else:
-                # if no chunks are set
-                chunks = (min(spatial_chunk, var_data.shape[0]),)
+        encoding_chunks = get_chunking_for_encoding(var_data)
 
-        var_encoding["chunks"] = chunks
+        var_encoding["chunks"] = encoding_chunks
         var_encoding["compressors"] = (compressor,)
 
         # --- Shards: cover the whole array, one shard per array -----------
         if enable_sharding:
             # select next largest mutliple of chunksize to fit full array
-            shard_dims = tuple(
+            shards = tuple(
                 math.ceil(shape / chunk) * chunk
-                for shape, chunk in zip(var_data.shape, chunks)
+                for shape, chunk in zip(var_data.shape, encoding_chunks)
             )
-            var_encoding["shards"] = shard_dims
+            var_encoding["shards"] = shards
         else:
             var_encoding["shards"] = None
-
-        ### SHOLLEND: didnt touch anything from here onwards, jsut cp from their encoding functions
 
         # --- Forward-propagate remaining encoding keys ---------------------
         keep_keys = XARRAY_ENCODING_KEYS - {"compressors", "shards", "chunks"}
@@ -820,29 +845,29 @@ def calculate_simple_shard_dimensions(
     Shard dimensions must be evenly divisible by chunk dimensions for Zarr v3.
     When possible, shards should match x/y dimensions exactly as required.
     """
-    shard_dims = []
+    shards = []
 
     for i, (dim_size, chunk_size) in enumerate(zip(data_shape, chunks, strict=False)):
         if i == 0 and len(data_shape) == 3:
             # First dimension in 3D data (time) - use single time slice per shard
-            shard_dims.append(1)
+            shards.append(1)
         else:
             # For x/y dimensions, try to use full dimension size
             # But ensure it's divisible by chunk size
             if dim_size % chunk_size == 0:
                 # Perfect: full dimension is divisible by chunk
-                shard_dims.append(dim_size)
+                shards.append(dim_size)
             else:
                 # Find the largest multiple of chunk_size that fits
                 num_chunks = dim_size // chunk_size
                 if num_chunks > 0:
                     shard_size = num_chunks * chunk_size
-                    shard_dims.append(shard_size)
+                    shards.append(shard_size)
                 else:
                     # Fallback: use chunk size itself
-                    shard_dims.append(chunk_size)
+                    shards.append(chunk_size)
 
-    return tuple(shard_dims)
+    return tuple(shards)
 
 
 def add_multiscales_metadata_to_parent(
