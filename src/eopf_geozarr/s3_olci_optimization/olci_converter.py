@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import TYPE_CHECKING, Iterable, cast, Tuple
+from typing import TYPE_CHECKING, Dict, cast, Tuple
 
-import attrs
 import numpy as np
 import rioxarray  # noqa: F401
 import structlog
@@ -219,7 +218,7 @@ def calculate_olci_pyramids(measurements_ds: xr.Dataset,
                             min_dimension: int = 256,
                             crs: CRS | None = None,
                             **kwargs
-                            ) -> Iterable[xr.Dataset]:
+                            ) -> Dict[str, xr.Dataset]:
 
     from eopf_geozarr.s2_optimization.s2_multiscale import _rechunk_ds
 
@@ -304,7 +303,7 @@ def calculate_olci_pyramids(measurements_ds: xr.Dataset,
     root_rw[output_group].attrs.update(cast("dict[str, JSON]", conv))
 
     # bogus
-    return [current]
+    return level_datasets
 
 
 def own_convert_olci_optimized(
@@ -434,8 +433,7 @@ def own_convert_olci_optimized(
 
         rechunked_dt[group_path] = dataset
 
-    ### conditions/quality ###
-    
+    ### conditions/quality -> add GeoZarr functionality ###
     # Copy conditions/quality through unchanged (if present).
     # DataTree.to_zarr does not support a root ``group`` argument, so we
     # iterate the subtree and write each leaf Dataset individually.
