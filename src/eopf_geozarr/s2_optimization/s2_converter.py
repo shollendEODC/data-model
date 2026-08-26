@@ -265,6 +265,7 @@ def convert_s2_optimized(
         crs=crs,
         keep_scale_offset=keep_scale_offset,
         experimental_scale_offset_codec=experimental_scale_offset_codec,
+        compression_level=compression_level,
     )
 
     log.info("Created multiscale pyramids", num_groups=len(datasets))
