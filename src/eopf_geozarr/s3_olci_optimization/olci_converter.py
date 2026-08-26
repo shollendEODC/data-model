@@ -12,7 +12,7 @@ import xarray as xr
 import zarr
 from rasterio.crs import CRS
 
-from eopf_geozarr.conversion.utils import build_convention_attrs
+from eopf_geozarr.conversion.utils import build_convention_attrs, _rechunk_ds, create_uniform_encoding, rechunk_dataset_for_encoding
 from eopf_geozarr.data_api.s3_olci import Sentinel3OlciRoot
 from eopf_geozarr.s3_olci_optimization.olci_band_mapping import OLCI_BANDS
 from eopf_geozarr.s3_olci_optimization.olci_multiscale import (
@@ -158,7 +158,6 @@ def _copy_subtree(node: xr.DataTree, output_path: str, *, root_group: str) -> No
     """
     node_path = node.path  # e.g. "/conditions"
     for child in node.subtree:
-        print(child.path)
         ds = child.to_dataset()
         if not ds.data_vars and not ds.coords:
             continue
@@ -188,7 +187,6 @@ def write_olci_part(ds: xr.Dataset,
                     compression_level: int = 3,
                     keep_scale_offset: bool = False,) -> xr.Dataset:
     
-    from eopf_geozarr.s2_optimization.s2_multiscale import create_uniform_encoding, rechunk_dataset_for_encoding
     zarr_encoding = create_uniform_encoding(ds,
                                             spatial_chunk=spatial_chunk,
                                             enable_sharding=enable_sharding,
@@ -219,8 +217,6 @@ def calculate_olci_pyramids(measurements_ds: xr.Dataset,
                             crs: CRS | None = None,
                             **kwargs
                             ) -> Dict[str, xr.Dataset]:
-
-    from eopf_geozarr.s2_optimization.s2_multiscale import _rechunk_ds
 
     def _level_spatial(level_ds: xr.Dataset, crs: CRS | None) -> SpatialAttrs:
         if crs is None:
@@ -388,7 +384,6 @@ def own_convert_olci_optimized(
         raise ValueError(f"min_dimension must be >= 1; got {min_dimension}")
 
     # two processing steps
-    from eopf_geozarr.s2_optimization.s2_multiscale import _rechunk_ds
     # 0.5) Rechunkg all data
     # 1.) measurements
     # 2.) all other conditions/quality

@@ -1,6 +1,6 @@
 """Utility functions for GeoZarr conversion."""
 
-from typing import Any, Protocol, cast, runtime_checkable
+from typing import Any, Protocol, cast, runtime_checkable, TYPE_CHECKING
 
 import numpy as np
 import rasterio  # noqa: F401  # Import to enable .rio accessor
@@ -20,6 +20,9 @@ from eopf_geozarr.data_api.geozarr.types import (
     XarrayDataArrayEncoding,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Hashable, Mapping
+
 
 log = structlog.get_logger()
 
@@ -27,6 +30,49 @@ log = structlog.get_logger()
 def _rechunk_ds(ds: xr.Dataset, spatial_chunk: int) -> xr.Dataset:
     chunks = {dim: (min(spatial_chunk, size)) for dim, size in ds.sizes.items()}
     return ds.chunk(chunks)
+
+
+def rechunk_dataset_for_encoding(
+    dataset: xr.Dataset, encoding: dict[str, XarrayDataArrayEncoding]
+) -> xr.Dataset:
+    """
+    Rechunk dataset variables to align with sharding dimensions when sharding is enabled.
+
+    When using Zarr v3 sharding, Dask chunks must align with shard dimensions to avoid
+    checksum validation errors.
+    """
+    rechunked_vars: dict[Hashable, xr.DataArray] = {}
+
+    for var_name, var_data in dataset.data_vars.items():
+        if str(var_name) in encoding:
+            var_encoding = encoding[str(var_name)]
+
+            # If sharding is enabled, rechunk based on shard dimensions
+            if "shards" in var_encoding and var_encoding["shards"] is not None:
+                target_chunks = var_encoding["shards"]  # Use shard dimensions for rechunking
+            elif "chunks" in var_encoding:
+                target_chunks = var_encoding["chunks"]  # Fallback to chunk dimensions
+            else:
+                # No specific chunking needed, use original variable
+                rechunked_vars[var_name] = var_data
+                continue
+
+            # Create chunk dict using the actual dimensions of the variable
+            var_dims = var_data.dims
+            chunk_dict = {}
+            for i, dim in enumerate(var_dims):
+                if i < len(target_chunks):
+                    chunk_dict[dim] = target_chunks[i]
+
+            # Rechunk the variable to match the target dimensions
+            rechunked_vars[var_name] = var_data.chunk(chunk_dict)
+        else:
+            # No specific chunking needed, use original variable
+            rechunked_vars[var_name] = var_data
+
+    # Create new dataset with rechunked variables, preserving coordinates
+    return xr.Dataset(rechunked_vars, coords=dataset.coords, attrs=dataset.attrs)
+
 
 
 def get_chunking_for_encoding(var_data: xr.DataArray) -> Tuple[int, ...]:
