@@ -337,11 +337,7 @@ def create_multiscale_from_datatree(
 
         log.info("Copying original group: {}", group_path=group_path)
 
-        # first rechunk the dataset
-        if next(iter(base_dataset.data_vars.values())).chunksizes:
-            dataset = _rechunk_ds(base_dataset, spatial_chunk)
-        else:
-            dataset = base_dataset
+        dataset = _rechunk_ds(base_dataset, spatial_chunk)
 
         # Determine if this is a measurement-related resolution group
         group_name = group_path.split("/")[-1]
@@ -522,7 +518,7 @@ def get_chunking_for_encoding(var_data: xr.DataArray) -> Tuple[int, ...]:
     """ 
         requires a prior rechunking of the dataset by calling _rechunk_ds() to rechunk non-metadata arrays to spatial_chunk
         get a tuple of maximal chunksize for the dataarray 
-        -> (1024, 1024) for spatial arrays
+        -> (spatial_chukn, spatial_chukn) for spatial arrays
         -> (x, y, z, ..) for multidimensional metadata arrays (just to allow sharding later on)
 
         Args:
@@ -539,13 +535,10 @@ def get_chunking_for_encoding(var_data: xr.DataArray) -> Tuple[int, ...]:
             encoding_chunks = (max_chunksizes[0], )
         else:
             encoding_chunks = tuple(max_chunksizes)
-
         return encoding_chunks
     else:
-        # create a single shard for whole array
-        encoding_chunks = var_data.shape
-        return encoding_chunks
-
+        raise ValueError(f"Datavariable {var_data.name!r} is not chunked already, cannot derive Zarr encoding chunks -> will lead to unchunked array")
+        
 
 def create_uniform_encoding(
     dataset: xr.Dataset,
@@ -588,7 +581,11 @@ def create_uniform_encoding(
 
         # --- Shards: cover the whole array, one shard per array -----------
         if enable_sharding:
-            shards = tuple(math.ceil(shape / chunk) * chunk for shape, chunk in zip(var_data.shape, encoding_chunks))
+            # select next largest mutliple of chunksize to fit full array
+            shards = tuple(
+                math.ceil(shape / chunk) * chunk
+                for shape, chunk in zip(var_data.shape, encoding_chunks)
+            )
             var_encoding["shards"] = shards
         else:
             var_encoding["shards"] = None
