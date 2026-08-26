@@ -51,8 +51,10 @@ from eopf_geozarr.cpm.routing import (
     looks_like_sentinel3_olci,
     select_pipeline,
 )
+
+from eopf_geozarr.s1_optimization.s1_converter import convert_s1grdh_optimized
 from eopf_geozarr.s2_optimization.s2_converter import convert_s2_optimized
-from eopf_geozarr.s3_olci_optimization.olci_converter import convert_olci_optimized, own_convert_olci_optimized
+from eopf_geozarr.s3_olci_optimization.olci_converter import own_convert_olci_optimized
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -102,6 +104,7 @@ class GeoZarrWriter(EOWriter):
         compute: bool = True,
         s2_optimized: bool | None = None,
         s3_olci_optimized: bool | None = None,
+        s1_grdh_optimized: bool | None = None,
         spatial_chunk: int | None = None,
         enable_sharding: bool = False,
         max_retries: int = 3,
@@ -145,6 +148,10 @@ class GeoZarrWriter(EOWriter):
             exclusive with ``s3_olci_optimized=True``.
         s3_olci_optimized
             Force (True) or suppress (False) the Sentinel-3 OLCI optimized
+            pipeline; None auto-detects from the product type. Mutually
+            exclusive with ``s2_optimized=True``.
+        s1_grdh_optimized
+            Force (True) or suppress (False) the Sentinel-1 GRDH optimized
             pipeline; None auto-detects from the product type. Mutually
             exclusive with ``s2_optimized=True``.
         spatial_chunk
@@ -207,8 +214,10 @@ class GeoZarrWriter(EOWriter):
                 dtree,
                 s2_optimized=s2_optimized,
                 s3_olci_optimized=s3_olci_optimized,
+                s1_grdh_optimized=s1_grdh_optimized,
             ),
         )
+
         generic_groups: list[str] | None = None
         if selected_pipeline == "generic":
             if groups is None:
@@ -253,6 +262,19 @@ class GeoZarrWriter(EOWriter):
                 min_dimension=min_dimension,
                 keep_scale_offset=keep_scale_offset,
                 output_grid=output_grid,
+            )
+
+        if selected_pipeline == "s1-grdh-optimized":
+            return convert_s1grdh_optimized(
+                dt_input=dtree,
+                output_path=output_path,
+                enable_sharding=enable_sharding,
+                spatial_chunk=resolved_spatial_chunk,
+                compression_level=compression_level,
+                validate_output=validate_output,
+                keep_scale_offset=keep_scale_offset,
+                max_retries=max_retries,
+
             )
 
         return create_geozarr_dataset(
@@ -347,6 +369,7 @@ class GeoZarrWriter(EOWriter):
         *,
         s2_optimized: bool | None,
         s3_olci_optimized: bool | None,
+        s1_grdh_optimized: bool | None,
     ) -> PipelineName | None:
         """
         Translate the ``s2_optimized``/``s3_olci_optimized`` flags into a single
@@ -363,19 +386,16 @@ class GeoZarrWriter(EOWriter):
           would otherwise auto-detect as OLCI: it falls back to the
           S2-vs-generic decision instead, leaving S2 auto-detection intact.
         """
-        if s2_optimized is True and s3_olci_optimized is True:
-            raise ValueError(
-                "s2_optimized and s3_olci_optimized cannot both be True; set at most one "
-                "to force a specific pipeline.",
-            )
+        params = [bool(val) for val in (s2_optimized, s3_olci_optimized, s3_olci_optimized)]
+
+        if sum(params) >= 2:
+            raise ValueError("out of s2_optimized, s3_olci_optimized, s3_olci_optimized only one can be True; set at most one to force a specific pipeline.",)
         if s2_optimized is True:
             return "s2-optimized"
         if s3_olci_optimized is True:
             return "s3-olci-optimized"
-        if s2_optimized is False:
-            return "generic"
-        if s3_olci_optimized is False and looks_like_sentinel3_olci(dtree):
-            return "s2-optimized" if looks_like_sentinel2(dtree) else "generic"
+        if s1_grdh_optimized is True:
+            return "s1-grdh-optimized"
         return None
 
     @staticmethod

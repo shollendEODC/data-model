@@ -19,7 +19,9 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     import xarray as xr
 
-PipelineName = Literal["s2-optimized", "s3-olci-optimized", "generic"]
+PipelineName = Literal["s2-optimized", "s3-olci-optimized", "generic", "s1-grdh-optimized"]
+
+S1_PRODUCT_TYPE_PREFIXES = ("S01SIWGRD", "S01SEWGRD")
 
 #: CPM product types routed to the Sentinel-2 optimized pipeline. Deliberately
 #: only the L1C/L2A imagery products: other MSI product types (S02MSIL0_,
@@ -68,6 +70,36 @@ def product_type_of(dtree: xr.DataTree) -> str | None:
     if isinstance(product_type, str):
         return product_type
     return None
+
+
+def looks_like_sentinel1_grdh(dtree: xr.DataTree) -> bool:
+    """
+    Report whether a DataTree looks like a Sentinel-1 GRDH product.
+
+    The declared CPM product type wins when present; otherwise the tree is
+    inspected for the native ``measurements/reflectance/r{10,20,60}m`` groups.
+
+    Parameters
+    ----------
+    dtree : xr.DataTree
+        Product root node.
+
+    Returns
+    -------
+    bool
+    """
+    product_type = product_type_of(dtree)
+    if product_type is not None:
+        return product_type.startswith(S1_PRODUCT_TYPE_PREFIXES)
+
+    child_name = list(dtree.children)[0]
+
+    measurements = dtree.children.get(f"{child_name}/measurements")
+    if measurements is None:
+        return False
+    else:
+        # no need for additoional random check..
+        return True
 
 
 def looks_like_sentinel2(dtree: xr.DataTree) -> bool:
@@ -150,7 +182,7 @@ def select_pipeline(
     Returns
     -------
     PipelineName
-        ``"s2-optimized"``, ``"s3-olci-optimized"``, or ``"generic"``.
+        ``"s2-optimized"``, ``"s3-olci-optimized"``, ``"s1-grdh-optimized"``, or ``"generic"``.
     """
     if force is not None:
         return force
@@ -158,4 +190,6 @@ def select_pipeline(
         return "s2-optimized"
     if looks_like_sentinel3_olci(dtree):
         return "s3-olci-optimized"
+    if looks_like_sentinel1_grdh(dtree):
+        return "s1-grdh-optimized"
     return "generic"
