@@ -517,6 +517,7 @@ def write_store_root_geo_metadata(
 
 def write_store_root_stac_metadata(output_path: str, root_attrs: Dict[str, Dict[str, Any]], storage_options: dict[str, Any] | None = None) -> None:
     """
+        Adds root metadata passed in root_attrs to the new zarr store. This usually includes the stac metadata sstore in the root of the input zarr store.
     """
     from eopf_geozarr.conversion import fs_utils
 
