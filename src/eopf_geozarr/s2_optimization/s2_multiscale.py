@@ -528,13 +528,7 @@ def get_chunking_for_encoding(var_data: xr.DataArray) -> Tuple[int, ...]:
     if var_data.chunks:
         # get the maximal chunk shape for zarr encoding -> theoretically it wouldnt be necessary to take the max, as non-uniform chukning (1024, 806) 
         # has irregular chunksizes trailing, but the syntax and goal of the code is much clearer this way
-        max_chunksizes = [max(c) for c in var_data.chunks]
-
-        # consider the occurance of 1dim arrays, provide the encoding chunk ndim times
-        if var_data.ndim == 1:
-            encoding_chunks = (max_chunksizes[0], )
-        else:
-            encoding_chunks = tuple(max_chunksizes)
+        encoding_chunks = tuple(max(c) for c in var_data.chunks)
         return encoding_chunks
     else:
         raise ValueError(f"Datavariable {var_data.name!r} is not chunked already, cannot derive Zarr encoding chunks -> will lead to unchunked array")
