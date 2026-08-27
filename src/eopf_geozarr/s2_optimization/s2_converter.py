@@ -180,7 +180,7 @@ def convert_s2(
 
     # Step 3: Root-level consolidation
     log.info("Step 3: Final root-level metadata consolidation")
-    simple_root_consolidation(output_path, datasets)
+    simple_root_consolidation(dt_input, output_path, datasets)
 
     # Step 4: Validation
     if validate_output:
@@ -271,7 +271,7 @@ def convert_s2_optimized(
 
     # Step 3: Root-level consolidation
     log.info("Step 3: Final root-level metadata consolidation")
-    simple_root_consolidation(output_path, datasets)
+    simple_root_consolidation(dt_input, output_path, datasets)
 
     # Step 4: Validation
     if validate_output:
@@ -291,7 +291,7 @@ def convert_s2_optimized(
     return result_dt
 
 
-def simple_root_consolidation(output_path: str, datasets: Mapping[str, object]) -> None:
+def simple_root_consolidation(dt_input: xr.DataTree, output_path: str, datasets: Mapping[str, object]) -> None:
     """Simple root-level metadata consolidation with proper zarr group creation."""
     # create missing intermediary groups (/conditions, /quality, etc.)
     # using the keys of the datasets dict
@@ -338,6 +338,8 @@ def simple_root_consolidation(output_path: str, datasets: Mapping[str, object]) 
     # Aggregates child-group `spatial:bbox` values, reprojects them to EPSG:4326
     # and writes the union on the root `zarr.json`.
     write_store_root_bbox(output_path)
+
+    utils.write_store_root_stac_metadata(output_path, root_attrs=dt_input.attrs)  # type: ignore
 
     # consolidate reflectance group metadata
     zarr.consolidate_metadata(output_path + "/measurements/reflectance", zarr_format=3)

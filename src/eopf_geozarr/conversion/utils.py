@@ -1,6 +1,6 @@
 """Utility functions for GeoZarr conversion."""
 
-from typing import Any, Protocol, cast, runtime_checkable
+from typing import Any, Protocol, cast, runtime_checkable, Dict
 
 import numpy as np
 import rasterio  # noqa: F401  # Import to enable .rio accessor
@@ -513,3 +513,17 @@ def write_store_root_geo_metadata(
     }
     root.attrs.update(root_attrs)
     log.info("Wrote store-root spatial metadata", bbox=[xmin, ymin, xmax, ymax])
+
+
+def write_store_root_stac_metadata(output_path: str, root_attrs: Dict[str, Dict[str, Any]], storage_options: dict[str, Any] | None = None) -> None:
+    """
+    """
+    from eopf_geozarr.conversion import fs_utils
+
+    if storage_options is None:
+        storage_options = cast("dict[str, Any] | None", fs_utils.get_storage_options(output_path))
+
+    root = zarr.open_group(output_path, mode="r+", storage_options=storage_options)
+
+    root.attrs.update(root_attrs)
+    log.info("Updated root metadata attributes for STAC ingestion", root_attrs=list(root_attrs.keys()))
