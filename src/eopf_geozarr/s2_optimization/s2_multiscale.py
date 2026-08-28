@@ -160,7 +160,10 @@ def _coarsen_variable(var_name: str, var_data: xr.DataArray, factor: int) -> xr.
         # This prohibits the inclusion of 0 values in the mean calculation of multiscales, mainly impacting the boder regions of arrays
         
         # nan values are later refilled again with 0s (or fillna values) to conform with int array requirements
-        fill_value = var_data.fill_value
+        #fill_value = var_data.fill_value
+
+        # 
+        fill_value = var_data.attrs.get('fill_value')
         if fill_value is not None:
             # mask all 0 as nan in float array
             masked = var_data.where(var_data != fill_value)
@@ -654,8 +657,11 @@ def create_uniform_encoding(
         # otherwise leak into the output).
         is_float = np.issubdtype(var_data.dtype, np.floating)
         var_data.attrs = utils.sanitize_array_attrs(var_data.attrs, is_decoded_float=is_float)
+
+        # if fill value is set to nan, the array needs to be cast to a float
         if inject_nan_fillvalue:
             var_data.attrs["_FillValue"] = np.nan
+            dataset[var_name] = var_data.astype(np.float32)
 
         encoding[str(var_name)] = var_encoding
 
