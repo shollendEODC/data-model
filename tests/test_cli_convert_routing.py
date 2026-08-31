@@ -100,7 +100,6 @@ def test_convert_command_routes_s2_to_optimized(
     """Sentinel-2 inputs are auto-routed to the optimized converter."""
     args = _convert_args(str(s2_group_example), str(tmp_path / "out.zarr"))
     cli.convert_command(args)
-    print(converter_spy)
 
     assert "s2_optimized" in calls_or_fail(converter_spy)
     assert "generic" not in converter_spy

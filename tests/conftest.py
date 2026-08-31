@@ -18,9 +18,7 @@ projjson_example_paths = tuple(pathlib.Path("tests/_test_data/projjson_examples"
 geoproj_example_paths = tuple(pathlib.Path("tests/_test_data/geoproj_examples").glob("*.json"))
 geozarr_example_paths = tuple(pathlib.Path("tests/_test_data/geozarr_examples").glob("*.json"))
 zcm_multiscales_example_paths = tuple(pathlib.Path("tests/_test_data/zcm_multiscales_examples").glob("*.json"))
-optimized_geozarr_example_paths = tuple(pathlib.Path("tests/_test_data/optimized_geozarr_examples").glob("*.json"))
 
-v3_optimized_geozarr_example_paths = tuple(pathlib.Path("tests/_test_data/v3_optimized_geozarr_examples").glob("*.json"))
 v3_s2_example_json_paths = tuple(pathlib.Path("tests/_test_data/v3_s2_examples").glob("*.json"))
 
 
@@ -92,28 +90,8 @@ def s1_json_example(request: pytest.FixtureRequest) -> dict[str, object]:
     return read_json(source_path)
 
 
-@pytest.fixture(params=v3_s2_example_json_paths, ids=get_stem)
-def s2_json_example(request: pytest.FixtureRequest) -> dict[str, object]:
-    """
-    A fixture that returns the JSON model of a Sentinel 2 Zarr group
-    """
-    source_path: pathlib.Path = request.param
-    return read_json(source_path)
-
-
 @pytest.fixture(params=geozarr_example_paths, ids=get_stem)
 def s2_geozarr_group_example(request: pytest.FixtureRequest) -> zarr.Group:
-    """
-    Return a memory-backed Zarr V3 Group based on a sentinel 2 product converted to geozarr
-    """
-    source_path: pathlib.Path = request.param
-    store: dict[str, bytes] = {}
-    # to_zarr is annotated to take a Store but accepts a dict-backed store at runtime.
-    return GroupSpecV3.model_validate(read_json(source_path)).to_zarr(store, path="")  # type: ignore[arg-type]
-
-
-@pytest.fixture(params=v3_optimized_geozarr_example_paths, ids=get_stem)
-def s2_optimized_geozarr_group_example(request: pytest.FixtureRequest) -> zarr.Group:
     """
     Return a memory-backed Zarr V3 Group based on a sentinel 2 product converted to geozarr
     """
@@ -225,7 +203,7 @@ def _verify_geozarr_spec_compliance(output_path: pathlib.Path, group: str) -> No
             assert ds[var_name].attrs["_ARRAY_DIMENSIONS"] == list(ds[var_name].dims), (
                 f"Incorrect _ARRAY_DIMENSIONS for {var_name} in {group}"
             )
-            print(f"    ✅ _ARRAY_DIMENSIONS: {ds[var_name].attrs['_ARRAY_DIMENSIONS']}")
+            print(f"    _ARRAY_DIMENSIONS: {ds[var_name].attrs['_ARRAY_DIMENSIONS']}")
 
     # Check coordinates
     for coord_name in ds.coords:
@@ -234,7 +212,7 @@ def _verify_geozarr_spec_compliance(output_path: pathlib.Path, group: str) -> No
                 f"Missing _ARRAY_DIMENSIONS for coordinate {coord_name} in {group}"
             )
             print(
-                f"    ✅ {coord_name} _ARRAY_DIMENSIONS: {ds[coord_name].attrs['_ARRAY_DIMENSIONS']}"
+                f"    {coord_name} _ARRAY_DIMENSIONS: {ds[coord_name].attrs['_ARRAY_DIMENSIONS']}"
             )
 
     # Check 2: CF standard names (required by GeoZarr spec)
@@ -246,7 +224,7 @@ def _verify_geozarr_spec_compliance(output_path: pathlib.Path, group: str) -> No
             assert ds[var_name].attrs["standard_name"] == "toa_bidirectional_reflectance", (
                 f"Incorrect standard_name for {var_name} in {group}"
             )
-            print(f"    ✅ standard_name: {ds[var_name].attrs['standard_name']}")
+            print(f"    standard_name: {ds[var_name].attrs['standard_name']}")
 
     # Check 3: Grid mapping attributes (required by GeoZarr spec)
     for var_name in ds.data_vars:
@@ -257,7 +235,7 @@ def _verify_geozarr_spec_compliance(output_path: pathlib.Path, group: str) -> No
             assert ds[var_name].attrs["grid_mapping"] == "spatial_ref", (
                 f"Incorrect grid_mapping for {var_name} in {group}"
             )
-            print(f"    ✅ grid_mapping: {ds[var_name].attrs['grid_mapping']}")
+            print(f"    grid_mapping: {ds[var_name].attrs['grid_mapping']}")
 
     # Check 4: Spatial reference variable (as in notebook)
     assert "spatial_ref" in ds, f"Missing spatial_ref variable in {group}"
@@ -267,19 +245,19 @@ def _verify_geozarr_spec_compliance(output_path: pathlib.Path, group: str) -> No
     assert ds["spatial_ref"].attrs["_ARRAY_DIMENSIONS"] == [], (
         f"Incorrect _ARRAY_DIMENSIONS for spatial_ref in {group}"
     )
-    print(f"    ✅ spatial_ref _ARRAY_DIMENSIONS: {ds['spatial_ref'].attrs['_ARRAY_DIMENSIONS']}")
+    print(f"    spatial_ref _ARRAY_DIMENSIONS: {ds['spatial_ref'].attrs['_ARRAY_DIMENSIONS']}")
 
     # Check 5: GeoTransform attribute (from notebook verification)
     if "GeoTransform" in ds["spatial_ref"].attrs:
-        print(f"    ✅ GeoTransform: {ds['spatial_ref'].attrs['GeoTransform']}")
+        print(f"    GeoTransform: {ds['spatial_ref'].attrs['GeoTransform']}")
     else:
-        print("    ⚠️  Missing GeoTransform attribute")
+        print("    Missing GeoTransform attribute")
 
     # Check 6: CRS information (from notebook verification)
     if "crs_wkt" in ds["spatial_ref"].attrs:
-        print("    ✅ CRS WKT present")
+        print("    CRS WKT present")
     else:
-        print("    ⚠️  Missing CRS WKT")
+        print("    Missing CRS WKT")
 
     # Check 7: Coordinate standard names (from notebook verification)
     for coord in ["x", "y"]:
@@ -288,7 +266,7 @@ def _verify_geozarr_spec_compliance(output_path: pathlib.Path, group: str) -> No
             assert ds[coord].attrs["standard_name"] == expected_name, (
                 f"Incorrect standard_name for {coord} coordinate in {group}"
             )
-            print(f"    ✅ {coord} standard_name: {ds[coord].attrs['standard_name']}")
+            print(f"    {coord} standard_name: {ds[coord].attrs['standard_name']}")
 
     ds.close()
 

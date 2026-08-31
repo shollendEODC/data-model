@@ -161,15 +161,17 @@ class TestWriteGeoMetadata:
         assert np.array_equal(sample_dataset_with_crs["b02"].values, original_b02_data)
 
     def test_write_geo_metadata_empty_dataset(self) -> None:
-        """Test _write_geo_metadata with empty dataset."""
+        """An empty dataset has no data variable to detect a CRS from, so
+        `write_geo_metadata` must no-op rather than raise or write metadata
+        for a CRS it never found."""
+
+        # addition of writing geo metadata to empty dataset should be empty
 
         empty_ds = xr.Dataset({}, coords={})
 
-        # Call the method - should handle gracefully
         write_geo_metadata(empty_ds)
 
-        # Verify method doesn't fail with empty dataset
-        # This tests robustness
+        assert empty_ds.attrs == {}
 
     def test_write_geo_metadata_rio_write_crs_called(
         self, sample_dataset_with_crs: xr.Dataset
