@@ -52,7 +52,7 @@ def reproject_sentinel1_with_gcps(
     log.info("Reprojecting Sentinel-1 data using GCPs", target_crs=target_crs)
 
     # Set up GCPs from the GCP dataset
-    gcps = _create_gcps_from_dataset(ds_gcp)
+    gcps = _create_gcps_from_dataset(ds, ds_gcp)
 
     # Get the first data variable to determine dimensions and calculate transform
     data_vars = [var for var in ds.data_vars if var != "spatial_ref"]
@@ -103,9 +103,12 @@ def reproject_sentinel1_with_gcps(
         reprojected_data_vars[var_name] = reprojected_var
 
     # Create the reprojected dataset
-    reprojected_ds = xr.Dataset(
-        data_vars=reprojected_data_vars, coords=target_coords, attrs=ds.attrs.copy()
-    )
+    reprojected_ds = xr.Dataset(data_vars=reprojected_data_vars, coords=target_coords, attrs=ds.attrs.copy())
+
+    # add leftover polarisation coordinate to the dataset -> can be extended if required
+    for cname in ds.coords:
+        if cname in reprojected_ds.dims and cname not in reprojected_ds.coords:
+            reprojected_ds = reprojected_ds.assign_coords({cname: ds[cname].values})
 
     # Set CRS information. `rio.write_crs` is untyped (returns Any), so verify
     # the result is a Dataset rather than asserting it with a cast.
@@ -120,14 +123,22 @@ def reproject_sentinel1_with_gcps(
 
 
 def _create_gcps_from_dataset(
+    full_ds: xr.Dataset,
     ds_gcp: xr.Dataset,
 ) -> list[rasterio.control.GroundControlPoint]:
     """Create rasterio GCPs from GCP dataset."""
+
     # Flatten the GCP dataset to get all points
     ds_gcp_flat = ds_gcp.stack(points=list(ds_gcp.dims))
 
-    rows = ds_gcp_flat["line"].values
-    cols = ds_gcp_flat["pixel"].values
+    # decomissioned arrays
+    # rows = ds_gcp_flat["line"].values
+    # cols = ds_gcp_flat["pixel"].values
+
+    # new rows and cols derived from the parent ds
+    rows = full_ds.get_index("azimuth_time").get_indexer(ds_gcp_flat["azimuth_time"].values, method="nearest") # type: ignore
+    cols = full_ds.get_index("ground_range").get_indexer(ds_gcp_flat["ground_range"].values, method="nearest") # type: ignore
+
     x = ds_gcp_flat["longitude"].values
     y = ds_gcp_flat["latitude"].values
     z = ds_gcp_flat["height"].values
@@ -245,11 +256,11 @@ def _reproject_data_variable(
         dims = ["y", "x"]
 
     elif data_var.ndim == 3:
-        # 3D array (time, azimuth_time, ground_range)
-        time_size = data_var.shape[0]
-        reprojected_data = np.full((time_size, height, width), nodata_value, dtype=data_var.dtype)
+        # 3D array (polarization, azimuth_time, ground_range)
+        polarization_size = data_var.shape[0]
+        reprojected_data = np.full((polarization_size, height, width), nodata_value, dtype=data_var.dtype)
 
-        for t in range(time_size):
+        for t in range(polarization_size):
             reprojected_data[t] = _reproject_2d_array(
                 data_var.values[t],
                 gcps,
@@ -260,7 +271,7 @@ def _reproject_data_variable(
                 nodata_value,
             )
 
-        dims = ["time", "y", "x"]
+        dims = ["polarization", "y", "x"]
 
     else:
         raise ValueError(f"Unsupported data variable dimensionality: {data_var.ndim}")
