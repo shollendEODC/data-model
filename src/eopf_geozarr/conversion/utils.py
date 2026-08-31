@@ -1,6 +1,6 @@
 """Utility functions for GeoZarr conversion."""
 
-from typing import Any, Protocol, cast, runtime_checkable, Dict
+from typing import Any, Protocol, cast, runtime_checkable, Dict, TYPE_CHECKING
 
 import numpy as np
 import rasterio  # noqa: F401  # Import to enable .rio accessor

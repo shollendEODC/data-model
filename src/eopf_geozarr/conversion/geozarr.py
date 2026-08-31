@@ -48,7 +48,7 @@ from eopf_geozarr.types import (
 
 from . import fs_utils, utils
 from .fs_utils import sanitize_dataset_attributes
-from .sentinel1_reprojection import reproject_sentinel1_with_gcps
+from ..s1_optimization.sentinel1_reprojection import reproject_sentinel1_with_gcps
 
 if TYPE_CHECKING:
     from zarr.core.common import JSON

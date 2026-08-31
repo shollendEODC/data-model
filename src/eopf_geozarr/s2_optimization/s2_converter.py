@@ -364,26 +364,10 @@ def optimization_summary(dt_input: xr.DataTree, dt_output: xr.DataTree, output_p
     input_groups = len(dt_input.groups) if hasattr(dt_input, "groups") else 0
     output_groups = len(dt_output.groups) if hasattr(dt_output, "groups") else 0
 
-    # Estimate file count reduction
-    estimated_input_files = input_groups * 10  # Rough estimate
-    estimated_output_files = output_groups * 5  # Fewer files per group
-    group_change_pct = (
-        ((output_groups - input_groups) / input_groups * 100) if input_groups > 0 else 0
-    )
-    file_change_pct = (
-        ((estimated_output_files - estimated_input_files) / estimated_input_files * 100)
-        if estimated_input_files > 0
-        else 0
-    )
-
     log.info(
         "OPTIMIZATION SUMMARY",
         input_groups=input_groups,
         output_groups=output_groups,
-        group_change_pct=f"{group_change_pct:+.1f}%",
-        estimated_input_files=estimated_input_files,
-        estimated_output_files=estimated_output_files,
-        file_change_pct=f"{file_change_pct:+.1f}%",
         output_path=output_path,
         groups=[g for g in dt_output.groups if g != "."],
     )
