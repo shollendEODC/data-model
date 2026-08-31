@@ -126,9 +126,10 @@ def _validate_s2_input(dt_input: xr.DataTree) -> None:
     try:
         is_s2 = is_sentinel2_dataset(backing_group)
     except TypeError:
-        # is_sentinel2_dataset validates against a Zarr v2 model and raises
-        # TypeError for Zarr v3 stores (e.g. CPM 3.x products).
-        log.info("Backing zarr store is not Zarr v2; skipping input store validation")
+        # is_sentinel2_dataset can still raise on backing stores it can't
+        # introspect at all (neither the Zarr V2 model nor the V3 structural
+        # check apply); treat that as "not checkable" rather than "not S2".
+        log.info("Backing zarr store could not be validated; skipping input store validation")
         return
     if not is_s2:
         raise ValueError("Input dataset is not a Sentinel-2 product")
@@ -401,6 +402,9 @@ def create_result_datatree(output_path: str) -> xr.DataTree:
 
 
 def is_sentinel2_dataset(group: zarr.Group) -> bool:
+    if group.metadata.zarr_format == 3:
+        return _is_sentinel2_dataset_v3(group)
+
     from eopf_geozarr.pyz.v2 import GroupSpec
 
     adapter = TypeAdapter(Sentinel1Root | Sentinel2Root)
@@ -411,6 +415,31 @@ def is_sentinel2_dataset(group: zarr.Group) -> bool:
         return False
 
     return isinstance(model, Sentinel2Root)
+
+
+def _is_sentinel2_dataset_v3(group: zarr.Group) -> bool:
+    """Lightweight structural check for Zarr V3 Sentinel-2 stores.
+
+    ``Sentinel2Root`` (and its full-fidelity round-trip validation) is defined
+    against the Zarr V2 pydantic model only; there is no V3 counterpart yet.
+    Rather than guess at one, this checks the handful of root-level members
+    that already distinguish an S2 product from anything else we route on:
+    S2 has ``measurements``/``quality``/``conditions`` directly at the root,
+    with an S2-specific ``measurements/reflectance`` group underneath.
+    Sentinel-1, by contrast, nests those same three groups one level down
+    under arbitrary per-polarization product-id groups.
+    """
+    if set(group.keys()) != {"measurements", "quality", "conditions"}:
+        return False
+
+    measurements = group.get("measurements")
+    if not isinstance(measurements, zarr.Group):
+        return False
+
+    reflectance = measurements.get("reflectance")
+    return isinstance(reflectance, zarr.Group) and any(
+        isinstance(sub, zarr.Group) for _, sub in reflectance.groups()
+    )
 
 
 class ValidationResult(TypedDict):

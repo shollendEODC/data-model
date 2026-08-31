@@ -658,10 +658,17 @@ def create_uniform_encoding(
         is_float = np.issubdtype(var_data.dtype, np.floating)
         var_data.attrs = utils.sanitize_array_attrs(var_data.attrs, is_decoded_float=is_float)
 
-        # if fill value is set to nan, the array needs to be cast to a float
+        # if fill value is set to nan, the array needs to be cast to a float.
+        # `xr.DataArray.astype` clears `.encoding`, so capture and restore it —
+        # the `var_encoding` dict above (and the experimental scale-offset
+        # filters within it) is derived from `var_data.encoding` too, but
+        # downstream code (e.g. pyramid coarsening) reads the encoding back
+        # off the dataset variable itself, so it must survive this cast.
         if inject_nan_fillvalue:
             var_data.attrs["_FillValue"] = np.nan
+            original_encoding = var_data.encoding
             dataset[var_name] = var_data.astype(np.float32)
+            dataset[var_name].encoding = original_encoding
 
         encoding[str(var_name)] = var_encoding
 
@@ -1372,7 +1379,7 @@ def stream_write_dataset(
         log.info("Writing zarr file...")
         write_job.compute()
 
-    log.info("✅ Streaming write complete for dataset {}", dataset_path=path)
+    log.info("Streaming write complete for dataset {}", dataset_path=path)
     return dataset
 
 
