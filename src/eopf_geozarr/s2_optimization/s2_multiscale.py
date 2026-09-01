@@ -17,7 +17,7 @@ from dask.delayed import delayed
 from pydantic.experimental.missing_sentinel import MISSING
 from pyproj import CRS
 from zarr.codecs import CastValue
-from enum import Enum
+from enum import StrEnum
 
 from eopf_geozarr.conversion import utils
 from eopf_geozarr.conversion.fs_utils import sanitize_dataset_attributes
@@ -44,7 +44,7 @@ if TYPE_CHECKING:
     from eopf_geozarr.types import OverviewLevelJSON
 
 
-class S2Type(Enum):
+class S2Type(StrEnum):
     L1C = "L1C"
     L2A = "L2A"
 
