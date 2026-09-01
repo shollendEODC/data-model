@@ -198,7 +198,7 @@ def write_olci_part(ds: xr.Dataset,
     log.info(f"Writing {output_group}", shape=dict(ds.sizes))
 
     rechunked_ds.to_zarr(
-        output_path,
+        store=output_path,
         group=output_group,  #"measurements/r0",
         mode="w",
         consolidated=False,

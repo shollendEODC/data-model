@@ -48,7 +48,6 @@ def __transform_from_coordinates(
     return (pixel_size_x, 0.0, x_min, 0.0, -pixel_size_y, y_max)
 
 
-
 def __rio_transform_matches_coordinates(
     transform: tuple[float, float, float, float, float, float] | None,
     coordinate_transform: tuple[float, float, float, float, float, float] | None,
@@ -95,7 +94,6 @@ def __preferred_spatial_transform(
         return rio_transform
 
     return coordinate_transform or rio_transform
-
 
 
 def __write_geo_metadata(
@@ -226,7 +224,7 @@ def __stream_write_dataset(
     # Write with streaming computation and progress tracking
     # The to_zarr operation will trigger all lazy computations
     write_job = dataset.to_zarr(
-        group.store,
+        store=group.store,
         mode="w",
         consolidated=False,
         zarr_format=3,
@@ -295,7 +293,75 @@ def add_multiscales(dt_input: xr.DataTree,
                     pyramid_lvls: List[int],
                     ) -> xr.DataTree:
 
+    # work here
+
+    resolution_groups: dict[str, xr.Dataset] = {}
+    base_path = "/measurements"
+    for group_path in dt_input.subtree:
+        # Only process groups under /measurements
+        if not group_path.startswith(base_path):
+            continue
+
+        group_name = group_path.split("/")[-1]
+        if group_name in ["r10m", "r20m", "r60m"]:
+            resolution_groups[group_name] = processed_groups[group_path]
+
+    pyramid_levels = {
+        0: 10,  # Level 0: 10m 
+        1: 20,  # Level 1: 20m (2x downsampling from 10m)
+        2: 60,  # Level 2: 60m (3x downsampling from 60m)
+        3: 120,  # Level 3: 120m (2x downsampling from 60m)
+        4: 360,  # Level 4: 360m (3x downsampling from 120m)
+        5: 720,  # Level 5: 720m (2x downsampling from 360m)
+    }
+
+    scale_levels = tuple(pyramid_levels.values())
+
+    for source_level, dest_level in pairwise(scale_levels[2:]):
+        dest_level_name = f"r{dest_level}m"
+        dest_level_path = f"{base_path}/{dest_level_name}"
+
+        source_ds = resolution_groups[f"r{source_level}m"]
+
+        downsample_factor = dest_level // source_level
+        log.info("Creating level with resolution", level=dest_level_name, resolution=dest_level)
+
+        # Create downsampled dataset
+        downsampled_dataset = create_downsampled_resolution_group(
+            source_ds, factor=downsample_factor
+        )
+
+        log.info("Writing level to path", level=dest_level_name, output_path=dest_level_path)
+
+        # Create encoding
+        encoding = utils.create_uniform_encoding(downsampled_dataset,
+            spatial_chunk=spatial_chunk,
+            enable_sharding=enable_sharding,
+            keep_scale_offset=keep_scale_offset,
+            experimental_scale_offset_codec=experimental_scale_offset_codec,
+        )
+
+        # Strip _FillValue from DataArray encoding for downsampled levels too
+        if not keep_scale_offset:
+            for data_var in downsampled_dataset.data_vars:
+                downsampled_dataset[data_var].encoding.pop("_FillValue", None)
+
+        # Write dataset
+        ds_out = stream_write_dataset(
+            downsampled_dataset,
+            path=dest_level_path,
+            group=output_group,
+            encoding=encoding,
+            enable_sharding=enable_sharding,
+            crs=crs,
+        )
+
+        # Store results
+        processed_groups[dest_level_path] = ds_out
+        resolution_groups[dest_level_name] = ds_out
+
     return dt_input
+
 
 def convert_s1grdh_optimized(dt_input: xr.DataTree,
                                 *,
@@ -316,6 +382,8 @@ def convert_s1grdh_optimized(dt_input: xr.DataTree,
 
     # remove name from each node
     dt = flatten_dynamic_root_name(dt=dt_input)
+
+    # add the structure for multiscales by adding a parent to grd_xm
 
     # data is polarised as vv and vh in same dataset -> redundant gcps
     ds_gcp = dt[gcp_group].to_dataset()
@@ -366,6 +434,9 @@ def convert_s1grdh_optimized(dt_input: xr.DataTree,
                 keep_scale_offset=keep_scale_offset,
                 compression_level=compression_level,
             )
+
+            # rewrite Grup path to allow multiscales
+            group_path = f'{group_path}/r0'
         else:
             encoding = utils.create_uniform_encoding(
                             dataset,
@@ -387,9 +458,14 @@ def convert_s1grdh_optimized(dt_input: xr.DataTree,
         processed_groups[group_path] = ds_out
         pass
 
-        # add pyramids
-
+    
         # add geo metadata
+
+    # add pyramids
+    # issues:
+    # - wgs84 crs -> scale from transform? weird scale values
+    # - what pyramid levels do we generally want?
+
 
     # root level consolidation
     __simple_root_consolidation(dt_input, output_path, processed_groups)
