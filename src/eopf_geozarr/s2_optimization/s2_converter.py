@@ -5,7 +5,7 @@ Main S2 optimization converter.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 import structlog
 import xarray as xr
@@ -292,7 +292,9 @@ def convert_s2_optimized(
     return result_dt
 
 
-def simple_root_consolidation(output_path: str, datasets: Mapping[str, object], dt_input: xr.DataTree | None = None) -> None:
+def simple_root_consolidation(
+    output_path: str, datasets: Mapping[str, object], dt_input: xr.DataTree | None = None
+) -> None:
     """Simple root-level metadata consolidation with proper zarr group creation."""
     # create missing intermediary groups (/conditions, /quality, etc.)
     # using the keys of the datasets dict
@@ -341,7 +343,9 @@ def simple_root_consolidation(output_path: str, datasets: Mapping[str, object], 
     write_store_root_bbox(output_path)
 
     if dt_input and dt_input.attrs:
-        utils.write_store_root_stac_metadata(output_path, root_attrs=dt_input.attrs)  # type: ignore
+        utils.write_store_root_stac_metadata(
+            output_path, root_attrs=cast("dict[str, dict[str, Any]]", dt_input.attrs)
+        )
 
     # consolidate reflectance group metadata
     zarr.consolidate_metadata(output_path + "/measurements/reflectance", zarr_format=3)

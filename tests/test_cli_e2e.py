@@ -156,9 +156,15 @@ def test_cli_convert_real_sentinel2_data(s2_group_example: Path, tmp_path: Path)
     assert isinstance(input_reflectance, zarr.Group)
     assert isinstance(observed_reflectance, zarr.Group)
     for level in input_reflectance.group_keys():
-        input_bands = band_names(input_reflectance[level])
-        observed_bands = band_names(observed_reflectance[level])
-        assert input_bands <= observed_bands, f"{level}: missing bands {input_bands - observed_bands}"
+        input_level = input_reflectance[level]
+        observed_level = observed_reflectance[level]
+        assert isinstance(input_level, zarr.Group)
+        assert isinstance(observed_level, zarr.Group)
+        input_bands = band_names(input_level)
+        observed_bands = band_names(observed_level)
+        assert input_bands <= observed_bands, (
+            f"{level}: missing bands {input_bands - observed_bands}"
+        )
 
 
 def test_cli_help_commands() -> None:

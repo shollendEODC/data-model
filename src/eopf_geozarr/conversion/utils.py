@@ -1,6 +1,6 @@
 """Utility functions for GeoZarr conversion."""
 
-from typing import Any, Protocol, cast, runtime_checkable, Dict
+from typing import Any, Protocol, cast, runtime_checkable
 
 import numpy as np
 import rasterio  # noqa: F401  # Import to enable .rio accessor
@@ -515,9 +515,13 @@ def write_store_root_geo_metadata(
     log.info("Wrote store-root spatial metadata", bbox=[xmin, ymin, xmax, ymax])
 
 
-def write_store_root_stac_metadata(output_path: str, root_attrs: Dict[str, Dict[str, Any]], storage_options: dict[str, Any] | None = None) -> None:
+def write_store_root_stac_metadata(
+    output_path: str,
+    root_attrs: dict[str, dict[str, Any]],
+    storage_options: dict[str, Any] | None = None,
+) -> None:
     """
-        Adds root metadata passed in root_attrs to the new zarr store. This usually includes the stac metadata sstore in the root of the input zarr store.
+    Adds root metadata passed in root_attrs to the new zarr store. This usually includes the stac metadata sstore in the root of the input zarr store.
     """
     from eopf_geozarr.conversion import fs_utils
 
@@ -527,4 +531,6 @@ def write_store_root_stac_metadata(output_path: str, root_attrs: Dict[str, Dict[
     root = zarr.open_group(output_path, mode="r+", storage_options=storage_options)
 
     root.attrs.update(root_attrs)
-    log.info("Updated root metadata attributes for STAC ingestion", root_attrs=list(root_attrs.keys()))
+    log.info(
+        "Updated root metadata attributes for STAC ingestion", root_attrs=list(root_attrs.keys())
+    )

@@ -17,7 +17,9 @@ s3_example_json_paths = tuple(pathlib.Path("tests/_test_data/s3_examples").glob(
 projjson_example_paths = tuple(pathlib.Path("tests/_test_data/projjson_examples").glob("*.json"))
 geoproj_example_paths = tuple(pathlib.Path("tests/_test_data/geoproj_examples").glob("*.json"))
 geozarr_example_paths = tuple(pathlib.Path("tests/_test_data/geozarr_examples").glob("*.json"))
-zcm_multiscales_example_paths = tuple(pathlib.Path("tests/_test_data/zcm_multiscales_examples").glob("*.json"))
+zcm_multiscales_example_paths = tuple(
+    pathlib.Path("tests/_test_data/zcm_multiscales_examples").glob("*.json")
+)
 
 v3_s2_example_json_paths = tuple(pathlib.Path("tests/_test_data/v3_s2_examples").glob("*.json"))
 
@@ -35,7 +37,9 @@ def get_stem(p: pathlib.Path) -> str:
     return p.stem
 
 
-def create_zarrv2_group_from_json(source_path: pathlib.Path, out_path: pathlib.Path) -> pathlib.Path:
+def create_zarrv2_group_from_json(
+    source_path: pathlib.Path, out_path: pathlib.Path
+) -> pathlib.Path:
     """
     Create a Zarr V2 group from a JSON model
     """
@@ -46,7 +50,9 @@ def create_zarrv2_group_from_json(source_path: pathlib.Path, out_path: pathlib.P
     return out_dir
 
 
-def create_zarrv3_group_from_json(source_path: pathlib.Path, out_path: pathlib.Path) -> pathlib.Path:
+def create_zarrv3_group_from_json(
+    source_path: pathlib.Path, out_path: pathlib.Path
+) -> pathlib.Path:
     """
     Create a Zarr V3 group from a JSON model
     """
@@ -189,7 +195,7 @@ def _verify_geozarr_spec_compliance(output_path: pathlib.Path, group: str) -> No
 
     # Open the native resolution dataset (written at the group root)
     group_path = str(output_path / group.lstrip("/"))
-    ds = xr.open_dataset(group_path, engine="zarr", zarr_format=3, decode_coords='all')
+    ds = xr.open_dataset(group_path, engine="zarr", zarr_format=3, decode_coords="all")
 
     print(f"  Variables: {list(ds.data_vars)}")
     print(f"  Coordinates: {list(ds.coords)}")
@@ -292,7 +298,7 @@ def _verify_multiscale_structure(output_path: pathlib.Path, group: str) -> None:
     )
 
     # Native resolution dataset lives at the group root.
-    ds_native = xr.open_dataset(str(group_path), engine="zarr", zarr_format=3, decode_coords='all')
+    ds_native = xr.open_dataset(str(group_path), engine="zarr", zarr_format=3, decode_coords="all")
     native_size = min(ds_native.sizes["y"], ds_native.sizes["x"])
     ds_native.close()
 
@@ -306,7 +312,7 @@ def _verify_multiscale_structure(output_path: pathlib.Path, group: str) -> None:
 
     # Walk levels in factor order: native (1), r2, r4, …
     level_shapes: dict[int, tuple[int, int]] = {}
-    ds_native = xr.open_dataset(str(group_path), engine="zarr", zarr_format=3, decode_coords='all')
+    ds_native = xr.open_dataset(str(group_path), engine="zarr", zarr_format=3, decode_coords="all")
     assert len(ds_native.data_vars) > 0, f"No data variables in {group_path}"
     assert "x" in ds_native.dims, f"Missing 'x' dimension in {group_path}"
     assert "y" in ds_native.dims, f"Missing 'y' dimension in {group_path}"
@@ -316,7 +322,7 @@ def _verify_multiscale_structure(output_path: pathlib.Path, group: str) -> None:
 
     for ov_dir in sorted(overview_dirs, key=lambda x: int(x.name[1:])):
         factor = int(ov_dir.name[1:])
-        ds = xr.open_dataset(str(ov_dir), engine="zarr", zarr_format=3, decode_coords='all')
+        ds = xr.open_dataset(str(ov_dir), engine="zarr", zarr_format=3, decode_coords="all")
         assert len(ds.data_vars) > 0, f"No data variables in {ov_dir}"
         assert "x" in ds.dims, f"Missing 'x' dimension in {ov_dir}"
         assert "y" in ds.dims, f"Missing 'y' dimension in {ov_dir}"
@@ -349,7 +355,7 @@ def _verify_rgb_data_access(output_path: pathlib.Path, groups: list[str]) -> Non
     rgb_groups = []
     for group in groups:
         group_path_str = str(output_path / group.lstrip("/"))
-        ds = xr.open_dataset(group_path_str, engine="zarr", zarr_format=3, decode_coords='all')
+        ds = xr.open_dataset(group_path_str, engine="zarr", zarr_format=3, decode_coords="all")
 
         # Check for RGB bands (b04=red, b03=green, b02=blue for Sentinel-2)
         has_rgb = all(band in ds.data_vars for band in ["b04", "b03", "b02"])
@@ -377,7 +383,7 @@ def _verify_rgb_data_access(output_path: pathlib.Path, groups: list[str]) -> Non
         )
 
         for label, level_path in targets:
-            ds = xr.open_dataset(str(level_path), engine="zarr", zarr_format=3, decode_coords='all')
+            ds = xr.open_dataset(str(level_path), engine="zarr", zarr_format=3, decode_coords="all")
 
             red_data = ds["b04"].values
             green_data = ds["b03"].values

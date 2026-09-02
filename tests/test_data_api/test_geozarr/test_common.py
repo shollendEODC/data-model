@@ -76,7 +76,7 @@ def test_check_standard_name_invalid() -> None:
 def test_multiscales_round_trip() -> None:
     """
     removing dependcy from GroupSpec_V3 model
-    
+
     Ensure that we can round-trip multiscale metadata through the `Multiscales` model.
 
     Round-trip fidelity is a property of the model's field definitions, not
