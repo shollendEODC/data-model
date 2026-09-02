@@ -106,6 +106,7 @@ def create_uniform_encoding(
     *,
     spatial_chunk: int,
     enable_sharding: bool = True,
+    shard_number: int = 1,
     keep_scale_offset: bool = True,
     experimental_scale_offset_codec: bool = False,
     compression_level: int = 3,
@@ -142,8 +143,14 @@ def create_uniform_encoding(
 
         # --- Shards: cover the whole array, one shard per array -----------
         if enable_sharding:
-            # select next largest mutliple of chunksize to fit full array
-            shards = tuple(math.ceil(shape / chunk) * chunk for shape, chunk in zip(var_data.shape, encoding_chunks))
+            if shard_number == 1:
+                # select next largest mutliple of chunksize to fit full array
+                shards = tuple(math.ceil(shape / chunk) * chunk for shape, chunk in zip(var_data.shape, encoding_chunks))
+                pass
+            else:
+                #shards = tuple(min(shard_number * chunk, math.ceil(shape / chunk) * chunk) for shape, chunk in zip(var_data.shape, encoding_chunks))
+                shards = tuple(min(math.ceil(shape // (shard_number / 2) / spatial_chunk) * chunk, math.ceil(shape / chunk) * chunk) for shape, chunk in zip(var_data.shape, encoding_chunks))
+                pass
             var_encoding["shards"] = shards
         else:
             var_encoding["shards"] = None

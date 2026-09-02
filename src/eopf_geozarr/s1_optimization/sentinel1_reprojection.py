@@ -25,7 +25,7 @@ def reproject_sentinel1_with_gcps(
     ds_gcp: xr.Dataset,
     target_crs: str = "EPSG:4326",
     resampling: Resampling = Resampling.bilinear,
-    nodata_value: float | None = None,
+    nodata_value: float | int | None = None,
 ) -> xr.Dataset:
     """
     Reproject Sentinel-1 dataset from radar geometry to geographic coordinates using GCPs.
@@ -109,6 +109,8 @@ def reproject_sentinel1_with_gcps(
     for cname in ds.coords:
         if cname in reprojected_ds.dims and cname not in reprojected_ds.coords:
             reprojected_ds = reprojected_ds.assign_coords({cname: ds[cname].values})
+
+    del ds
 
     # Set CRS information. `rio.write_crs` is untyped (returns Any), so verify
     # the result is a Dataset rather than asserting it with a cast.
@@ -200,7 +202,7 @@ def _create_target_coordinates(
     }
 
 
-def _determine_nodata_value(data_var: xr.DataArray) -> float:
+def _determine_nodata_value(data_var: xr.DataArray) -> float | int:
     """
     Determine appropriate nodata value based on data type and existing attributes.
 
@@ -211,7 +213,7 @@ def _determine_nodata_value(data_var: xr.DataArray) -> float:
 
     Returns
     -------
-    float
+    float | int
         Appropriate nodata value
     """
     # Check if nodata is already defined in attributes
@@ -226,12 +228,12 @@ def _determine_nodata_value(data_var: xr.DataArray) -> float:
     if np.issubdtype(data_var.dtype, np.integer):
         # For integer types, use 0 or max value depending on data range
         if data_var.dtype == np.uint8:
-            return 255.0  # Use max value for uint8
+            return 255  # Use min value for uint8
         if data_var.dtype == np.uint16:
-            return 65535.0  # Use max value for uint16
+            return 65535  # Use min value for uint16
         if data_var.dtype == np.int16:
-            return -32768.0  # Use min value for int16
-        return 0.0  # Default for other integer types
+            return -32768  # Use min value for int16
+        return 0  # Default for other integer types
     # For floating point types, use NaN
     return np.nan
 
@@ -250,7 +252,7 @@ def _reproject_data_variable(
     # Handle different dimensionalities
     if data_var.ndim == 2:
         # 2D array (azimuth_time, ground_range)
-        reprojected_data = _reproject_2d_array(
+        reprojected_data = _reproject_nd_array(
             data_var.values, gcps, transform, width, height, resampling, nodata_value
         )
         dims = ["y", "x"]
@@ -260,16 +262,15 @@ def _reproject_data_variable(
         polarization_size = data_var.shape[0]
         reprojected_data = np.full((polarization_size, height, width), nodata_value, dtype=data_var.dtype)
 
-        for t in range(polarization_size):
-            reprojected_data[t] = _reproject_2d_array(
-                data_var.values[t],
-                gcps,
-                transform,
-                width,
-                height,
-                resampling,
-                nodata_value,
-            )
+        reprojected_data = _reproject_nd_array(
+            data_var.values,
+            gcps,
+            transform,
+            width,
+            height,
+            resampling,
+            nodata_value,
+        )
 
         dims = ["polarization", "y", "x"]
 
@@ -284,7 +285,7 @@ def _reproject_data_variable(
     # Add nodata information to attributes
     if not np.isnan(nodata_value):
         attrs["_FillValue"] = nodata_value
-        attrs["missing_value"] = nodata_value
+        attrs["fill_value"] = nodata_value
 
     # Create DataArray with nodata encoding
     reprojected_var = xr.DataArray(data=reprojected_data, dims=dims, attrs=attrs)
@@ -297,11 +298,62 @@ def _reproject_data_variable(
         # `_FillValue` from attrs and only re-adds it for float variables, and
         # `explicit_fill_value` reads the encoding — without this, integer
         # nodata would be lost from the output metadata.
-        reprojected_var.encoding["_FillValue"] = (
-            np.asarray(nodata_value).astype(reprojected_var.dtype).item()
-        )
+        reprojected_var.encoding["_FillValue"] = (np.asarray(nodata_value).astype(reprojected_var.dtype).item())
+
+    # no scale and offset set on this data, but values are rather set to 1 and 0 than remain unset to resolve ambiguitites in later processes
+    # reprojected_var.encoding["scale_factor"] = (1)
+    # reprojected_var.encoding["add_offset"] = (0)
 
     return reprojected_var
+
+
+def _reproject_nd_array(
+    src_array: np.ndarray,          # shape (bands, height, width)
+    gcps: list[rasterio.control.GroundControlPoint],
+    dst_transform: rasterio.Affine,
+    dst_width: int,
+    dst_height: int,
+    resampling: Resampling,
+    nodata_value: float,
+) -> np.ndarray:
+    """Reproject a multi-band array using GCPs, all bands in one warp call."""
+    band_count, src_height, src_width = src_array.shape
+
+    if np.isnan(nodata_value):
+        dst_array = np.full((band_count, dst_height, dst_width), np.nan, dtype=np.float32)
+        dst_dtype: np.dtype[Any] | type[np.floating[Any]] = np.float32
+    else:
+        dst_array = np.full((band_count, dst_height, dst_width), nodata_value, dtype=src_array.dtype)
+        dst_dtype = src_array.dtype
+
+    with (
+        rasterio.MemoryFile() as memfile,
+        memfile.open(
+            driver="GTiff",
+            height=src_height,
+            width=src_width,
+            count=band_count,
+            dtype=src_array.dtype,
+            crs="EPSG:4326",
+            nodata=nodata_value if not np.isnan(nodata_value) else None,
+        ) as src_dataset,
+    ):
+        src_dataset.write(src_array)  # writes all bands at once, no per-band loop
+        src_dataset.gcps = (gcps, "EPSG:4326")
+
+        reproject(
+            source=rasterio.band(src_dataset, list(range(1, band_count + 1))),
+            destination=dst_array,
+            src_transform=src_dataset.transform,
+            src_crs=src_dataset.crs,
+            dst_transform=dst_transform,
+            dst_crs="EPSG:4326",
+            resampling=resampling,
+            src_nodata=nodata_value if not np.isnan(nodata_value) else None,
+            dst_nodata=nodata_value if not np.isnan(nodata_value) else None,
+        )
+
+    return dst_array.astype(dst_dtype)
 
 
 def _reproject_2d_array(

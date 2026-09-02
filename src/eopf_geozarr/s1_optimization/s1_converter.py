@@ -4,10 +4,11 @@ from eopf_geozarr.conversion import utils
 from eopf_geozarr.s1_optimization.sentinel1_reprojection import reproject_sentinel1_with_gcps
 from eopf_geozarr.conversion.fs_utils import sanitize_dataset_attributes, get_storage_options
 from itertools import pairwise
-from typing import List, TYPE_CHECKING, cast
+from typing import List, TYPE_CHECKING, cast, Dict, Tuple
 import zarr
 import numpy as np
 import time
+import gc
 from collections.abc import Hashable, Mapping
 from eopf_geozarr.data_api.geozarr.types import (
     CF_SCALE_OFFSET_KEYS,
@@ -96,6 +97,23 @@ def __preferred_spatial_transform(
     return coordinate_transform or rio_transform
 
 
+def __remove_geozarr_attrs(ds: xr.Dataset):
+    remove_conventions = {'spatial', 'proj', 'multiscale', 'zarr_conventions'}
+
+    attrs = ds.attrs.copy()
+    for attr in attrs:
+        for conv in remove_conventions:
+            if conv in attr:
+                ds.attrs.pop(attr)
+
+    for var in ds.data_vars.values():
+        vattrs = var.attrs.copy()
+        for attr in vattrs:
+            for conv in remove_conventions:
+                if conv in attr:
+                    ds.attrs.pop(attr)
+    return
+
 def __write_geo_metadata(
     dataset: xr.Dataset,
     grid_mapping_var_name: str = "spatial_ref",
@@ -110,15 +128,40 @@ def __write_geo_metadata(
         crs: Coordinate Reference System to use (if None, attempts to detect from dataset)
     """
     # Use provided CRS or try to detect from dataset
+    def _epsg_from_ds_attrs(epsg: int | str) -> CRS:
+        if isinstance(epsg, str) and ('epsg:' in epsg or 'EPSG:' in epsg):
+            return CRS.from_string(epsg)
+        else:
+            return CRS.from_epsg(epsg)
+
     if crs is None:
-        for var in dataset.data_vars.values():
-            if hasattr(var, "rio") and var.rio.crs:
-                crs = var.rio.crs
-                break
-            if "proj:epsg" in var.attrs:
-                epsg = var.attrs["proj:epsg"]
-                crs = CRS.from_epsg(epsg)
-                break
+        # check parent dataset
+        if "proj:code" in dataset.attrs:
+            epsg = dataset.attrs["proj:code"]
+            crs = _epsg_from_ds_attrs(epsg)
+            
+            # assert same set for children - i think it would be against spec, ut jsut to be sure
+            for var in dataset.data_vars.values():
+                if "proj:code" in var.attrs:
+                    if var.attrs["proj:code"] == epsg:
+                        # aligns with parent - thats alright
+                        continue
+                    else:
+                        # not aligning with parent -> problem!
+                        crs = None
+                        log.warning('CRS of children data variable doesnt align with dataset parent', child_crs=var.attrs["proj:code"], parent_crs=epsg)
+                        __remove_geozarr_attrs(dataset)
+                        return
+                    
+        else:
+            for var in dataset.data_vars.values():
+                if hasattr(var, "rio") and var.rio.crs:
+                    crs = var.rio.crs
+                    break
+                if "proj:code" in var.attrs:
+                    epsg = var.attrs["proj:code"]
+                    crs = _epsg_from_ds_attrs(epsg)
+                    break
 
     if crs is not None:
         # Write CRS using rioxarray
@@ -165,6 +208,13 @@ def __write_geo_metadata(
         # Build validated spatial + proj convention attrs (data + CMOs) via zarr-cm
         dataset.attrs.update(utils.build_convention_attrs(spatial=spatial_data, crs=crs))
 
+    else:
+        # introducing here to raise warning for non-aligment of geospatial metadata
+        log.warning('No CRS set.')
+        __remove_geozarr_attrs(dataset)
+        return
+
+
 
 def __stream_write_dataset(
     dataset: xr.Dataset,
@@ -173,7 +223,7 @@ def __stream_write_dataset(
     group: zarr.Group,
     encoding: dict[str, XarrayDataArrayEncoding],
     enable_sharding: bool,
-    crs: CRS | None = None,
+    #crs: CRS | None = None,
 ) -> xr.Dataset:
     """
     Stream write a lazy dataset with advanced chunking and sharding.
@@ -213,16 +263,12 @@ def __stream_write_dataset(
     # Rechunk dataset to align with encoding
     dataset = utils.rechunk_dataset_for_encoding(dataset, encoding)
 
-    # Add the geo metadata before writing for
-    # - /measurements/ groups -> now inly single one
-    if "/measurements" in path:
-        __write_geo_metadata(dataset, crs=crs)
-
     # Sanitize NaN values in dataset attributes before writing
     dataset = sanitize_dataset_attributes(dataset)
 
     # Write with streaming computation and progress tracking
     # The to_zarr operation will trigger all lazy computations
+    
     write_job = dataset.to_zarr(
         store=group.store,
         mode="w",
@@ -272,6 +318,81 @@ def __stream_write_dataset(
     return dataset
 
 
+def __overview_levels(rows: int, cols: int, min_dimension: int) -> int:
+    """Return the number of /2 decimations before min(rows, cols) drops below min_dimension.
+
+    A level is generated only when the *post*-decimation minimum spatial
+    dimension is at least *min_dimension*.  For example, a 512x480 dataset
+    with min_dimension=256 yields zero levels because 480//2=240 < 256, while
+    a 1024x1024 dataset with min_dimension=256 yields two levels (512x512,
+    then 256x256).
+    """
+    levels = 0
+    r, c = rows, cols
+    while min(r, c) // 2 >= min_dimension:
+        r, c = r // 2, c // 2
+        levels += 1
+    return levels
+
+
+def __clear_encoding(ds: xr.Dataset) -> xr.Dataset:
+    """Return *ds* with all inherited source encoding cleared.
+
+    When the input DataTree was opened from a Zarr v2 store, xarray carries
+    ``numcodecs.Blosc`` compressors (and potentially scale-offset filters) in
+    each variable's ``.encoding``.  Passing that encoding to
+    ``Dataset.to_zarr(zarr_format=3)`` raises::
+
+        TypeError: Expected a BytesBytesCodec. Got <class 'numcodecs.blosc.Blosc'>
+
+    because numcodecs codecs are not valid Zarr v3 BytesBytesCodecs.  Clearing
+    the encoding lets the Zarr v3 writer choose its own default codecs.
+
+    This converter expects raw (non-mask-scaled) input: the caller must open
+    the source DataTree with ``mask_and_scale=False`` so that CF
+    ``scale_factor``/``add_offset`` stay in ``.attrs`` and integer fill pixels
+    are identified via ``attrs["_FillValue"]``.  Only Zarr v2 *codec* encoding
+    (e.g. ``numcodecs.Blosc`` compressors) is stripped here — CF metadata is
+    untouched.
+    """
+    ds = ds.copy()
+    ds.encoding = {}
+    for var in list(ds.data_vars) + list(ds.coords):
+        ds[var].encoding.clear()
+    return ds
+
+
+def __coarsen_variable(var_name: str, var_data: xr.DataArray, factor: int) -> xr.DataArray:
+    """Coarsen a single variable using type-aware resampling.
+
+    Dispatches to the appropriate coarsen reduction (mean, max, subsample)
+    based on `determine_variable_type`.  Preserves encoding and dtype.
+    """
+    coarsened = var_data.coarsen({"x": factor, "y": factor}, boundary="trim")
+    # Cast the input array to float and ignore nans during the .coarsen() operation, which could not be considered in int array with "nan-value" == 0.
+    # This prohibits the inclusion of 0 values in the mean calculation of multiscales, mainly impacting the boder regions of arrays
+    
+    # nan values are later refilled again with 0s (or fillna values) to conform with int array requirements
+    fill_value = var_data.attrs.get('fill_value')
+    if fill_value is not None:
+        # mask all 0 as nan in float array
+        masked = var_data.where(var_data != fill_value)
+
+        #redefine coarsen operation to ignore nans and fill up with fill_value later
+        result = masked.coarsen({"x": factor, "y": factor}, boundary="trim").mean(skipna=True).fillna(fill_value) # type: ignore
+    else:
+        result = coarsened.mean() # type: ignore
+    
+    # `xr.DataArray.astype` clears `.encoding`, so we capture it first and
+    # restore it on the cast result. Without this, downstream code that
+    # inspects encoding (e.g. to push CF scale-offset into a codec pipeline)
+    # would see an empty encoding on every coarsened level.
+    encoding = var_data.encoding
+    cast_result: xr.DataArray = result.astype(var_data.dtype)
+    cast_result.encoding = encoding
+    return cast_result
+
+
 def flatten_dynamic_root_name(dt: xr.DataTree) -> xr.DataTree:
     """Remove the single dynamic product-name group under root, promoting
     all of its children (and merging its attrs) up to root itself."""
@@ -289,78 +410,85 @@ def flatten_dynamic_root_name(dt: xr.DataTree) -> xr.DataTree:
     return dt.drop_nodes(product_name)
 
 
-def add_multiscales(dt_input: xr.DataTree,
-                    pyramid_lvls: List[int],
-                    ) -> xr.DataTree:
+def calculate_s1grdh_multiscales(measurements_ds: xr.Dataset,
+                                output_path: str,
+                                output_group: zarr.Group,
+                                processed_groups: Dict[str, xr.Dataset],
+                                pyramid_dims: Tuple[str, str] = ('y', 'x'),
+                                spatial_chunk: int = 1024,
+                                #output_group: str = 'measurements',
+                                min_dimension: int = 256,
+                                crs: CRS | None = None,
+                                enable_sharding: bool = True,
+                                keep_scale_offset: bool = True,
+                                compression_level: int = 3,
+                                **kwargs) -> Tuple[Dict[str, xr.Dataset], Dict[str, xr.Dataset]]:
 
-    # work here
-
-    resolution_groups: dict[str, xr.Dataset] = {}
+    #resolution_groups: dict[str, xr.Dataset] = {}
     base_path = "/measurements"
-    for group_path in dt_input.subtree:
-        # Only process groups under /measurements
-        if not group_path.startswith(base_path):
-            continue
 
-        group_name = group_path.split("/")[-1]
-        if group_name in ["r10m", "r20m", "r60m"]:
-            resolution_groups[group_name] = processed_groups[group_path]
+    # Write /2 reduced overview subgroups: r2, r4, r8, …
+    rows = measurements_ds.sizes[pyramid_dims[0]]
+    cols = measurements_ds.sizes[pyramid_dims[1]]
+    n_levels = __overview_levels(rows, cols, min_dimension)
+    log.info("Generating overview levels", n_levels=n_levels)
 
-    pyramid_levels = {
-        0: 10,  # Level 0: 10m 
-        1: 20,  # Level 1: 20m (2x downsampling from 10m)
-        2: 60,  # Level 2: 60m (3x downsampling from 60m)
-        3: 120,  # Level 3: 120m (2x downsampling from 60m)
-        4: 360,  # Level 4: 360m (3x downsampling from 120m)
-        5: 720,  # Level 5: 720m (2x downsampling from 360m)
-    }
+    level_datasets: dict[str, xr.Dataset] = {"r0": measurements_ds}
+    
+    current = measurements_ds
 
-    scale_levels = tuple(pyramid_levels.values())
+    for level in range(1, n_levels + 1):
+        # Downsample all variables using existing lazy operations
+        group_name = f"r{2**level}"
+        level_datasets[group_name] = current
+        output_filepath = f'/measurements/{group_name}'
+        log.info("Calculating overview", group=output_filepath, shape=dict(current.sizes))
 
-    for source_level, dest_level in pairwise(scale_levels[2:]):
-        dest_level_name = f"r{dest_level}m"
-        dest_level_path = f"{base_path}/{dest_level_name}"
+        lazy_vars = {}
+        for var_name, var_data in current.data_vars.items():
+            if var_data.ndim < 2:
+                continue
 
-        source_ds = resolution_groups[f"r{source_level}m"]
+            lazy_vars[var_name] = __coarsen_variable(str(var_name), var_data, factor=2)
+    
+        # Create dataset with lazy variables and coordinates
+        current = xr.Dataset(lazy_vars, attrs=measurements_ds.attrs)
 
-        downsample_factor = dest_level // source_level
-        log.info("Creating level with resolution", level=dest_level_name, resolution=dest_level)
+        # remove parent encoding
+        current = __clear_encoding(current)
+        dataset = utils._rechunk_ds(current, spatial_chunk)
+        vals = dataset['grd'].values
 
-        # Create downsampled dataset
-        downsampled_dataset = create_downsampled_resolution_group(
-            source_ds, factor=downsample_factor
-        )
-
-        log.info("Writing level to path", level=dest_level_name, output_path=dest_level_path)
-
-        # Create encoding
-        encoding = utils.create_uniform_encoding(downsampled_dataset,
+        # Measurement groups: apply custom encoding
+        encoding = utils.create_uniform_encoding(
+            dataset,
             spatial_chunk=spatial_chunk,
             enable_sharding=enable_sharding,
+            shard_number=1,
             keep_scale_offset=keep_scale_offset,
-            experimental_scale_offset_codec=experimental_scale_offset_codec,
+            compression_level=compression_level,
         )
 
-        # Strip _FillValue from DataArray encoding for downsampled levels too
-        if not keep_scale_offset:
-            for data_var in downsampled_dataset.data_vars:
-                downsampled_dataset[data_var].encoding.pop("_FillValue", None)
+        # Add the geo metadata before writing for
+        __write_geo_metadata(dataset, crs=crs)
 
-        # Write dataset
-        ds_out = stream_write_dataset(
-            downsampled_dataset,
-            path=dest_level_path,
-            group=output_group,
-            encoding=encoding,
-            enable_sharding=enable_sharding,
-            crs=crs,
-        )
+        ds_out = __stream_write_dataset(
+                        dataset,
+                        path=output_filepath,
+                        group=output_group,
+                        encoding=encoding,
+                        enable_sharding=enable_sharding,
+                        #crs=crs,
+                    )
 
-        # Store results
-        processed_groups[dest_level_path] = ds_out
-        resolution_groups[dest_level_name] = ds_out
+        # issues:
+        # not considering 0 or 65?? nodata vals -> issue in resampling during coarsening
+        
+        # Store results -> add metadta to zarr root here!
+        processed_groups[group_name] = ds_out
+        resolution_groups[group_name] = ds_out
 
-    return dt_input
+    return resolution_groups, processed_groups
 
 
 def convert_s1grdh_optimized(dt_input: xr.DataTree,
@@ -422,21 +550,38 @@ def convert_s1grdh_optimized(dt_input: xr.DataTree,
             reproj_dataset = reproject_sentinel1_with_gcps(dataset, ds_gcp, target_crs="EPSG:4326")
 
             # for debugging dont transform 
-            # reproj_dataset = dataset
+            #reproj_dataset = dataset
             
             dataset = utils._rechunk_ds(reproj_dataset, spatial_chunk)
+            del reproj_dataset
+            gc.collect()
 
             # Measurement groups: apply custom encoding
             encoding = utils.create_uniform_encoding(
                 dataset,
                 spatial_chunk=spatial_chunk,
+                shard_number=4,
                 enable_sharding=enable_sharding,
                 keep_scale_offset=keep_scale_offset,
                 compression_level=compression_level,
             )
 
             # rewrite Grup path to allow multiscales
-            group_path = f'{group_path}/r0'
+            measurement_group_path = f'{group_path}/r0'
+
+            # Add the geo metadata before writing for geozarr
+            __write_geo_metadata(dataset, crs=crs)
+            
+            # Write dataset -> adds geo metadata
+            __stream_write_dataset( #   measurements = __stream_write_dataset(
+                dataset,
+                path=measurement_group_path,
+                group=ouput_group,
+                encoding=encoding,
+                enable_sharding=enable_sharding,
+                #crs=crs,
+            )
+            #processed_groups[group_path] = measurements
         else:
             encoding = utils.create_uniform_encoding(
                             dataset,
@@ -446,26 +591,40 @@ def convert_s1grdh_optimized(dt_input: xr.DataTree,
                             compression_level=compression_level,
                         )
 
-        # Write dataset
-        ds_out = __stream_write_dataset(
-            dataset,
-            path=group_path,
-            group=ouput_group,
-            encoding=encoding,
-            enable_sharding=enable_sharding,
-            crs=crs,
-        )
-        processed_groups[group_path] = ds_out
-        pass
+            # add geo metadata?
 
-    
-        # add geo metadata
+            # Write dataset -> adds geo metadata
+            ds_out = __stream_write_dataset(
+                dataset,
+                path=group_path,
+                group=ouput_group,
+                encoding=encoding,
+                enable_sharding=enable_sharding,
+                #crs=crs,
+            )
+            processed_groups[group_path] = ds_out
 
     # add pyramids
+    # load the correct already written ds
+    measurement_ds = xr.open_dataset(ouput_group.store, 
+                         engine="zarr",
+                         chunks={}, 
+                         group=measurement_group_path,
+                         mask_and_scale=False)
+    
+    calculate_s1grdh_multiscales(measurement_ds,
+                                 output_path=output_path,
+                                 output_group=ouput_group,
+                                 #pyramid_dims=pyramids_factors,
+                                 enable_sharding=enable_sharding,
+                                keep_scale_offset=keep_scale_offset,
+                                compression_level=compression_level,
+                                spatial_chunk=spatial_chunk,
+                                )
+
     # issues:
     # - wgs84 crs -> scale from transform? weird scale values
     # - what pyramid levels do we generally want?
-
 
     # root level consolidation
     __simple_root_consolidation(dt_input, output_path, processed_groups)
