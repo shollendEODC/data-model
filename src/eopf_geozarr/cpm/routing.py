@@ -92,14 +92,11 @@ def looks_like_sentinel1_grdh(dtree: xr.DataTree) -> bool:
     if product_type is not None:
         return product_type.startswith(S1_PRODUCT_TYPE_PREFIXES)
 
-    child_name = list(dtree.children)[0]
+    child_name = next(iter(dtree.children))
 
     measurements = dtree.children.get(f"{child_name}/measurements")
-    if measurements is None:
-        return False
-    else:
-        # no need for additoional random check..
-        return True
+    # no need for additoional random check..
+    return measurements is not None
 
 
 def looks_like_sentinel2(dtree: xr.DataTree) -> bool:

@@ -1,6 +1,6 @@
 """Utility functions for GeoZarr conversion."""
 
-from typing import Any, Protocol, cast, runtime_checkable, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 import numpy as np
 import rasterio  # noqa: F401  # Import to enable .rio accessor
@@ -8,11 +8,10 @@ import structlog
 import xarray as xr
 import zarr
 import zarr_cm
+from zarr.codecs import CastValue
 from zarr_cm import GeoProjAttrs, MultiConventionAttrs, MultiscalesAttrs, SpatialAttrs
 from zarr_cm import geo_proj as geo_proj_cm
 from zarr_cm import spatial as spatial_cm
-from typing import Any, Literal, cast, Tuple
-from zarr.codecs import CastValue
 
 from eopf_geozarr.data_api.geozarr.types import (
     CF_SCALE_OFFSET_KEYS,
@@ -21,7 +20,7 @@ from eopf_geozarr.data_api.geozarr.types import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Hashable, Mapping
+    from collections.abc import Hashable
 
 
 log = structlog.get_logger()
@@ -74,32 +73,28 @@ def rechunk_dataset_for_encoding(
     return xr.Dataset(rechunked_vars, coords=dataset.coords, attrs=dataset.attrs)
 
 
+def get_chunking_for_encoding(var_data: xr.DataArray) -> tuple[int, ...]:
+    """
+    requires a prior rechunking of the dataset by calling _rechunk_ds() to rechunk non-metadata arrays to spatial_chunk
+    get a tuple of maximal chunksize for the dataarray
+    -> (spatial_chukn, spatial_chukn) for spatial arrays
+    -> (x, y, z, ..) for multidimensional metadata arrays (just to allow sharding later on)
 
-def get_chunking_for_encoding(var_data: xr.DataArray) -> Tuple[int, ...]:
-    """ 
-        requires a prior rechunking of the dataset by calling _rechunk_ds() to rechunk non-metadata arrays to spatial_chunk
-        get a tuple of maximal chunksize for the dataarray 
-        -> (spatial_chukn, spatial_chukn) for spatial arrays
-        -> (x, y, z, ..) for multidimensional metadata arrays (just to allow sharding later on)
-
-        Args:
-            var_data: DataArray to get the chunks from
+    Args:
+        var_data: DataArray to get the chunks from
 
     """
     if var_data.chunks:
-        # get the maximal chunk shape for zarr encoding -> theoretically it wouldnt be necessary to take the max, as non-uniform chukning (1024, 806) 
+        # get the maximal chunk shape for zarr encoding -> theoretically it wouldnt be necessary to take the max, as non-uniform chukning (1024, 806)
         # has irregular chunksizes trailing, but the syntax and goal of the code is much clearer this way
         max_chunksizes = [max(c) for c in var_data.chunks]
 
         # consider the occurance of 1dim arrays, provide the encoding chunk ndim times
-        if var_data.ndim == 1:
-            encoding_chunks = (max_chunksizes[0], )
-        else:
-            encoding_chunks = tuple(max_chunksizes)
-        return encoding_chunks
-    else:
-        raise ValueError(f"Datavariable {var_data.name!r} is not chunked already, cannot derive Zarr encoding chunks -> will lead to unchunked array")
-        
+        return (max_chunksizes[0],) if var_data.ndim == 1 else tuple(max_chunksizes)
+    raise ValueError(
+        f"Datavariable {var_data.name!r} is not chunked already, cannot derive Zarr encoding chunks -> will lead to unchunked array"
+    )
+
 
 def create_uniform_encoding(
     dataset: xr.Dataset,
@@ -145,12 +140,19 @@ def create_uniform_encoding(
         if enable_sharding:
             if shard_number == 1:
                 # select next largest mutliple of chunksize to fit full array
-                shards = tuple(math.ceil(shape / chunk) * chunk for shape, chunk in zip(var_data.shape, encoding_chunks))
-                pass
+                shards = tuple(
+                    math.ceil(shape / chunk) * chunk
+                    for shape, chunk in zip(var_data.shape, encoding_chunks, strict=True)
+                )
             else:
-                #shards = tuple(min(shard_number * chunk, math.ceil(shape / chunk) * chunk) for shape, chunk in zip(var_data.shape, encoding_chunks))
-                shards = tuple(min(math.ceil(shape // (shard_number / 2) / spatial_chunk) * chunk, math.ceil(shape / chunk) * chunk) for shape, chunk in zip(var_data.shape, encoding_chunks))
-                pass
+                # shards = tuple(min(shard_number * chunk, math.ceil(shape / chunk) * chunk) for shape, chunk in zip(var_data.shape, encoding_chunks))
+                shards = tuple(
+                    min(
+                        math.ceil(shape // (shard_number / 2) / spatial_chunk) * chunk,
+                        math.ceil(shape / chunk) * chunk,
+                    )
+                    for shape, chunk in zip(var_data.shape, encoding_chunks, strict=True)
+                )
             var_encoding["shards"] = shards
         else:
             var_encoding["shards"] = None
@@ -740,9 +742,12 @@ def write_store_root_geo_metadata(
     log.info("Wrote store-root spatial metadata", bbox=[xmin, ymin, xmax, ymax])
 
 
-def write_store_root_stac_metadata(output_path: str, root_attrs: Dict[str, Dict[str, Any]], storage_options: dict[str, Any] | None = None) -> None:
-    """
-    """
+def write_store_root_stac_metadata(
+    output_path: str,
+    root_attrs: dict[str, dict[str, Any]],
+    storage_options: dict[str, Any] | None = None,
+) -> None:
+    """ """
     from eopf_geozarr.conversion import fs_utils
 
     if storage_options is None:
@@ -751,4 +756,6 @@ def write_store_root_stac_metadata(output_path: str, root_attrs: Dict[str, Dict[
     root = zarr.open_group(output_path, mode="r+", storage_options=storage_options)
 
     root.attrs.update(root_attrs)
-    log.info("Updated root metadata attributes for STAC ingestion", root_attrs=list(root_attrs.keys()))
+    log.info(
+        "Updated root metadata attributes for STAC ingestion", root_attrs=list(root_attrs.keys())
+    )

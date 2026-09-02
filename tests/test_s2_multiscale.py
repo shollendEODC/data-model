@@ -20,13 +20,13 @@ from zarr.codecs import BloscCodec, CastValue, ScaleOffset
 from zarr.core.dtype import Int16
 from zarr.core.metadata import ArrayV3Metadata
 
+from eopf_geozarr.conversion.utils import create_uniform_encoding
 from eopf_geozarr.s2_optimization.s2_multiscale import (
     _coarsen_variable,
     add_multiscales_metadata_to_parent,
     calculate_aligned_chunk_size,
     calculate_simple_shard_dimensions,
     create_downsampled_resolution_group,
-    create_measurements_encoding,
     create_multiscale_from_datatree,
     inject_missing_bands,
 )
@@ -150,7 +150,7 @@ def test_create_measurements_encoding_experimental_scale_offset_codec() -> None:
     }
     ds = xr.Dataset({"temperature": data})
 
-    encoding = create_measurements_encoding(
+    encoding = create_uniform_encoding(
         ds,
         enable_sharding=True,
         spatial_chunk=256,
@@ -184,7 +184,7 @@ def test_create_measurements_encoding_experimental_scale_offset_codec() -> None:
 @pytest.mark.parametrize("keep_scale_offset", [True, False])
 def test_create_measurements_encoding(keep_scale_offset: bool, sample_dataset: xr.Dataset) -> None:
     """Test measurements encoding creation with xy-aligned sharding."""
-    encoding = create_measurements_encoding(
+    encoding = create_uniform_encoding(
         sample_dataset,
         enable_sharding=True,
         spatial_chunk=1024,
@@ -226,9 +226,7 @@ def test_create_measurements_encoding(keep_scale_offset: bool, sample_dataset: x
 
 def test_create_measurements_encoding_time_chunking(sample_dataset: xr.Dataset) -> None:
     """Test that time dimension is chunked to 1 for single file per time."""
-    encoding = create_measurements_encoding(
-        sample_dataset, enable_sharding=True, spatial_chunk=1024
-    )
+    encoding = create_uniform_encoding(sample_dataset, enable_sharding=True, spatial_chunk=1024)
 
     for var_name in sample_dataset.data_vars:
         if sample_dataset[var_name].ndim == 3:  # 3D variable with time
@@ -595,7 +593,9 @@ def test_inject_missing_bands_respects_bands_filter() -> None:
     dt = _make_reflectance_datatree()
     r20m_ds = dt["measurements/reflectance/r20m"].to_dataset()
 
-    result = inject_missing_bands(r20m_ds, dt, target_resolution=20, bands={"b08"})
+    result = inject_missing_bands(
+        r20m_ds, dt, target_resolution=20, spatial_chunk=1024, bands={"b08"}
+    )
 
     assert "b08" in result.data_vars
     assert result["b08"].shape == (60, 60)
@@ -614,7 +614,9 @@ def test_inject_missing_bands_skips_existing() -> None:
     sentinel = np.full((60, 60), 999, dtype="uint16")
     r20m_ds["b08"] = (["y", "x"], sentinel)
 
-    result = inject_missing_bands(r20m_ds, dt, target_resolution=20, bands={"b08"})
+    result = inject_missing_bands(
+        r20m_ds, dt, target_resolution=20, spatial_chunk=1024, bands={"b08"}
+    )
 
     # b08 was already present — inject_missing_bands must leave it untouched.
     np.testing.assert_array_equal(result["b08"].values, sentinel)
@@ -625,7 +627,7 @@ def test_inject_missing_bands_noop_when_no_source() -> None:
     dt = xr.DataTree()
     ds = xr.Dataset({"b05": (["y", "x"], np.ones((60, 60)))})
 
-    result = inject_missing_bands(ds, dt, target_resolution=20)
+    result = inject_missing_bands(ds, dt, target_resolution=20, spatial_chunk=1024)
 
     assert "b08" not in result.data_vars
 
@@ -672,7 +674,7 @@ def test_inject_missing_bands_default_injects_all() -> None:
     dt["measurements/reflectance/r20m"] = xr.DataTree(r20m_ds)
     dt["measurements/reflectance/r60m"] = xr.DataTree(r60m_ds)
 
-    result = inject_missing_bands(r60m_ds, dt, target_resolution=60)
+    result = inject_missing_bands(r60m_ds, dt, target_resolution=60, spatial_chunk=1024)
 
     # All 10m bands (b02, b03, b04, b08) and 20m bands (b05, b06) should be injected
     for band in ("b02", "b03", "b04", "b08", "b05", "b06"):

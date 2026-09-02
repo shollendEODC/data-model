@@ -47,11 +47,8 @@ from eopf.store.writer_registry import EOWriterRegistry
 from eopf_geozarr.conversion import create_geozarr_dataset
 from eopf_geozarr.cpm.routing import (
     PipelineName,
-    looks_like_sentinel2,
-    looks_like_sentinel3_olci,
     select_pipeline,
 )
-
 from eopf_geozarr.s1_optimization.s1_converter import convert_s1grdh_optimized
 from eopf_geozarr.s2_optimization.s2_converter import convert_s2_optimized
 from eopf_geozarr.s3_olci_optimization.olci_converter import own_convert_olci_optimized
@@ -228,7 +225,9 @@ class GeoZarrWriter(EOWriter):
                 )
             generic_groups = list(groups)
         resolved_spatial_chunk = (
-            spatial_chunk if spatial_chunk is not None else _DEFAULT_SPATIAL_CHUNK[selected_pipeline]
+            spatial_chunk
+            if spatial_chunk is not None
+            else _DEFAULT_SPATIAL_CHUNK[selected_pipeline]
         )
         output_path = self._prepare_target(filename_or_obj, mode=mode)
         log.info(
@@ -274,7 +273,6 @@ class GeoZarrWriter(EOWriter):
                 validate_output=validate_output,
                 keep_scale_offset=keep_scale_offset,
                 max_retries=max_retries,
-
             )
 
         return create_geozarr_dataset(
@@ -389,7 +387,9 @@ class GeoZarrWriter(EOWriter):
         params = [bool(val) for val in (s2_optimized, s3_olci_optimized, s3_olci_optimized)]
 
         if sum(params) >= 2:
-            raise ValueError("out of s2_optimized, s3_olci_optimized, s3_olci_optimized only one can be True; set at most one to force a specific pipeline.",)
+            raise ValueError(
+                "out of s2_optimized, s3_olci_optimized, s3_olci_optimized only one can be True; set at most one to force a specific pipeline.",
+            )
         if s2_optimized is True:
             return "s2-optimized"
         if s3_olci_optimized is True:

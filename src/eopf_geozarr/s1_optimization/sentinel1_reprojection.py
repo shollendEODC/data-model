@@ -25,7 +25,7 @@ def reproject_sentinel1_with_gcps(
     ds_gcp: xr.Dataset,
     target_crs: str = "EPSG:4326",
     resampling: Resampling = Resampling.bilinear,
-    nodata_value: float | int | None = None,
+    nodata_value: float | None = None,
 ) -> xr.Dataset:
     """
     Reproject Sentinel-1 dataset from radar geometry to geographic coordinates using GCPs.
@@ -103,7 +103,9 @@ def reproject_sentinel1_with_gcps(
         reprojected_data_vars[var_name] = reprojected_var
 
     # Create the reprojected dataset
-    reprojected_ds = xr.Dataset(data_vars=reprojected_data_vars, coords=target_coords, attrs=ds.attrs.copy())
+    reprojected_ds = xr.Dataset(
+        data_vars=reprojected_data_vars, coords=target_coords, attrs=ds.attrs.copy()
+    )
 
     # add leftover polarisation coordinate to the dataset -> can be extended if required
     for cname in ds.coords:
@@ -138,8 +140,12 @@ def _create_gcps_from_dataset(
     # cols = ds_gcp_flat["pixel"].values
 
     # new rows and cols derived from the parent ds
-    rows = full_ds.get_index("azimuth_time").get_indexer(ds_gcp_flat["azimuth_time"].values, method="nearest") # type: ignore
-    cols = full_ds.get_index("ground_range").get_indexer(ds_gcp_flat["ground_range"].values, method="nearest") # type: ignore
+    rows = full_ds.get_index("azimuth_time").get_indexer(
+        ds_gcp_flat["azimuth_time"].values, method="nearest"
+    )
+    cols = full_ds.get_index("ground_range").get_indexer(
+        ds_gcp_flat["ground_range"].values, method="nearest"
+    )
 
     x = ds_gcp_flat["longitude"].values
     y = ds_gcp_flat["latitude"].values
@@ -260,7 +266,9 @@ def _reproject_data_variable(
     elif data_var.ndim == 3:
         # 3D array (polarization, azimuth_time, ground_range)
         polarization_size = data_var.shape[0]
-        reprojected_data = np.full((polarization_size, height, width), nodata_value, dtype=data_var.dtype)
+        reprojected_data = np.full(
+            (polarization_size, height, width), nodata_value, dtype=data_var.dtype
+        )
 
         reprojected_data = _reproject_nd_array(
             data_var.values,
@@ -298,7 +306,9 @@ def _reproject_data_variable(
         # `_FillValue` from attrs and only re-adds it for float variables, and
         # `explicit_fill_value` reads the encoding — without this, integer
         # nodata would be lost from the output metadata.
-        reprojected_var.encoding["_FillValue"] = (np.asarray(nodata_value).astype(reprojected_var.dtype).item())
+        reprojected_var.encoding["_FillValue"] = (
+            np.asarray(nodata_value).astype(reprojected_var.dtype).item()
+        )
 
     # no scale and offset set on this data, but values are rather set to 1 and 0 than remain unset to resolve ambiguitites in later processes
     # reprojected_var.encoding["scale_factor"] = (1)
@@ -308,7 +318,7 @@ def _reproject_data_variable(
 
 
 def _reproject_nd_array(
-    src_array: np.ndarray,          # shape (bands, height, width)
+    src_array: np.ndarray,  # shape (bands, height, width)
     gcps: list[rasterio.control.GroundControlPoint],
     dst_transform: rasterio.Affine,
     dst_width: int,
@@ -323,7 +333,9 @@ def _reproject_nd_array(
         dst_array = np.full((band_count, dst_height, dst_width), np.nan, dtype=np.float32)
         dst_dtype: np.dtype[Any] | type[np.floating[Any]] = np.float32
     else:
-        dst_array = np.full((band_count, dst_height, dst_width), nodata_value, dtype=src_array.dtype)
+        dst_array = np.full(
+            (band_count, dst_height, dst_width), nodata_value, dtype=src_array.dtype
+        )
         dst_dtype = src_array.dtype
 
     with (

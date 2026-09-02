@@ -251,7 +251,7 @@ def test_simple_root_consolidation_success(tmp_path: Path) -> None:
         for k, v in datasets.items()
     ]
 
-    simple_root_consolidation(str(tmp_path / "test.zarr"), datasets=datasets)
+    simple_root_consolidation(xr.DataTree(), str(tmp_path / "test.zarr"), datasets=datasets)
 
     root_z_meta = json.loads((tmp_path / "test.zarr/zarr.json").read_text())
     reflectance_zmeta = json.loads(

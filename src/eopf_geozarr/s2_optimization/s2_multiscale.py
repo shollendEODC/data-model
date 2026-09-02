@@ -3,8 +3,9 @@ Streaming multiscale pyramid creation for optimized S2 structure.
 Uses lazy evaluation to minimize memory usage during dataset preparation.
 """
 
+from collections.abc import Mapping
 from itertools import pairwise
-from typing import TYPE_CHECKING, Any, Literal, cast, Tuple
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 import structlog
@@ -13,19 +14,15 @@ import zarr
 from dask.array import from_delayed
 from dask.delayed import delayed
 from pydantic.experimental.missing_sentinel import MISSING
-from collections.abc import Hashable, Mapping
 from pyproj import CRS
-from zarr.codecs import CastValue
-from enum import Enum
 
-from eopf_geozarr.conversion import utils, sentinel_modes
+from eopf_geozarr.conversion import sentinel_modes, utils
 from eopf_geozarr.conversion.fs_utils import sanitize_dataset_attributes
 from eopf_geozarr.data_api.geozarr.multiscales import zcm
 from eopf_geozarr.data_api.geozarr.multiscales.geozarr import (
     MultiscaleMeta,
 )
 from eopf_geozarr.data_api.geozarr.types import (
-    CF_SCALE_OFFSET_KEYS,
     XARRAY_ENCODING_KEYS,
     XarrayDataArrayEncoding,
 )
@@ -141,17 +138,21 @@ def _coarsen_variable(var_name: str, var_data: xr.DataArray, factor: int) -> xr.
     if var_type in ("reflectance", "probability"):
         # Cast the input array to float and ignore nans during the .coarsen() operation, which could not be considered in int array with "nan-value" == 0.
         # This prohibits the inclusion of 0 values in the mean calculation of multiscales, mainly impacting the boder regions of arrays
-        
+
         # nan values are later refilled again with 0s (or fillna values) to conform with int array requirements
         fill_value = var_data.fill_value
         if fill_value is not None:
             # mask all 0 as nan in float array
             masked = var_data.where(var_data != fill_value)
 
-            #redefine coarsen operation to ignore nans and fill up with fill_value later
-            result = masked.coarsen({"x": factor, "y": factor}, boundary="trim").mean(skipna=True).fillna(fill_value) # type: ignore
+            # redefine coarsen operation to ignore nans and fill up with fill_value later
+            result = (
+                masked.coarsen({"x": factor, "y": factor}, boundary="trim")
+                .mean(skipna=True)  # type: ignore[attr-defined]
+                .fillna(fill_value)
+            )
         else:
-            result = coarsened.mean() # type: ignore
+            result = coarsened.mean()  # type: ignore[attr-defined]
     elif var_type == "classification":
         result = coarsened.reduce(subsample_2)
     elif var_type == "quality_mask":
@@ -214,7 +215,7 @@ def inject_missing_bands(
             continue
 
         source_ds = dt_input[source_path].to_dataset()
-        
+
         if band_name not in source_ds.data_vars:
             continue
 
@@ -224,9 +225,9 @@ def inject_missing_bands(
 
         # add attribute value acknoleding the own resampling
         trgt_attrs = band_src.attrs
-        trgt_attrs.update({'_derived_from': f"r{native_res}m",
-                           '_factor': factor,
-                           '_resampling_mode': 'mean'})
+        trgt_attrs.update(
+            {"_derived_from": f"r{native_res}m", "_factor": factor, "_resampling_mode": "mean"}
+        )
 
         # Replace coordinates with the target dataset's coordinates so that
         # xarray.Dataset.assign does not try to align on mismatched values.
@@ -287,7 +288,7 @@ def create_multiscale_from_datatree(
 
     if s2_type is None:
         log.info("not found a matching s2_type {}: is not matching L2A or L1C", s2_type=s2_type)
-        
+
     # Step 1: Copy all original groups as-is
     for group_path in dt_input.groups:
         if group_path == ".":
@@ -326,7 +327,7 @@ def create_multiscale_from_datatree(
             and "/measurements/" in group_path
         )
 
-        if is_measurement_group:    
+        if is_measurement_group:
             # Inject bands whose native resolution is finer than this group's
             # (e.g. b08 native at 10m into r20m/r60m) so they propagate through
             # the full overview chain (r120m … r720m).
@@ -337,7 +338,7 @@ def create_multiscale_from_datatree(
                     group_resolution = 0
 
                 # just add the b08 band
-                if s2_type == 'L2A':
+                if s2_type == "L2A":
                     if group_resolution > 10:
                         dataset = inject_missing_bands(
                             dataset,
@@ -348,14 +349,19 @@ def create_multiscale_from_datatree(
                         )
 
                 # add all lower level bands here!
-                elif s2_type == 'L1C':
+                elif s2_type == "L1C":
                     if group_resolution == 20:
                         dataset = inject_missing_bands(
                             dataset,
                             dt_input,
                             group_resolution,
                             spatial_chunk,
-                            bands={"b02", "b03", "b04", "b08",},
+                            bands={
+                                "b02",
+                                "b03",
+                                "b04",
+                                "b08",
+                            },
                         )
                     elif group_resolution == 60:
                         dataset = inject_missing_bands(
@@ -363,9 +369,20 @@ def create_multiscale_from_datatree(
                             dt_input,
                             group_resolution,
                             spatial_chunk,
-                            bands={"b02", "b03", "b04", "b08", "b05", "b06",  "b07", "b8a", "b11", "b12"},
+                            bands={
+                                "b02",
+                                "b03",
+                                "b04",
+                                "b08",
+                                "b05",
+                                "b06",
+                                "b07",
+                                "b8a",
+                                "b11",
+                                "b12",
+                            },
                         )
-                
+
             # Measurement groups: apply custom encoding
             encoding = utils.create_uniform_encoding(
                 dataset,
@@ -391,12 +408,14 @@ def create_multiscale_from_datatree(
                     dataset[data_var].encoding.pop("_FillValue", None)
         else:
             # Non-measurement groups: preserve original encoding
-            encoding = utils.create_uniform_encoding(dataset,
-                                               spatial_chunk=spatial_chunk,
-                                                enable_sharding=enable_sharding,
-                                                keep_scale_offset=keep_scale_offset,
-                                                experimental_scale_offset_codec=experimental_scale_offset_codec,
-                                                compression_level=compression_level)
+            encoding = utils.create_uniform_encoding(
+                dataset,
+                spatial_chunk=spatial_chunk,
+                enable_sharding=enable_sharding,
+                keep_scale_offset=keep_scale_offset,
+                experimental_scale_offset_codec=experimental_scale_offset_codec,
+                compression_level=compression_level,
+            )
 
         # Drop scalar (0-D) coordinates such as a source `band` label: the
         # minispec's DataArray rules forbid scalar arrays in a GeoZarr dataset.
@@ -448,7 +467,8 @@ def create_multiscale_from_datatree(
         log.info("Writing level to path", level=dest_level_name, output_path=dest_level_path)
 
         # Create encoding
-        encoding = utils.create_uniform_encoding(downsampled_dataset,
+        encoding = utils.create_uniform_encoding(
+            downsampled_dataset,
             spatial_chunk=spatial_chunk,
             enable_sharding=enable_sharding,
             keep_scale_offset=keep_scale_offset,

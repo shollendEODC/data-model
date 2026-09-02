@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from enum import Enum
+
 
 class S2Type(Enum):
     L1C = "L1C"
@@ -13,6 +15,7 @@ class S2Type(Enum):
             if member.value in filename:
                 return member
         return None
+
 
 class S1Type(Enum):
     GRDH = "GRDH"
@@ -37,4 +40,3 @@ class S1Mode(Enum):
             if member.value in filename:
                 return member
         return None
-        

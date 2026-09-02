@@ -14,7 +14,6 @@ Key compliance features:
 """
 
 import dataclasses
-import itertools
 import os
 import time
 from collections.abc import Hashable, Iterable, Mapping, Sequence
@@ -46,9 +45,9 @@ from eopf_geozarr.types import (
     XarrayEncodingJSON,
 )
 
+from ..s1_optimization.sentinel1_reprojection import reproject_sentinel1_with_gcps
 from . import fs_utils, utils
 from .fs_utils import sanitize_dataset_attributes
-from ..s1_optimization.sentinel1_reprojection import reproject_sentinel1_with_gcps
 
 if TYPE_CHECKING:
     from zarr.core.common import JSON
@@ -125,13 +124,12 @@ def create_geozarr_dataset(
 
         # pick only one gcp group (both groups from VV and VH should be equal)
         # gcp_group = vv_vh_group_names[0] + "/" + gcp_group.lstrip("/")
-        
-        
+
         # get polarisation groups and gcp_group
-        name = list(dt_input.children)[0]
-        groups = [f'/{name}/{grp_name.lstrip("/")}' for grp_name in groups]
-        gcp_group = f'/{name}/{gcp_group.lstrip("/")}'
-        
+        name = next(iter(dt_input.children))
+        groups = [f"/{name}/{grp_name.lstrip('/')}" for grp_name in groups]
+        gcp_group = f"/{name}/{gcp_group.lstrip('/')}"
+
         if gcp_group not in dt_input.groups:
             raise ValueError(f"GCP group '{gcp_group}' not found in input datatree")
 

@@ -292,7 +292,9 @@ def convert_s2_optimized(
     return result_dt
 
 
-def simple_root_consolidation(dt_input: xr.DataTree, output_path: str, datasets: Mapping[str, object]) -> None:
+def simple_root_consolidation(
+    dt_input: xr.DataTree, output_path: str, datasets: Mapping[str, object]
+) -> None:
     """Simple root-level metadata consolidation with proper zarr group creation."""
     # create missing intermediary groups (/conditions, /quality, etc.)
     # using the keys of the datasets dict
@@ -340,7 +342,7 @@ def simple_root_consolidation(dt_input: xr.DataTree, output_path: str, datasets:
     # and writes the union on the root `zarr.json`.
     write_store_root_bbox(output_path)
 
-    utils.write_store_root_stac_metadata(output_path, root_attrs=dt_input.attrs)  # type: ignore
+    utils.write_store_root_stac_metadata(output_path, root_attrs=dt_input.attrs)  # type: ignore[arg-type]
 
     # consolidate reflectance group metadata
     zarr.consolidate_metadata(output_path + "/measurements/reflectance", zarr_format=3)

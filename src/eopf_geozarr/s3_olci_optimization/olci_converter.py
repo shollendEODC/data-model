@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
-from typing import TYPE_CHECKING, Dict, cast, Tuple
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import rioxarray  # noqa: F401
@@ -12,7 +11,12 @@ import xarray as xr
 import zarr
 from rasterio.crs import CRS
 
-from eopf_geozarr.conversion.utils import build_convention_attrs, _rechunk_ds, create_uniform_encoding, rechunk_dataset_for_encoding
+from eopf_geozarr.conversion.utils import (
+    _rechunk_ds,
+    build_convention_attrs,
+    create_uniform_encoding,
+    rechunk_dataset_for_encoding,
+)
 from eopf_geozarr.data_api.s3_olci import Sentinel3OlciRoot
 from eopf_geozarr.s3_olci_optimization.olci_band_mapping import OLCI_BANDS
 from eopf_geozarr.s3_olci_optimization.olci_multiscale import (
@@ -156,7 +160,6 @@ def _copy_subtree(node: xr.DataTree, output_path: str, *, root_group: str) -> No
     specifying a root offset, so we write each leaf's :py:meth:`~xarray.DataTree.to_dataset`
     using ``xr.Dataset.to_zarr`` instead.
     """
-    node_path = node.path  # e.g. "/conditions"
     for child in node.subtree:
         ds = child.to_dataset()
         if not ds.data_vars and not ds.coords:
@@ -166,8 +169,8 @@ def _copy_subtree(node: xr.DataTree, output_path: str, *, root_group: str) -> No
 
         # -> leads to overwriting issue, as values are not written in the group Path fodlder but directly in group
         #  Build the group path: strip the ancestor prefix and prepend root_group.
-        #relative = child.path[len(node_path) :]  # "" for root, "/sub" for children
-        #group_path = root_group + relative
+        # relative = child.path[len(node_path) :]  # "" for root, "/sub" for children
+        # group_path = root_group + relative
 
         log.info("Copying ancillary subgroup", group=child.path)
         ds.to_zarr(
@@ -179,27 +182,30 @@ def _copy_subtree(node: xr.DataTree, output_path: str, *, root_group: str) -> No
         )
 
 
-def write_olci_part(ds: xr.Dataset, 
-                    output_path: str,
-                    output_group: str,
-                    enable_sharding: bool = False,
-                    spatial_chunk: int = 1024,
-                    compression_level: int = 3,
-                    keep_scale_offset: bool = False,) -> xr.Dataset:
-    
-    zarr_encoding = create_uniform_encoding(ds,
-                                            spatial_chunk=spatial_chunk,
-                                            enable_sharding=enable_sharding,
-                                            keep_scale_offset=keep_scale_offset,
-                                            compression_level=compression_level)
-    
+def write_olci_part(
+    ds: xr.Dataset,
+    output_path: str,
+    output_group: str,
+    enable_sharding: bool = False,
+    spatial_chunk: int = 1024,
+    compression_level: int = 3,
+    keep_scale_offset: bool = False,
+) -> xr.Dataset:
+    zarr_encoding = create_uniform_encoding(
+        ds,
+        spatial_chunk=spatial_chunk,
+        enable_sharding=enable_sharding,
+        keep_scale_offset=keep_scale_offset,
+        compression_level=compression_level,
+    )
+
     rechunked_ds = rechunk_dataset_for_encoding(ds, zarr_encoding)
 
-    log.info(f"Writing {output_group}", shape=dict(ds.sizes))
+    log.info("Writing group", group=output_group, shape=dict(ds.sizes))
 
     rechunked_ds.to_zarr(
         store=output_path,
-        group=output_group,  #"measurements/r0",
+        group=output_group,  # "measurements/r0",
         mode="w",
         consolidated=False,
         zarr_format=3,
@@ -208,22 +214,25 @@ def write_olci_part(ds: xr.Dataset,
     return rechunked_ds
 
 
-def calculate_olci_pyramids(measurements_ds: xr.Dataset,
-                            output_path: str,
-                            pyramid_dims: Tuple[str, str],
-                            spatial_chunk: int,
-                            output_group: str = 'measurements',
-                            min_dimension: int = 256,
-                            crs: CRS | None = None,
-                            **kwargs
-                            ) -> Dict[str, xr.Dataset]:
-
+def calculate_olci_pyramids(
+    measurements_ds: xr.Dataset,
+    output_path: str,
+    pyramid_dims: tuple[str, str],
+    spatial_chunk: int,
+    output_group: str = "measurements",
+    min_dimension: int = 256,
+    crs: CRS | None = None,
+    **kwargs: Any,
+) -> dict[str, xr.Dataset]:
     def _level_spatial(level_ds: xr.Dataset, crs: CRS | None) -> SpatialAttrs:
         if crs is None:
             return swath_spatial_attrs()
-        
-        return grid_spatial_attrs(level_ds.rio.transform(recalc=True), (level_ds.sizes["y"], level_ds.sizes["x"]),)
-    
+
+        return grid_spatial_attrs(
+            level_ds.rio.transform(recalc=True),
+            (level_ds.sizes["y"], level_ds.sizes["x"]),
+        )
+
     # Write /2 reduced overview subgroups: r2, r4, r8, …
     rows = measurements_ds.sizes[pyramid_dims[0]]
     cols = measurements_ds.sizes[pyramid_dims[1]]
@@ -240,7 +249,7 @@ def calculate_olci_pyramids(measurements_ds: xr.Dataset,
 
         # first rechunk the dataset
         current = _rechunk_ds(current, spatial_chunk)
-        
+
         # Attrs already sanitized at native level and passed through by
         # reduce_swath; no second sanitize pass needed.
         if base_transform is not None:
@@ -260,12 +269,13 @@ def calculate_olci_pyramids(measurements_ds: xr.Dataset,
             )
         group_name = f"r{2**level}"
         level_datasets[group_name] = current
-        log.info("Writing overview", group=f"{output_group}/{group_name}", shape=dict(current.sizes))
+        log.info(
+            "Writing overview", group=f"{output_group}/{group_name}", shape=dict(current.sizes)
+        )
 
-        write_olci_part(current, 
-                        output_path=output_path, 
-                        output_group=f"{output_group}/{group_name}",
-                        **kwargs)
+        write_olci_part(
+            current, output_path=output_path, output_group=f"{output_group}/{group_name}", **kwargs
+        )
 
     # Build and attach GeoZarr convention metadata (spatial + multiscales CMO)
     # to the measurements group attrs.
@@ -285,9 +295,8 @@ def calculate_olci_pyramids(measurements_ds: xr.Dataset,
 
     base_spatial = _level_spatial(measurements_ds, crs=crs)
     for group_name, level_ds in level_datasets.items():
-        level_conv = build_convention_attrs(spatial=_level_spatial(level_ds, crs=crs), 
-                                            crs=crs)
-        
+        level_conv = build_convention_attrs(spatial=_level_spatial(level_ds, crs=crs), crs=crs)
+
         root_rw[f"{output_group}/{group_name}"].attrs.update(cast("dict[str, JSON]", level_conv))
 
     if n_levels > 0:
@@ -413,12 +422,17 @@ def own_convert_olci_optimized(
             if base_dataset.attrs == {}:
                 log.info("Skipping empty group: ", group_path=group_path)
                 continue
-            else:
-                log.info("Empty group with attributes found (except for root), not planned. Adding attrs to group node")
-                rechunked_dt[group_path].attrs = group_node.attrs
-                continue
+            log.info(
+                "Empty group with attributes found (except for root), not planned. Adding attrs to group node"
+            )
+            rechunked_dt[group_path].attrs = group_node.attrs
+            continue
 
-        log.info(f"Applying Rechunking ({spatial_chunk} x {spatial_chunk}) to original group", group_path=group_path)
+        log.info(
+            "Applying rechunking to original group",
+            spatial_chunk=spatial_chunk,
+            group_path=group_path,
+        )
 
         # first rechunk the dataset
         if next(iter(base_dataset.data_vars.values())).chunksizes:
@@ -439,8 +453,8 @@ def own_convert_olci_optimized(
             continue
         if not isinstance(node_item, xr.DataTree):
             continue
-        #log.info("Copying ancillary group", group=grp)
-        #_copy_subtree(node_item, output_path, root_group=grp)
+        # log.info("Copying ancillary group", group=grp)
+        # _copy_subtree(node_item, output_path, root_group=grp)
 
         for subchild in node_item.subtree:
             subchild_ds = subchild.to_dataset()
@@ -449,19 +463,21 @@ def own_convert_olci_optimized(
 
             # Strip any inherited Zarr v2 encoding before writing to a v3 store.
             subchild_ds = _clear_encoding(subchild_ds)
-    
+
             # -> leads to overwriting issue, as values are not written in the group Path fodlder but directly in group
             #  Build the group path: strip the ancestor prefix and prepend root_group.
-            #relative = child.path[len(node_path) :]  # "" for root, "/sub" for children
-            #group_path = root_group + relative
+            # relative = child.path[len(node_path) :]  # "" for root, "/sub" for children
+            # group_path = root_group + relative
             log.info("Copying ancillary subgroup", group=subchild.path)
-            write_olci_part(subchild_ds,
-                            output_path=output_path,
-                            output_group=subchild.path,
-                            enable_sharding=enable_sharding,
-                            spatial_chunk=spatial_chunk,
-                            compression_level=compression_level,
-                            keep_scale_offset=keep_scale_offset)
+            write_olci_part(
+                subchild_ds,
+                output_path=output_path,
+                output_group=subchild.path,
+                enable_sharding=enable_sharding,
+                spatial_chunk=spatial_chunk,
+                compression_level=compression_level,
+                keep_scale_offset=keep_scale_offset,
+            )
 
     ### measurements ###
     measurements = rechunked_dt["/measurements"].to_dataset()
@@ -475,7 +491,7 @@ def own_convert_olci_optimized(
             f"measurements group; missing {missing_dims}. Use the generic convert "
             "path for products with different dimension names."
         )
-    
+
     # Strip any inherited Zarr v2 encoding (e.g. numcodecs.Blosc compressors)
     # so the v3 writer can choose its own default codecs without raising a
     # "Expected a BytesBytesCodec" error.  The caller is expected to have opened
@@ -518,25 +534,29 @@ def own_convert_olci_optimized(
     else:
         pyramid_dims = SWATH_DIMS
 
-    write_olci_part(ds=measurements, 
-                    output_path=output_path,
-                    output_group="measurements/r0",
-                    enable_sharding=enable_sharding,
-                    spatial_chunk=spatial_chunk,
-                    compression_level=compression_level,
-                    keep_scale_offset=keep_scale_offset)
+    write_olci_part(
+        ds=measurements,
+        output_path=output_path,
+        output_group="measurements/r0",
+        enable_sharding=enable_sharding,
+        spatial_chunk=spatial_chunk,
+        compression_level=compression_level,
+        keep_scale_offset=keep_scale_offset,
+    )
 
     ### pyramids ###
-    calculate_olci_pyramids(measurements,
-                            output_path=output_path,
-                            pyramid_dims=pyramid_dims,
-                            spatial_chunk=spatial_chunk,
-                            output_group='measurements',
-                            min_dimension=min_dimension,
-                            crs=crs_obj,
-                            enable_sharding=enable_sharding,
-                            compression_level=compression_level,
-                            keep_scale_offset=keep_scale_offset)
+    calculate_olci_pyramids(
+        measurements,
+        output_path=output_path,
+        pyramid_dims=pyramid_dims,
+        spatial_chunk=spatial_chunk,
+        output_group="measurements",
+        min_dimension=min_dimension,
+        crs=crs_obj,
+        enable_sharding=enable_sharding,
+        compression_level=compression_level,
+        keep_scale_offset=keep_scale_offset,
+    )
 
     # iteratively copy children of node (noteably parent)
     for child in rechunked_dt["/measurements"].children.values():
@@ -548,20 +568,21 @@ def own_convert_olci_optimized(
 
             # Strip any inherited Zarr v2 encoding before writing to a v3 store.
             subchild_ds = _clear_encoding(subchild_ds)
-    
+
             # -> leads to overwriting issue, as values are not written in the group Path fodlder but directly in group
             #  Build the group path: strip the ancestor prefix and prepend root_group.
-            #relative = child.path[len(node_path) :]  # "" for root, "/sub" for children
-            #group_path = root_group + relative
+            # relative = child.path[len(node_path) :]  # "" for root, "/sub" for children
+            # group_path = root_group + relative
             log.info("Copying ancillary subgroup", group=subchild.path)
-            write_olci_part(subchild_ds,
-                            output_path=output_path,
-                            output_group=subchild.path,
-                            enable_sharding=enable_sharding,
-                            spatial_chunk=spatial_chunk,
-                            compression_level=compression_level,
-                            keep_scale_offset=keep_scale_offset)
-    
+            write_olci_part(
+                subchild_ds,
+                output_path=output_path,
+                output_group=subchild.path,
+                enable_sharding=enable_sharding,
+                spatial_chunk=spatial_chunk,
+                compression_level=compression_level,
+                keep_scale_offset=keep_scale_offset,
+            )
 
     return xr.open_datatree(
         output_path,
@@ -717,8 +738,6 @@ def convert_olci_optimized(
         pyramid_dims = GRID_DIMS
     else:
         pyramid_dims = SWATH_DIMS
-
-
 
     # Truncate any pre-existing store first: the writes below are per-group
     # (mode="w" scoped to measurements/r0, mode="a" for overviews/ancillary),
