@@ -15,7 +15,7 @@ from zarr_cm import geo_proj
 from zarr_cm import spatial as spatial_cm
 
 from eopf_geozarr.s2_optimization.s2_multiscale import (
-    create_measurements_encoding,
+    create_uniform_encoding,
     stream_write_dataset,
     write_geo_metadata,
 )
@@ -228,7 +228,7 @@ class TestWriteGeoMetadata:
         ds = ds.rio.write_crs("EPSG:32632")
 
         # Create encoding for the dataset
-        encoding = create_measurements_encoding(ds, spatial_chunk=1024, enable_sharding=True)
+        encoding = create_uniform_encoding(ds, spatial_chunk=1024, enable_sharding=True)
 
         # Call _stream_write_dataset (which should call _write_geo_metadata internally)
         # Use a measurements path to trigger geo metadata writing

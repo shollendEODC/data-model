@@ -12,8 +12,6 @@ import pytest
 import xarray as xr
 import zarr
 from structlog.testing import capture_logs
-from zarr.codecs import BloscCodec, CastValue, ScaleOffset
-from zarr.core.dtype import Int16
 from zarr.core.metadata import ArrayV3Metadata
 
 from eopf_geozarr.s2_optimization.s2_converter import convert_s2_optimized
@@ -132,53 +130,6 @@ def test_calculate_simple_shard_dimensions() -> None:
     # Should use largest multiple of chunk_size that fits
     assert shard_dims[0] == 768  # 3 * 256 = 768 (largest multiple that fits in 1000)
     assert shard_dims[1] == 768  # 3 * 256 = 768
-
-
-def test_create_uniform_encoding_experimental_scale_offset_codec() -> None:
-    """Test that experimental_scale_offset_codec adds ScaleOffset + CastValue filters."""
-    # Create a dataset with CF-style scale-offset encoding, as xarray would
-    # produce when reading a CF-encoded zarr/netCDF variable.
-    data = xr.DataArray(
-        np.arange(0, 100, dtype="float64").reshape(10, 10),
-        dims=["y", "x"],
-    )
-    data.encoding = {
-        "scale_factor": 0.01,
-        "add_offset": 273.15,
-        "dtype": np.dtype("int16"),
-    }
-    ds = xr.Dataset({"temperature": data})
-    ds = _rechunk_ds(ds, 1024)
-
-    encoding = create_uniform_encoding(
-        ds,
-        enable_sharding=True,
-        spatial_chunk=1024,
-        keep_scale_offset=False,
-        experimental_scale_offset_codec=True,
-    )
-
-    int16_min = int(np.iinfo(np.int16).min)
-    assert encoding == {
-        "temperature": {
-            "chunks": (10, 10),
-            "compressors": (BloscCodec(cname="zstd", clevel=3, shuffle="shuffle", blocksize=0),),
-            "shards": (10, 10),
-            "filters": (
-                ScaleOffset(offset=273.15, scale=100.0),
-                CastValue(
-                    data_type=Int16(endianness="little"),
-                    rounding="nearest-even",
-                    out_of_range=None,
-                    scalar_map={
-                        "encode": [("NaN", int16_min)],
-                        "decode": [(int16_min, "NaN")],
-                    },
-                ),
-            ),
-            "fill_value": "NaN",
-        }
-    }
 
 
 @pytest.mark.parametrize("keep_scale_offset", [True, False])
@@ -316,7 +267,6 @@ def test_create_multiscale_from_datatree(
             spatial_chunk=1024,
             validate_output=False,
             keep_scale_offset=True,
-            experimental_scale_offset_codec=False,
             compression_level=3,
         )
 
@@ -447,11 +397,9 @@ _DOWNSAMPLED_GROUPS = (
 @pytest.mark.filterwarnings("ignore:.*:RuntimeWarning")
 @pytest.mark.filterwarnings("ignore:.*:FutureWarning")
 @pytest.mark.filterwarnings("ignore:.*:UserWarning")
-@pytest.mark.parametrize("experimental_scale_offset_codec", [False, True])
 @pytest.mark.parametrize("keep_scale_offset", [False, True])
 def test_create_multiscale_from_datatree_behavior(
     keep_scale_offset: bool,
-    experimental_scale_offset_codec: bool,
     tmp_path: pathlib.Path,
 ) -> None:
     """Verify per-parameter behavior of multiscale generation on a tiny dataset.
@@ -480,7 +428,6 @@ def test_create_multiscale_from_datatree_behavior(
             enable_sharding=False,
             spatial_chunk=_BEHAVIOR_SPATIAL_CHUNK,
             keep_scale_offset=keep_scale_offset,
-            experimental_scale_offset_codec=experimental_scale_offset_codec,
         )
 
     # ------------------------------------------------------------------
@@ -497,14 +444,6 @@ def test_create_multiscale_from_datatree_behavior(
             assert arr.dtype == np.uint16, (
                 f"{group_path}/{var_name}: expected uint16 on disk, got {arr.dtype}"
             )
-        elif experimental_scale_offset_codec:
-            # CF encoding is pushed into a codec pipeline. The logical dtype
-            # is the cast-to-float32 array dtype; the codec stores uint16.
-            assert arr.dtype == np.float32, (
-                f"{group_path}/{var_name}: expected float32 logical dtype, got {arr.dtype}"
-            )
-            assert "ScaleOffset" in codec_names, f"{group_path}/{var_name}: codecs={codec_names}"
-            assert "CastValue" in codec_names, f"{group_path}/{var_name}: codecs={codec_names}"
         else:
             # CF encoding is stripped; data is written as decoded floats.
             assert arr.dtype == np.float32, (
@@ -538,12 +477,6 @@ def test_create_multiscale_from_datatree_behavior(
                 )
                 assert "ScaleOffset" not in codec_names
                 assert "CastValue" not in codec_names
-            elif experimental_scale_offset_codec:
-                assert arr.dtype == np.float32, (
-                    f"{group_path}/{name}: expected float32 logical dtype, got {arr.dtype}"
-                )
-                assert "ScaleOffset" in codec_names, f"{group_path}/{name}: codecs={codec_names}"
-                assert "CastValue" in codec_names, f"{group_path}/{name}: codecs={codec_names}"
             else:
                 assert arr.dtype == np.float32, (
                     f"{group_path}/{name}: expected float32, got {arr.dtype}"

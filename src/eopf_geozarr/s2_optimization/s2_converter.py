@@ -22,7 +22,7 @@ from eopf_geozarr.data_api.s2 import Sentinel2Root
 from .s2_multiscale import create_multiscale_from_datatree
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Hashable, Mapping
 
 log = structlog.get_logger()
 
@@ -217,7 +217,6 @@ def convert_s2_optimized(
     compression_level: int,
     validate_output: bool,
     keep_scale_offset: bool,
-    experimental_scale_offset_codec: bool = False,
     max_retries: int = 3,
 ) -> xr.DataTree:
     """
@@ -231,7 +230,6 @@ def convert_s2_optimized(
         compression_level: Compression level 1-9
         validate_output: Whether to validate the output
         keep_scale_offset: Whether to preserve scale-offset encoding of the source data.
-        experimental_scale_offset_codec: Push CF scale-offset into zarr codec pipeline.
         max_retries: Maximum number of retries for network operations
 
     Returns:
@@ -265,7 +263,6 @@ def convert_s2_optimized(
         enable_sharding=enable_sharding,
         crs=crs,
         keep_scale_offset=keep_scale_offset,
-        experimental_scale_offset_codec=experimental_scale_offset_codec,
     )
 
     log.info("Created multiscale pyramids", num_groups=len(datasets))
@@ -343,8 +340,14 @@ def simple_root_consolidation(
     write_store_root_bbox(output_path)
 
     if dt_input and dt_input.attrs:
+        # this can be used to add multiscale paths to the stac attributes
+        # wether we want that or not has to be discussed
+        updated_stac_attrs = add_multiscale_pyramids_to_stac_metadata(datasets, dt_input.attrs)
+
         utils.write_store_root_stac_metadata(
-            output_path, root_attrs=cast("dict[str, dict[str, Any]]", dt_input.attrs)
+            # output_path, root_attrs=cast("dict[str, dict[str, Any]]", dt_input.attrs)
+            output_path,
+            root_attrs=cast("dict[str, dict[str, Any]]", updated_stac_attrs),
         )
 
     # consolidate reflectance group metadata
@@ -352,6 +355,38 @@ def simple_root_consolidation(
 
     # consolidate root group metadata
     zarr.consolidate_metadata(output_path, zarr_format=3)
+
+
+def add_multiscale_pyramids_to_stac_metadata(
+    datasets: Mapping[str, object], dt_attributes: dict[Hashable, Any]
+) -> dict[Hashable, Any]:
+    stac_attrs = dt_attributes["stac_discovery"]["assets"]
+
+    # a bit messy but effective split to get group parent from stac attrs
+    existing_group_paths = {"/".join(v["href"].split("/")[:-1]) for v in stac_attrs.values()}
+
+    # gEt mismatched ones -> we need pyramids not present
+    missing_group_paths = [
+        path for path, ds in datasets.items() if path not in existing_group_paths and ds is not None
+    ]
+
+    for group_path in missing_group_paths:
+        ds = datasets[group_path]
+
+        # catch object != datAset for typing
+        if isinstance(ds, xr.Dataset):
+            resolution = group_path.rsplit("/", 1)[-1]  # "r120m"
+            for var_name in ds.data_vars:
+                if var_name == "spatial_ref":
+                    continue
+                asset_key = f"{var_name}_{resolution}"
+                stac_attrs[asset_key] = {"href": f"{group_path}/{var_name}", "title": asset_key}
+        else:
+            log.warning("Found non-dataset object in datasets!", dataset=ds)
+
+    # replace attrs
+    dt_attributes["stac_discovery"]["assets"] = stac_attrs
+    return dt_attributes
 
 
 def write_store_root_bbox(output_path: str) -> None:

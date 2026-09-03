@@ -1302,7 +1302,6 @@ def convert_s2_optimized_command(args: argparse.Namespace) -> None:
             compression_level=args.compression_level,
             validate_output=not args.skip_validation,
             keep_scale_offset=args.keep_scale_offset,
-            experimental_scale_offset_codec=args.experimental_scale_offset_codec,
         )
 
         log.info("S2 optimization completed", output_path=args.output_path)
