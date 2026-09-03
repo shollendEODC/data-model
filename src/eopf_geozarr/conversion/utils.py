@@ -26,6 +26,25 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
+# Dimension names that represent a "band-like" axis (polarization) to allow a per-"band" sharding if they extend beyond ram
+# purposedly doeStn inlcude the 'band' option to not impleemnt on small enOugh arrays
+BAND_LIKE_DIM_NAMES = frozenset({"polarization"})
+
+
+def _band_like_dim_index(var_data: xr.DataArray) -> int | None:
+    """Index of the band-like dimension, if var_data has one. Falls back to
+    None (caller should then skip band-axis sharding, not guess)."""
+    if len(var_data.dims) <= 2:
+        log.info(
+            "Not sharding along bandlike dim if its not dim>2", band_like_dim=BAND_LIKE_DIM_NAMES
+        )
+    else:
+        for i, dim in enumerate(var_data.dims):
+            if dim in BAND_LIKE_DIM_NAMES:
+                return i
+    return None
+
+
 def _rechunk_ds(ds: xr.Dataset, spatial_chunk: int) -> xr.Dataset:
     chunks = {dim: (min(spatial_chunk, size)) for dim, size in ds.sizes.items()}
     return ds.chunk(chunks)
@@ -73,7 +92,9 @@ def rechunk_dataset_for_encoding(
     return xr.Dataset(rechunked_vars, coords=dataset.coords, attrs=dataset.attrs)
 
 
-def get_chunking_for_encoding(var_data: xr.DataArray) -> tuple[int, ...]:
+def get_chunking_for_encoding(
+    var_data: xr.DataArray, shard_along_smallest_dimension: bool = False
+) -> tuple[int, ...]:
     """
     requires a prior rechunking of the dataset by calling _rechunk_ds() to rechunk non-metadata arrays to spatial_chunk
     get a tuple of maximal chunksize for the dataarray
@@ -89,6 +110,11 @@ def get_chunking_for_encoding(var_data: xr.DataArray) -> tuple[int, ...]:
         # has irregular chunksizes trailing, but the syntax and goal of the code is much clearer this way
         max_chunksizes = [max(c) for c in var_data.chunks]
 
+        if shard_along_smallest_dimension:
+            band_dim = _band_like_dim_index(var_data)
+            if band_dim is not None:
+                max_chunksizes[band_dim] = 1
+
         # consider the occurance of 1dim arrays, provide the encoding chunk ndim times
         return (max_chunksizes[0],) if var_data.ndim == 1 else tuple(max_chunksizes)
     raise ValueError(
@@ -101,7 +127,7 @@ def create_uniform_encoding(
     *,
     spatial_chunk: int,
     enable_sharding: bool = True,
-    shard_number: int = 1,
+    shard_along_smallest_dimension: bool = False,
     keep_scale_offset: bool = True,
     experimental_scale_offset_codec: bool = False,
     compression_level: int = 3,
@@ -131,29 +157,48 @@ def create_uniform_encoding(
     for var_name, var_data in dataset.data_vars.items():
         var_encoding: XarrayDataArrayEncoding = {}
 
-        encoding_chunks = get_chunking_for_encoding(var_data)
+        encoding_chunks = get_chunking_for_encoding(var_data, shard_along_smallest_dimension)
 
         var_encoding["chunks"] = encoding_chunks
         var_encoding["compressors"] = (compressor,)
 
         # --- Shards: cover the whole array, one shard per array -----------
         if enable_sharding:
-            if shard_number == 1:
-                # select next largest mutliple of chunksize to fit full array
-                shards = tuple(
-                    math.ceil(shape / chunk) * chunk
-                    for shape, chunk in zip(var_data.shape, encoding_chunks, strict=True)
-                )
-            else:
-                # shards = tuple(min(shard_number * chunk, math.ceil(shape / chunk) * chunk) for shape, chunk in zip(var_data.shape, encoding_chunks))
-                shards = tuple(
-                    min(
-                        math.ceil(shape // (shard_number / 2) / spatial_chunk) * chunk,
-                        math.ceil(shape / chunk) * chunk,
+            # select next largest mutliple of chunksize to fit full array
+            shards_ = [
+                math.ceil(shape / chunk) * chunk
+                for shape, chunk in zip(var_data.shape, encoding_chunks, strict=True)
+            ]
+            if shard_along_smallest_dimension:
+                band_dim = _band_like_dim_index(var_data)
+                if band_dim is None:
+                    log.warning(
+                        "shard_along_smallest_dimension=True but %s has no "
+                        "recognized band-like dimension (%s); falling back to "
+                        "whole-array sharding",
+                        var_data.name,
+                        list(var_data.dims),
                     )
-                    for shape, chunk in zip(var_data.shape, encoding_chunks, strict=True)
-                )
-            var_encoding["shards"] = shards
+                else:
+                    shards_[band_dim] = encoding_chunks[band_dim]
+                # sharding along the smallest dimesnion -> eg polarization (1, 1000, 2000)
+                # mnp = var_data.shape.index(min(var_data.shape))
+                # shards_ = [
+                #     math.ceil(shape / chunk) * chunk
+                #     for shape, chunk in zip(var_data.shape, encoding_chunks, strict=True)
+                # ]
+                # shards_[mnp] = 1
+                # shards = tuple(shards_)
+
+                # shards = tuple(min(shard_number * chunk, math.ceil(shape / chunk) * chunk) for shape, chunk in zip(var_data.shape, encoding_chunks))
+                # shards = tuple(
+                #     min(
+                #         math.ceil(shape // (shard_number / 2) / spatial_chunk) * chunk,
+                #         math.ceil(shape / chunk) * chunk,
+                #     )
+                #     for shape, chunk in zip(var_data.shape, encoding_chunks, strict=True)
+                # )
+            var_encoding["shards"] = tuple(shards_)
         else:
             var_encoding["shards"] = None
 

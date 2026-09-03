@@ -523,7 +523,7 @@ def calculate_s1grdh_multiscales(
             dataset,
             spatial_chunk=spatial_chunk,
             enable_sharding=enable_sharding,
-            shard_number=1,
+            shard_along_smallest_dimension=False,
             keep_scale_offset=keep_scale_offset,
             compression_level=compression_level,
         )
@@ -660,7 +660,7 @@ def convert_s1grdh_optimized(
             encoding = utils.create_uniform_encoding(
                 dataset,
                 spatial_chunk=spatial_chunk,
-                shard_number=4,
+                shard_along_smallest_dimension=True,
                 enable_sharding=enable_sharding,
                 keep_scale_offset=keep_scale_offset,
                 compression_level=compression_level,
@@ -687,6 +687,7 @@ def convert_s1grdh_optimized(
                 dataset,
                 spatial_chunk=spatial_chunk,
                 enable_sharding=enable_sharding,
+                shard_along_smallest_dimension=False,
                 keep_scale_offset=keep_scale_offset,
                 compression_level=compression_level,
             )
