@@ -15,6 +15,7 @@ from zarr_cm import geo_proj
 from zarr_cm import spatial as spatial_cm
 
 from eopf_geozarr.s2_optimization.s2_multiscale import (
+    _rechunk_ds,
     create_uniform_encoding,
     stream_write_dataset,
     write_geo_metadata,
@@ -226,6 +227,8 @@ class TestWriteGeoMetadata:
 
         ds = xr.Dataset(data_vars, coords=coords)
         ds = ds.rio.write_crs("EPSG:32632")
+
+        ds = _rechunk_ds(ds, spatial_chunk=1024)
 
         # Create encoding for the dataset
         encoding = create_uniform_encoding(ds, spatial_chunk=1024, enable_sharding=True)
