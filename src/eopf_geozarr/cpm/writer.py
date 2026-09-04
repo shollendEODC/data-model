@@ -44,11 +44,11 @@ from eopf.exceptions.errors import EOStoreProductAlreadyExistsError
 from eopf.store.abstract import EOWriter
 from eopf.store.writer_registry import EOWriterRegistry
 
-from eopf_geozarr.conversion import create_geozarr_dataset
 from eopf_geozarr.cpm.routing import (
     PipelineName,
     select_pipeline,
 )
+from eopf_geozarr.generic.generic_converter import create_generic_geozarr_dataset
 from eopf_geozarr.s1_optimization.s1_converter import convert_s1grdh_optimized
 from eopf_geozarr.s2_optimization.s2_converter import convert_s2_optimized
 from eopf_geozarr.s3_olci_optimization.olci_converter import own_convert_olci_optimized
@@ -215,15 +215,17 @@ class GeoZarrWriter(EOWriter):
             ),
         )
 
-        generic_groups: list[str] | None = None
+        # generic_groups: list[str] | None = None
         if selected_pipeline == "generic":
-            if groups is None:
-                raise ValueError(
-                    "The generic GeoZarr pipeline requires the 'groups' option naming the "
-                    "DataTree groups to convert (e.g. groups=['/measurements']). Sentinel-1 "
-                    "products additionally require 'gcp_group' (e.g. '/conditions/gcp').",
-                )
-            generic_groups = list(groups)
+            # if groups is None:
+            #     raise ValueError(
+            #         "The generic GeoZarr pipeline requires the 'groups' option naming the "
+            #         "DataTree groups to convert (e.g. groups=['/measurements']). Sentinel-1 "
+            #         "products additionally require 'gcp_group' (e.g. '/conditions/gcp').",
+            #     )
+            # generic_groups = list(groups)
+            log.info("Just Generic Pipeline -> no geozarr, only rechunking and sharding!")
+
         resolved_spatial_chunk = (
             spatial_chunk
             if spatial_chunk is not None
@@ -263,7 +265,7 @@ class GeoZarrWriter(EOWriter):
                 output_grid=output_grid,
             )
 
-        if selected_pipeline == "s1-grdh-optimized":
+        if selected_pipeline == "s1-grd-optimized":
             return convert_s1grdh_optimized(
                 dt_input=dtree,
                 output_path=output_path,
@@ -275,15 +277,17 @@ class GeoZarrWriter(EOWriter):
                 max_retries=max_retries,
             )
 
-        return create_geozarr_dataset(
+        return create_generic_geozarr_dataset(
             dt_input=dtree,
-            groups=generic_groups if generic_groups is not None else [],
+            # groups=generic_groups if generic_groups is not None else [],
             output_path=output_path,
             spatial_chunk=resolved_spatial_chunk,
-            min_dimension=min_dimension,
-            max_retries=max_retries,
-            crs_groups=list(crs_groups) if crs_groups is not None else None,
-            gcp_group=gcp_group,
+            # min_dimension=min_dimension,
+            # max_retries=max_retries,
+            # crs_groups=list(crs_groups) if crs_groups is not None else None,
+            # gcp_group=gcp_group,
+            keep_scale_offset=keep_scale_offset,
+            compression_level=compression_level,
             enable_sharding=enable_sharding,
         )
 
@@ -384,18 +388,18 @@ class GeoZarrWriter(EOWriter):
           would otherwise auto-detect as OLCI: it falls back to the
           S2-vs-generic decision instead, leaving S2 auto-detection intact.
         """
-        params = [bool(val) for val in (s2_optimized, s3_olci_optimized, s3_olci_optimized)]
+        params = [bool(val) for val in (s2_optimized, s3_olci_optimized, s1_grdh_optimized)]
 
         if sum(params) >= 2:
             raise ValueError(
-                "out of s2_optimized, s3_olci_optimized, s3_olci_optimized only one can be True; set at most one to force a specific pipeline.",
+                "out of s2_optimized, s3_olci_optimized, s1_grdh_optimized only one can be True; set at most one to force a specific pipeline.",
             )
         if s2_optimized is True:
             return "s2-optimized"
         if s3_olci_optimized is True:
             return "s3-olci-optimized"
         if s1_grdh_optimized is True:
-            return "s1-grdh-optimized"
+            return "s1-grd-optimized"
         return None
 
     @staticmethod

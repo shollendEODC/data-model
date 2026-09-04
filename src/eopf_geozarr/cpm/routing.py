@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     import xarray as xr
 
-PipelineName = Literal["s2-optimized", "s3-olci-optimized", "generic", "s1-grdh-optimized"]
+PipelineName = Literal["s2-optimized", "s3-olci-optimized", "generic", "s1-grd-optimized"]
 
 S1_PRODUCT_TYPE_PREFIXES = ("S01SIWGRD", "S01SEWGRD")
 
@@ -179,7 +179,7 @@ def select_pipeline(
     Returns
     -------
     PipelineName
-        ``"s2-optimized"``, ``"s3-olci-optimized"``, ``"s1-grdh-optimized"``, or ``"generic"``.
+        ``"s2-optimized"``, ``"s3-olci-optimized"``, ``"s1-grd-optimized"``, or ``"generic"``.
     """
     if force is not None:
         return force
@@ -188,5 +188,5 @@ def select_pipeline(
     if looks_like_sentinel3_olci(dtree):
         return "s3-olci-optimized"
     if looks_like_sentinel1_grdh(dtree):
-        return "s1-grdh-optimized"
+        return "s1-grd-optimized"
     return "generic"
