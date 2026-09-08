@@ -15,7 +15,7 @@ import structlog
 import xarray as xr
 
 from eopf_geozarr.s2_optimization.s2_converter import convert_s2_optimized, is_sentinel2_dataset
-from eopf_geozarr.s3_olci_optimization.olci_converter import (
+from eopf_geozarr.s3_optimization.olci_converter import (
     convert_olci_optimized,
     is_sentinel3_olci_dataset,
 )

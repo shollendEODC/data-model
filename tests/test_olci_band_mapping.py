@@ -1,4 +1,4 @@
-from eopf_geozarr.s3_olci_optimization.olci_band_mapping import (
+from eopf_geozarr.s3_optimization.olci_band_mapping import (
     OLCI_BAND_INFO,
     OLCI_BANDS,
     RADIANCE_DTYPE,

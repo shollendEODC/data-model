@@ -18,14 +18,14 @@ from eopf_geozarr.conversion.utils import (
     rechunk_dataset_for_encoding,
 )
 from eopf_geozarr.data_api.s3_olci import Sentinel3OlciRoot
-from eopf_geozarr.s3_olci_optimization.olci_band_mapping import OLCI_BANDS
-from eopf_geozarr.s3_olci_optimization.olci_multiscale import (
+from eopf_geozarr.s3_optimization.olci_band_mapping import OLCI_BANDS
+from eopf_geozarr.s3_optimization.olci_multiscale import (
     SWATH_DIMS,
     grid_spatial_attrs,
     reduce_swath,
     swath_spatial_attrs,
 )
-from eopf_geozarr.s3_olci_optimization.olci_reproject import GRID_DIMS, reproject_olci
+from eopf_geozarr.s3_optimization.olci_reproject import GRID_DIMS, reproject_olci
 
 if TYPE_CHECKING:
     from zarr.core.common import JSON

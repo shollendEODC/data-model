@@ -16,14 +16,14 @@ import zarr
 from pydantic_zarr.core import tuplify_json
 from pydantic_zarr.v3 import GroupSpec
 
-from eopf_geozarr.s3_olci_optimization.olci_converter import (
+from eopf_geozarr.s3_optimization.olci_converter import (
     _sanitize_olci_array_attrs_keep_fill,
 )
 
 if TYPE_CHECKING:
     import pathlib
 
-from eopf_geozarr.s3_olci_optimization.olci_converter import convert_olci_optimized
+from eopf_geozarr.s3_optimization.olci_converter import convert_olci_optimized
 
 
 def build_synthetic_olci(rows: int = 512, cols: int = 480) -> xr.DataTree:

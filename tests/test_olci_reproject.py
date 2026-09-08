@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from eopf_geozarr.s3_olci_optimization.olci_reproject import reproject_olci
+from eopf_geozarr.s3_optimization.olci_reproject import reproject_olci
 
 FILL = 65535
 

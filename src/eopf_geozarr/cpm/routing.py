@@ -19,7 +19,9 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     import xarray as xr
 
-PipelineName = Literal["s2-optimized", "s3-olci-optimized", "generic", "s1-grd-optimized"]
+PipelineName = Literal[
+    "s2-optimized", "s3-olci-optimized", "s3-slstr-optimized", "generic", "s1-grd-optimized"
+]
 
 S1_PRODUCT_TYPE_PREFIXES = ("S01SIWGRD", "S01SEWGRD")
 
@@ -34,6 +36,7 @@ S2_PRODUCT_TYPE_PREFIXES = ("S02MSIL1C", "S02MSIL2A")
 #: (LRR, LFR, ...) do not have the flat oa01..oa21 radiance layout the
 #: optimized pipeline expects.
 S3_OLCI_PRODUCT_TYPE_PREFIXES = ("S03OLCEFR", "S03OLCERR")
+S3_SLSTR_PRODUCT_TYPE_PREFIXES = ("S03SLSLST", "S03SLSRBT")
 
 #: Native Sentinel-2 resolution groups expected under measurements/reflectance.
 _S2_NATIVE_RESOLUTIONS = frozenset({"r10m", "r20m", "r60m"})
@@ -43,6 +46,7 @@ _S2_NATIVE_RESOLUTIONS = frozenset({"r10m", "r20m", "r60m"})
 #: ``s3_olci_optimization.olci_band_mapping``, duplicated here (rather than
 #: imported) to keep this module import-light and independently testable.
 _OLCI_FIRST_BAND = "oa01_radiance"
+_SLSTR_FIRST_BAND = "anadir"
 
 
 def product_type_of(dtree: xr.DataTree) -> str | None:
@@ -159,6 +163,29 @@ def looks_like_sentinel3_olci(dtree: xr.DataTree) -> bool:
     return _OLCI_FIRST_BAND in measurements.data_vars
 
 
+def looks_like_sentinel3_slstr(dtree: xr.DataTree) -> bool:
+    """
+    Report whether a DataTree looks like a Sentinel-3 SLSTR L1 RBT product.
+
+    Parameters
+    ----------
+    dtree : xr.DataTree
+        Product root node.
+
+    Returns
+    -------
+    bool
+    """
+    product_type = product_type_of(dtree)
+    if product_type is not None:
+        return product_type.startswith(S3_SLSTR_PRODUCT_TYPE_PREFIXES)
+
+    measurements = dtree.children.get("measurements")
+    if measurements is None:
+        return False
+    return _SLSTR_FIRST_BAND in measurements.data_vars
+
+
 def select_pipeline(
     dtree: xr.DataTree,
     *,
@@ -187,6 +214,8 @@ def select_pipeline(
         return "s2-optimized"
     if looks_like_sentinel3_olci(dtree):
         return "s3-olci-optimized"
+    if looks_like_sentinel3_slstr(dtree):
+        return "s3-slstr-optimized"
     if looks_like_sentinel1_grdh(dtree):
         return "s1-grd-optimized"
     return "generic"

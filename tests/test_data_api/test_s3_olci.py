@@ -65,7 +65,7 @@ def test_detector_accepts_olci_zarr(tmp_path: object) -> None:
 
     import zarr
 
-    from eopf_geozarr.s3_olci_optimization.olci_converter import (
+    from eopf_geozarr.s3_optimization.olci_converter import (
         is_sentinel3_olci_dataset,
     )
 
@@ -95,7 +95,7 @@ def test_detector_rejects_s2_zarr(s2_group_example: object) -> None:
 
     import zarr
 
-    from eopf_geozarr.s3_olci_optimization.olci_converter import (
+    from eopf_geozarr.s3_optimization.olci_converter import (
         is_sentinel3_olci_dataset,
     )
 
@@ -109,7 +109,7 @@ def test_real_olci_product_is_detected(s3_olci_group_example: object) -> None:
 
     import zarr
 
-    from eopf_geozarr.s3_olci_optimization.olci_converter import (
+    from eopf_geozarr.s3_optimization.olci_converter import (
         is_sentinel3_olci_dataset,
     )
 

@@ -115,9 +115,9 @@ def simple_root_consolidation(
     # Write the store-root spatial footprint (geozarr minispec, Store Root section).
     # Aggregates child-group `spatial:bbox` values, reprojects them to EPSG:4326
     # and writes the union on the root `zarr.json`.
-    write_store_root_geo_metadata(output_path)
+    write_store_root_geo_metadata(output_path, input_root_attrs=dt_input.attrs)  # type: ignore[arg-type]
 
-    write_store_root_stac_metadata(output_path, root_attrs=dt_input.attrs)  # type: ignore[arg-type]
+    write_store_root_stac_metadata(output_path, input_root_attrs=dt_input.attrs)  # type: ignore[arg-type]
 
     # consolidate reflectance group metadata
     # check if its available from root -> SLC has none! (only nested)
@@ -221,6 +221,7 @@ def write_geo_metadata(
     dataset: xr.Dataset,
     grid_mapping_var_name: str = "spatial_ref",
     crs: CRS | None = None,
+    input_is_image_array: bool = True,  # describes if the datainput is a transform based image array -> S1 and S3 are likely swaths or irregular grids
 ) -> None:
     """
     Write geographic metadata to the dataset.
@@ -269,16 +270,26 @@ def write_geo_metadata(
                     crs = _epsg_from_ds_attrs(epsg)
                     break
 
-    if crs is not None:
-        # Write CRS using rioxarray
-        # NOTE: for now rioxarray only supports writing grid mapping using CF conventions
-        dataset.rio.write_crs(crs, grid_mapping_name=grid_mapping_var_name, inplace=True)
-        dataset.rio.write_grid_mapping(grid_mapping_var_name, inplace=True)
-        dataset.attrs["grid_mapping"] = grid_mapping_var_name
+    if crs is None:
+        # introducing  here to raise warning for non-aligment of geospatial metadata
+        log.warning("No CRS set.")
+        remove_geozarr_attrs(dataset)
+        return
 
-        for var in dataset.data_vars.values():
-            var.rio.write_grid_mapping(grid_mapping_var_name, inplace=True)
-            var.attrs["grid_mapping"] = grid_mapping_var_name
+    # Write CRS using rioxarray
+    # NOTE: for now rioxarray only supports writing grid mapping using CF conventions
+    dataset.rio.write_crs(crs, grid_mapping_name=grid_mapping_var_name, inplace=True)
+    dataset.rio.write_grid_mapping(grid_mapping_var_name, inplace=True)
+    dataset.attrs["grid_mapping"] = grid_mapping_var_name
+
+    for var in dataset.data_vars.values():
+        var.rio.write_grid_mapping(grid_mapping_var_name, inplace=True)
+        var.attrs["grid_mapping"] = grid_mapping_var_name
+
+    # catch the case of having a real image with y/x coords and capable of deribving an affine transform
+    if input_is_image_array:
+        assert "x" in dataset.coords
+        assert "y" in dataset.coords
 
         # Also add proj: and spatial: zarr conventions at dataset level
         # TODO : Remove once rioxarray supports writing these conventions directly
@@ -314,11 +325,12 @@ def write_geo_metadata(
         # Build validated spatial + proj convention attrs (data + CMOs) via zarr-cm
         dataset.attrs.update(build_convention_attrs(spatial=spatial_data, crs=crs))
 
-    else:
-        # introducing here to raise warning for non-aligment of geospatial metadata
-        log.warning("No CRS set.")
-        remove_geozarr_attrs(dataset)
         return
+
+    # irregular grids of S3 or swath based data from S1
+    # assert "latitude" in dataset.coords and "longitude" in dataset.coords and dataset.coords["latitude"].ndim == 2
+    dataset.attrs.update(build_convention_attrs(spatial=None, crs=crs))
+    return
 
 
 def stream_write_dataset(
@@ -328,6 +340,7 @@ def stream_write_dataset(
     group: zarr.Group,
     encoding: dict[str, XarrayDataArrayEncoding],
     enable_sharding: bool,
+    chunk_and_shard_coords=True,
 ) -> xr.Dataset:
     """
     Stream write a lazy dataset with advanced chunking and sharding.
@@ -366,7 +379,9 @@ def stream_write_dataset(
     log.info("Variables", variables=list(dataset.data_vars.keys()))
 
     # Rechunk dataset to align with encoding
-    dataset = rechunk_dataset_for_encoding(dataset, encoding)
+    dataset = rechunk_dataset_for_encoding(
+        dataset, encoding, chunk_and_shard_coords=chunk_and_shard_coords
+    )
 
     # Sanitize NaN values in dataset attributes before writing
     dataset = fs_utils.sanitize_dataset_attributes(dataset)
@@ -580,7 +595,9 @@ def _rechunk_ds(ds: xr.Dataset, spatial_chunk: int) -> xr.Dataset:
 
 
 def rechunk_dataset_for_encoding(
-    dataset: xr.Dataset, encoding: dict[str, XarrayDataArrayEncoding]
+    dataset: xr.Dataset,
+    encoding: dict[str, XarrayDataArrayEncoding],
+    chunk_and_shard_coords: bool = False,
 ) -> xr.Dataset:
     """
     Rechunk dataset variables to align with sharding dimensions when sharding is enabled.
@@ -616,6 +633,39 @@ def rechunk_dataset_for_encoding(
         else:
             # No specific chunking needed, use original variable
             rechunked_vars[var_name] = var_data
+
+    if chunk_and_shard_coords:
+        rechunked_coords: dict[Hashable, xr.DataArray] = {}
+
+        for coord_name, coord_data in dataset.coords.items():
+            if str(coord_name) in encoding:
+                coord_encoding = encoding[str(coord_name)]
+
+                # If sharding is enabled, rechunk based on shard dimensions
+                if "shards" in coord_encoding and coord_encoding["shards"] is not None:
+                    target_chunks = coord_encoding["shards"]  # Use shard dimensions for rechunking
+                elif "chunks" in coord_encoding:
+                    target_chunks = coord_encoding["chunks"]  # Fallback to chunk dimensions
+                else:
+                    # No specific chunking needed, use original coordiable
+                    rechunked_coords[coord_name] = coord_data
+                    continue
+
+                # Create chunk dict using the actual dimensions of the coordiable
+                coord_dims = coord_data.dims
+                chunk_dict = {}
+                for i, dim in enumerate(coord_dims):
+                    if i < len(target_chunks):
+                        chunk_dict[dim] = target_chunks[i]
+
+                # Rechunk the coordiable to match the target dimensions
+                rechunked_coords[coord_name] = coord_data.chunk(chunk_dict)
+            else:
+                # No specific chunking needed, use original coordiable
+                rechunked_coords[coord_name] = coord_data
+
+        # Create new dataset with rechunked variables, also sharding coordinates
+        return xr.Dataset(rechunked_vars, coords=rechunked_coords, attrs=dataset.attrs)
 
     # Create new dataset with rechunked variables, preserving coordinates
     return xr.Dataset(rechunked_vars, coords=dataset.coords, attrs=dataset.attrs)
@@ -660,6 +710,7 @@ def create_uniform_encoding(
     keep_scale_offset: bool = True,
     experimental_scale_offset_codec: bool = False,
     compression_level: int = 3,
+    chunk_and_shard_coords: bool = False,
 ) -> dict[str, XarrayDataArrayEncoding]:
     """
     Create encoding (compression, chunking, sharding) for a dataset.
@@ -710,23 +761,6 @@ def create_uniform_encoding(
                     )
                 else:
                     shards_[band_dim] = encoding_chunks[band_dim]
-                # sharding along the smallest dimesnion -> eg polarization (1, 1000, 2000)
-                # mnp = var_data.shape.index(min(var_data.shape))
-                # shards_ = [
-                #     math.ceil(shape / chunk) * chunk
-                #     for shape, chunk in zip(var_data.shape, encoding_chunks, strict=True)
-                # ]
-                # shards_[mnp] = 1
-                # shards = tuple(shards_)
-
-                # shards = tuple(min(shard_number * chunk, math.ceil(shape / chunk) * chunk) for shape, chunk in zip(var_data.shape, encoding_chunks))
-                # shards = tuple(
-                #     min(
-                #         math.ceil(shape // (shard_number / 2) / spatial_chunk) * chunk,
-                #         math.ceil(shape / chunk) * chunk,
-                #     )
-                #     for shape, chunk in zip(var_data.shape, encoding_chunks, strict=True)
-                # )
             var_encoding["shards"] = tuple(shards_)
         else:
             var_encoding["shards"] = None
@@ -787,6 +821,12 @@ def create_uniform_encoding(
             fv = explicit_fill_value(var_data)
             if fv is not UNSET:
                 var_encoding["fill_value"] = fv
+            else:
+                # We need to pass _FillValue in the encoding to allow decode_cf to read it.. either this, or it gets removed from everywhere else?
+                if "fill_value" in var_data.attrs and "_FillValue" not in var_encoding:
+                    var_encoding["_FillValue"] = var_data.attrs["fill_value"]
+                else:
+                    pass
 
         for key in keep_keys:
             if key in var_data.encoding:
@@ -807,11 +847,54 @@ def create_uniform_encoding(
         if inject_nan_fillvalue:
             var_data.attrs["_FillValue"] = np.nan
 
+        # if var_data.attrs['fill_value']:
+        #     var_encoding["_FillValue"] = var_data.attrs['fill_value']
+        # else:
+        #     pass
         encoding[str(var_name)] = var_encoding
 
     for coord_name, coord_data in dataset.coords.items():
+        coord_encoding: XarrayDataArrayEncoding = {}
+
+        if chunk_and_shard_coords:
+            if (
+                coord_name in dataset.xindexes
+            ):  # skip indexed coords which are likely not chunked -> check for chunked
+                continue
+
+            encoding_chunks = get_chunking_for_encoding(coord_data, shard_along_smallest_dimension)
+
+            coord_encoding["chunks"] = encoding_chunks
+            coord_encoding["compressors"] = (compressor,)
+
+            # --- Shards: cover the whole array, one shard per array -----------
+            if enable_sharding:
+                # select next largest mutliple of chunksize to fit full array
+                shards_ = [
+                    math.ceil(shape / chunk) * chunk
+                    for shape, chunk in zip(coord_data.shape, encoding_chunks, strict=True)
+                ]
+                if shard_along_smallest_dimension:
+                    band_dim = _band_like_dim_index(coord_data)
+                    if band_dim is None:
+                        log.warning(
+                            "shard_along_smallest_dimension=True but %s has no "
+                            "recognized band-like dimension (%s); falling back to "
+                            "whole-array sharding",
+                            coord_data.name,
+                            list(coord_data.dims),
+                        )
+                    else:
+                        shards_[band_dim] = encoding_chunks[band_dim]
+
+                coord_encoding["shards"] = tuple(shards_)
+            else:
+                coord_encoding["shards"] = None
+        else:
+            coord_encoding["compressors"] = (compressor,)
+
         coord_data.attrs = sanitize_array_attrs(coord_data.attrs)
-        encoding[str(coord_name)] = {"compressors": []}  # type: ignore[typeddict-item]
+        encoding[str(coord_name)] = coord_encoding
 
     return encoding
 
@@ -847,7 +930,7 @@ def proj_attrs_for_crs(crs: CRSLike | None) -> GeoProjAttrs:
 
 def build_convention_attrs(
     *,
-    spatial: SpatialAttrs,
+    spatial: SpatialAttrs | None,
     crs: CRSLike | None,
     multiscales: MultiscalesAttrs | None = None,
 ) -> MultiConventionAttrs:
@@ -866,10 +949,14 @@ def build_convention_attrs(
     conventions: dict[zarr_cm.ConventionName, MultiscalesAttrs | SpatialAttrs | GeoProjAttrs] = {}
     if multiscales is not None:
         conventions["multiscales"] = multiscales
-    conventions["spatial"] = spatial
+
+    if spatial is not None:
+        conventions["spatial"] = spatial
+
     proj = proj_attrs_for_crs(crs)
     if proj:
         conventions["geo-proj"] = proj
+
     # create_many validates each convention and emits its CMO. It returns a
     # generic JSON dict; narrow to the combined convention TypedDict.
     result = zarr_cm.create_many(conventions)
@@ -1228,7 +1315,9 @@ def _crs_from_attrs(attrs: dict[str, Any]) -> Any | None:
 
 
 def write_store_root_geo_metadata(
-    output_path: str, storage_options: dict[str, Any] | None = None
+    output_path: str,
+    input_root_attrs: dict[str, dict[str, Any]] | None = None,
+    storage_options: dict[str, Any] | None = None,
 ) -> None:
     """Write the minispec store-root metadata on the root group.
 
@@ -1290,9 +1379,28 @@ def write_store_root_geo_metadata(
     for _, child_group in root.groups():
         _walk(child_group)
 
-    if not bboxes_4326:
-        log.warning("No usable child-group spatial:bbox found; skipping store-root metadata")
-        return
+    if input_root_attrs and not bboxes_4326:
+        log.warning(
+            "deriving bounding box for minimal spatial geozarr spec from stac metadata geometry -> more stable than bbox attribute"
+        )
+        try:
+            stac_attrs = input_root_attrs.get("stac_discovery")
+
+            if stac_attrs is None or not isinstance(stac_attrs, dict):
+                log.warning("No usable stac_discovery block found; skipping store-root metadata")
+            elif "geometry" not in stac_attrs:
+                log.warning(
+                    "stac_discovery present but no geometry found; skipping store-root metadata"
+                )
+            else:
+                from shapely.geometry import shape
+
+                geoms = stac_attrs["geometry"]
+                coords = shape(geoms)
+                bboxes_4326.append(coords.bounds)
+        except KeyError:
+            log.warning("No stac_discovery block found at all; skipping store-root metadata")
+            return
 
     if any(b[0] > b[2] for b in bboxes_4326):
         # At least one footprint crosses the antimeridian; a single
@@ -1307,6 +1415,7 @@ def write_store_root_geo_metadata(
         xmax = max(b[2] for b in bboxes_4326)
     ymin = min(b[1] for b in bboxes_4326)
     ymax = max(b[3] for b in bboxes_4326)
+
     root_attrs: dict[str, Any] = {
         "zarr_conventions": [dict(spatial_cm.CMO), dict(geo_proj_cm.CMO)],
         "spatial:bbox": [xmin, ymin, xmax, ymax],
@@ -1318,7 +1427,7 @@ def write_store_root_geo_metadata(
 
 def write_store_root_stac_metadata(
     output_path: str,
-    root_attrs: dict[str, dict[str, Any]],
+    input_root_attrs: dict[str, dict[str, Any]],
     storage_options: dict[str, Any] | None = None,
 ) -> None:
     """ """
@@ -1329,7 +1438,8 @@ def write_store_root_stac_metadata(
 
     root = zarr.open_group(output_path, mode="r+", storage_options=storage_options)
 
-    root.attrs.update(root_attrs)
+    root.attrs.update(input_root_attrs)
     log.info(
-        "Updated root metadata attributes for STAC ingestion", root_attrs=list(root_attrs.keys())
+        "Updated root metadata attributes for STAC ingestion",
+        input_root_attrs=list(input_root_attrs.keys()),
     )

@@ -124,6 +124,7 @@ def test_resolve_forced_pipeline_olci_suppressed_without_s2_structure() -> None:
         s2_optimized=None,
         s3_olci_optimized=False,
         s1_grdh_optimized=None,
+        s3_slstr_optimized=False,
     )
     assert resolved == "generic"
 
@@ -150,6 +151,7 @@ def test_resolve_forced_pipeline_olci_suppressed_with_s2_structure() -> None:
         s2_optimized=None,
         s3_olci_optimized=False,
         s1_grdh_optimized=None,
+        s3_slstr_optimized=False,
     )
     assert resolved == "s2-optimized"
 

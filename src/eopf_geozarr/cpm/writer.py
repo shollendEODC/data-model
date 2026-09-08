@@ -51,7 +51,8 @@ from eopf_geozarr.cpm.routing import (
 from eopf_geozarr.generic.generic_converter import create_generic_geozarr_dataset
 from eopf_geozarr.s1_optimization.s1_converter import convert_s1grdh_optimized
 from eopf_geozarr.s2_optimization.s2_converter import convert_s2_optimized
-from eopf_geozarr.s3_olci_optimization.olci_converter import own_convert_olci_optimized
+from eopf_geozarr.s3_optimization.olci_converter import own_convert_olci_optimized
+from eopf_geozarr.s3_optimization.slstr_converter import own_convert_slstr_optimized
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -102,12 +103,14 @@ class GeoZarrWriter(EOWriter):
         s2_optimized: bool | None = None,
         s3_olci_optimized: bool | None = None,
         s1_grdh_optimized: bool | None = None,
+        s3_slstr_optimized: bool | None = None,
         spatial_chunk: int | None = None,
         enable_sharding: bool = False,
         max_retries: int = 3,
         groups: Iterable[str] | None = None,
         crs_groups: Iterable[str] | None = None,
         gcp_group: str | None = None,
+        chunk_and_shard_coords: bool = False,
         min_dimension: int = 256,
         compression_level: int = 3,
         keep_scale_offset: bool = False,
@@ -211,6 +214,7 @@ class GeoZarrWriter(EOWriter):
                 dtree,
                 s2_optimized=s2_optimized,
                 s3_olci_optimized=s3_olci_optimized,
+                s3_slstr_optimized=s3_slstr_optimized,
                 s1_grdh_optimized=s1_grdh_optimized,
             ),
         )
@@ -263,6 +267,19 @@ class GeoZarrWriter(EOWriter):
                 min_dimension=min_dimension,
                 keep_scale_offset=keep_scale_offset,
                 output_grid=output_grid,
+            )
+
+        if selected_pipeline == "s3-slstr-optimized":
+            return own_convert_slstr_optimized(
+                dt_input=dtree,
+                output_path=output_path,
+                enable_sharding=enable_sharding,
+                spatial_chunk=resolved_spatial_chunk,
+                compression_level=compression_level,
+                min_dimension=min_dimension,
+                keep_scale_offset=keep_scale_offset,
+                output_grid=output_grid,
+                chunk_and_shard_coords=chunk_and_shard_coords,
             )
 
         if selected_pipeline == "s1-grd-optimized":
@@ -371,6 +388,7 @@ class GeoZarrWriter(EOWriter):
         *,
         s2_optimized: bool | None,
         s3_olci_optimized: bool | None,
+        s3_slstr_optimized: bool | None,
         s1_grdh_optimized: bool | None,
     ) -> PipelineName | None:
         """
@@ -398,6 +416,8 @@ class GeoZarrWriter(EOWriter):
             return "s2-optimized"
         if s3_olci_optimized is True:
             return "s3-olci-optimized"
+        if s3_slstr_optimized is True:
+            return "s3-slstr-optimized"
         if s1_grdh_optimized is True:
             return "s1-grd-optimized"
         return None
