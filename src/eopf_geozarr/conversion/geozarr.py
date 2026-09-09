@@ -14,7 +14,6 @@ Key compliance features:
 """
 
 import dataclasses
-import itertools
 import os
 import time
 from collections.abc import Hashable, Iterable, Mapping, Sequence
@@ -46,9 +45,9 @@ from eopf_geozarr.types import (
     XarrayEncodingJSON,
 )
 
+from ..s1_optimization.sentinel1_reprojection import reproject_sentinel1_with_gcps
 from . import fs_utils, utils
 from .fs_utils import sanitize_dataset_attributes
-from .sentinel1_reprojection import reproject_sentinel1_with_gcps
 
 if TYPE_CHECKING:
     from zarr.core.common import JSON
@@ -107,24 +106,34 @@ def create_geozarr_dataset(
         if gcp_group is None:
             raise ValueError("Detected Sentinel-1 GRD product but GCP group not provided")
 
-        # process sentinel-1 VV and VH polarization top-level groups
-        vv_vh_group_names = [f"/{name}" for name in list(dt_input.children)]
-        assert len(vv_vh_group_names) == 2, str(vv_vh_group_names)
+        # issue: trying to match to a structure not provided by cpm v3.0.0
 
-        groups = [
-            vv_vh + "/" + grp.lstrip("/")
-            for vv_vh, grp in itertools.product(vv_vh_group_names, groups)
-        ]
-        if crs_groups is not None:
-            crs_groups = [
-                vv_vh + "/" + grp.lstrip("/")
-                for vv_vh, grp in itertools.product(vv_vh_group_names, crs_groups)
-            ]
+        # process sentinel-1 VV and VH polarization top-level groups
+        # vv_vh_group_names = [f"/{name}" for name in list(dt_input.children)]
+        # assert len(vv_vh_group_names) == 2, str(vv_vh_group_names)
+
+        # groups = [
+        #     vv_vh + "/" + grp.lstrip("/")
+        #     for vv_vh, grp in itertools.product(vv_vh_group_names, groups)
+        # ]
+        # if crs_groups is not None:
+        #     crs_groups = [
+        #         vv_vh + "/" + grp.lstrip("/")
+        #         for vv_vh, grp in itertools.product(vv_vh_group_names, crs_groups)
+        #     ]
 
         # pick only one gcp group (both groups from VV and VH should be equal)
-        gcp_group = vv_vh_group_names[0] + "/" + gcp_group.lstrip("/")
+        # gcp_group = vv_vh_group_names[0] + "/" + gcp_group.lstrip("/")
+
+        # get polarisation groups and gcp_group
+        name = next(iter(dt_input.children))
+        groups = [f"/{name}/{grp_name.lstrip('/')}" for grp_name in groups]
+        gcp_group = f"/{name}/{gcp_group.lstrip('/')}"
+
         if gcp_group not in dt_input.groups:
             raise ValueError(f"GCP group '{gcp_group}' not found in input datatree")
+
+    # -> issue here: gcp code here doesnt match output spec of cpm
 
     # Get the measurements datasets prepared for GeoZarr compliance
     geozarr_groups = setup_datatree_metadata_geozarr_spec_compliant(dt, groups, gcp_group)

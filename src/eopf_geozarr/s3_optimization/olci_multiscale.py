@@ -30,7 +30,7 @@ import rasterio.transform
 import structlog
 import xarray as xr
 
-from eopf_geozarr.s3_olci_optimization.olci_band_mapping import OLCI_BANDS
+from eopf_geozarr.s3_optimization.olci_band_mapping import OLCI_BANDS
 
 if TYPE_CHECKING:
     from affine import Affine

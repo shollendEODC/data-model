@@ -7,7 +7,7 @@ import pytest
 import rasterio.transform
 import xarray as xr
 
-from eopf_geozarr.s3_olci_optimization.olci_multiscale import (
+from eopf_geozarr.s3_optimization.olci_multiscale import (
     decimate_swath,
     grid_spatial_attrs,
     reduce_swath,

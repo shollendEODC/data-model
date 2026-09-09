@@ -18,7 +18,7 @@ from dask.delayed import delayed
 from pydantic.experimental.missing_sentinel import MISSING
 from pyproj import CRS
 
-from eopf_geozarr.conversion import utils
+from eopf_geozarr.conversion import sentinel_modes, utils
 from eopf_geozarr.conversion.fs_utils import sanitize_dataset_attributes
 from eopf_geozarr.data_api.geozarr.multiscales import zcm
 from eopf_geozarr.data_api.geozarr.multiscales.geozarr import (
@@ -35,7 +35,7 @@ from eopf_geozarr.s2_optimization.s2_band_mapping import BAND_INFO
 from .s2_resampling import determine_variable_type, downsample_variable
 
 if TYPE_CHECKING:
-    from collections.abc import Hashable, Mapping
+    from collections.abc import Mapping
 
     from zarr_cm import MultiscalesAttrs
     from zarr_cm import spatial as spatial_cm
@@ -71,11 +71,11 @@ pyramid_levels = {
 }
 
 
-def get_grid_spacing(ds: xr.DataArray, coords: tuple[Hashable, ...]) -> tuple[float | int, ...]:
-    """
-    Get the grid spacing of a regularly-gridded DataArray along the specified coordinates.
-    """
-    return tuple(np.abs(ds.coords[coord][0].data - ds.coords[coord][1].data) for coord in coords)
+# def get_grid_spacing(ds: xr.DataArray, coords: tuple[Hashable, ...]) -> tuple[float | int, ...]:
+#     """
+#     Get the grid spacing of a regularly-gridded DataArray along the specified coordinates.
+#     """
+#     return tuple(np.abs(ds.coords[coord][0].data - ds.coords[coord][1].data) for coord in coords)
 
 
 def _transform_from_coordinates(
@@ -197,11 +197,6 @@ def _coarsen_variable(var_name: str, var_data: xr.DataArray, factor: int) -> xr.
     return cast_result
 
 
-def _rechunk_ds(ds: xr.Dataset, spatial_chunk: int) -> xr.Dataset:
-    chunks = {dim: (min(spatial_chunk, size)) for dim, size in ds.sizes.items()}
-    return ds.chunk(chunks)
-
-
 def inject_missing_bands(
     dataset: xr.Dataset,
     dt_input: xr.DataTree,
@@ -282,7 +277,7 @@ def inject_missing_bands(
             shape=band_ds.shape,
         )
 
-    return _rechunk_ds(dataset, spatial_chunk)
+    return utils._rechunk_ds(dataset, spatial_chunk)
 
 
 def create_multiscale_from_datatree(
@@ -293,6 +288,7 @@ def create_multiscale_from_datatree(
     spatial_chunk: int,
     crs: CRS | None = None,
     keep_scale_offset: bool,
+    compression_level: int = 3,
 ) -> dict[str, dict]:
     """
     Create multiscale versions preserving original structure.
@@ -313,7 +309,7 @@ def create_multiscale_from_datatree(
 
     # cheap dEtermination if its L2A or L1C
     filename = dt_input.name
-    s2_type = S2Type.from_filename(filename)
+    s2_type = sentinel_modes.S2Type.from_filename(filename)
 
     if s2_type is None:
         log.info("not found a matching s2_type {}: is not matching L2A or L1C", s2_type=s2_type)
@@ -346,7 +342,7 @@ def create_multiscale_from_datatree(
 
         log.info("Copying original group: {}", group_path=group_path)
 
-        dataset = _rechunk_ds(base_dataset, spatial_chunk)
+        dataset = utils._rechunk_ds(base_dataset, spatial_chunk)
 
         # Determine if this is a measurement-related resolution group
         group_name = group_path.split("/")[-1]
@@ -413,11 +409,12 @@ def create_multiscale_from_datatree(
                         )
 
             # Measurement groups: apply custom encoding
-            encoding = create_uniform_encoding(
+            encoding = utils.create_uniform_encoding(
                 dataset,
                 spatial_chunk=spatial_chunk,
                 enable_sharding=enable_sharding,
                 keep_scale_offset=keep_scale_offset,
+                compression_level=compression_level,
             )
             # convert float64 arrays to float32. `xr.DataArray.astype` clears
             # encoding, so we capture and restore it — downstream pyramid
@@ -435,11 +432,12 @@ def create_multiscale_from_datatree(
                     dataset[data_var].encoding.pop("_FillValue", None)
         else:
             # Non-measurement groups: preserve original encoding
-            encoding = create_uniform_encoding(
+            encoding = utils.create_uniform_encoding(
                 dataset,
                 spatial_chunk=spatial_chunk,
                 enable_sharding=enable_sharding,
                 keep_scale_offset=keep_scale_offset,
+                compression_level=compression_level,
             )
 
         # Drop scalar (0-D) coordinates such as a source `band` label: the
@@ -492,7 +490,7 @@ def create_multiscale_from_datatree(
         log.info("Writing level to path", level=dest_level_name, output_path=dest_level_path)
 
         # Create encoding
-        encoding = create_uniform_encoding(
+        encoding = utils.create_uniform_encoding(
             downsampled_dataset,
             spatial_chunk=spatial_chunk,
             enable_sharding=enable_sharding,
@@ -1163,7 +1161,7 @@ def stream_write_dataset(
     log.info("Variables", variables=list(dataset.data_vars.keys()))
 
     # Rechunk dataset to align with encoding
-    dataset = rechunk_dataset_for_encoding(dataset, encoding)
+    dataset = utils.rechunk_dataset_for_encoding(dataset, encoding)
 
     # Add the geo metadata before writing for
     # - /measurements/ groups
@@ -1294,45 +1292,3 @@ def write_geo_metadata(
 
         # Build validated spatial + proj convention attrs (data + CMOs) via zarr-cm
         dataset.attrs.update(utils.build_convention_attrs(spatial=spatial_data, crs=crs))
-
-
-def rechunk_dataset_for_encoding(
-    dataset: xr.Dataset, encoding: dict[str, XarrayDataArrayEncoding]
-) -> xr.Dataset:
-    """
-    Rechunk dataset variables to align with sharding dimensions when sharding is enabled.
-
-    When using Zarr v3 sharding, Dask chunks must align with shard dimensions to avoid
-    checksum validation errors.
-    """
-    rechunked_vars: dict[Hashable, xr.DataArray] = {}
-
-    for var_name, var_data in dataset.data_vars.items():
-        if str(var_name) in encoding:
-            var_encoding = encoding[str(var_name)]
-
-            # If sharding is enabled, rechunk based on shard dimensions
-            if "shards" in var_encoding and var_encoding["shards"] is not None:
-                target_chunks = var_encoding["shards"]  # Use shard dimensions for rechunking
-            elif "chunks" in var_encoding:
-                target_chunks = var_encoding["chunks"]  # Fallback to chunk dimensions
-            else:
-                # No specific chunking needed, use original variable
-                rechunked_vars[var_name] = var_data
-                continue
-
-            # Create chunk dict using the actual dimensions of the variable
-            var_dims = var_data.dims
-            chunk_dict = {}
-            for i, dim in enumerate(var_dims):
-                if i < len(target_chunks):
-                    chunk_dict[dim] = target_chunks[i]
-
-            # Rechunk the variable to match the target dimensions
-            rechunked_vars[var_name] = var_data.chunk(chunk_dict)
-        else:
-            # No specific chunking needed, use original variable
-            rechunked_vars[var_name] = var_data
-
-    # Create new dataset with rechunked variables, preserving coordinates
-    return xr.Dataset(rechunked_vars, coords=dataset.coords, attrs=dataset.attrs)
