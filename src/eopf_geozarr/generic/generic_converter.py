@@ -63,6 +63,7 @@ def create_generic_geozarr_dataset(
 
     ouput_group = zarr.open_group(output_path)
     processed_groups = {}
+    # slc_chunks = chunk_info.s1slc_chunks
 
     # rechunk everything
     for group_path in dt_input.groups:
@@ -83,6 +84,15 @@ def create_generic_geozarr_dataset(
             continue
 
         log.info("Copying original group: {}", group_path=group_path)
+
+        # This enables the chunking according to predefined chunk sizes -> disabled for now
+        # check if the current node is referenced in the provided chunk dicr
+        # requires_special_chunks = bool([(name in group_path) for name in slc_chunks.keys()])
+        # if group_node.name in slc_chunks.keys():
+        #     chunk_data = slc_chunks[str(group_node.name)]
+        #     dataset = utils._rechunk_ds(base_dataset, spatial_chunk, chunk_data=chunk_data)
+        # else:
+        #     dataset = utils._rechunk_ds(base_dataset, spatial_chunk)
 
         dataset = utils._rechunk_ds(base_dataset, spatial_chunk)
 

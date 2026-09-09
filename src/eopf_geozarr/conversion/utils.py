@@ -125,8 +125,17 @@ def simple_root_consolidation(
         zarr.consolidate_metadata(output_path + "/measurements", zarr_format=3)
     else:
         log.info(
-            "Couldnt find a '/measurement' group in root -> not consolidating it but just root metadata"
+            "Couldnt find a '/measurement' group in root -> trying to find measurements in children"
         )
+        consolidated_groups = []
+        for group in dt_input.groups:
+            if "/measurements" in str(group):
+                zarr.consolidate_metadata(output_path + group, zarr_format=3)
+                consolidated_groups.append(group)
+        if len(consolidated_groups) > 0:
+            log.info("consolidating other '/measurement' groups: ", groups=consolidated_groups)
+        else:
+            log.warning("Couldnt find a '/measurement' group at all -> nothing consolidated")
 
     # consolidate root group metadata
     zarr.consolidate_metadata(output_path, zarr_format=3)
@@ -589,7 +598,19 @@ def _band_like_dim_index(var_data: xr.DataArray) -> int | None:
     return None
 
 
-def _rechunk_ds(ds: xr.Dataset, spatial_chunk: int) -> xr.Dataset:
+def _rechunk_ds(ds: xr.Dataset, spatial_chunk: int, chunk_data: tuple | None = None) -> xr.Dataset:
+    if chunk_data:
+        if len(ds.sizes) != len(chunk_data):
+            log.warning(
+                "chunk_data not same length as data variables:",
+                data_vars=list(ds.data_vars.keys()),
+                chunk_keys=chunk_data,
+            )
+
+        chunks_ = {}
+        for (dim, size), chunk_ in zip(ds.sizes.items(), chunk_data, strict=True):
+            chunks_[dim] = chunk_ if chunk_ != -1 else size
+        return ds.chunk(chunks_)
     chunks = {dim: (min(spatial_chunk, size)) for dim, size in ds.sizes.items()}
     return ds.chunk(chunks)
 
