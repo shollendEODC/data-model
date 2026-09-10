@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from pydantic.experimental.missing_sentinel import MISSING
 from zarr_cm import ConventionMetadataObject
 from zarr_cm import multiscales as multiscales_cm
@@ -70,3 +70,22 @@ class MultiscalesAttrs(ZarrConventionAttrs):
                 f"Multiscales convention (uuid={expected_uuid}) not found in zarr_conventions"
             )
         return value
+
+
+class MultiscaleMeta(BaseModel):
+    """
+    Attributes for Multiscale GeoZarr dataset. Only ZCM multiscale metadata.
+    """
+
+    layout: tuple[ScaleLevel, ...] | MISSING = MISSING
+    resampling_method: str | MISSING = MISSING
+
+    @model_validator(mode="after")
+    def valid_zcm(self) -> MultiscaleMeta:
+        """
+        Ensure that the ZCM metadata, if present, is valid
+        """
+        if self.layout is not MISSING:
+            Multiscales(**self.model_dump())
+
+        return self

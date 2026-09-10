@@ -222,7 +222,7 @@ def convert_s1grdh_optimized(
         arrs = [ds_gcp.isel(polarization=i) for i in range(ds_gcp.polarization.shape[0])]
 
         # just select the first polarisation lvl if its similar
-        if bool([(arr1 == arr2).all() for arr1, arr2 in pairwise(arrs)]):
+        if all((arr1 == arr2).all() for arr1, arr2 in pairwise(arrs)):
             ds_gcp = ds_gcp.isel(polarization=0)
 
     # rechunk everything

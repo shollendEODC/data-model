@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 import numpy as np
@@ -17,20 +18,20 @@ from zarr_cm import geo_proj as geo_proj_cm
 from zarr_cm import spatial as spatial_cm
 
 from eopf_geozarr.conversion import fs_utils
-from eopf_geozarr.data_api.geozarr.types import (
+from eopf_geozarr.new_types import (
     CF_SCALE_OFFSET_KEYS,
     XARRAY_ENCODING_KEYS,
     XarrayDataArrayEncoding,
 )
-from eopf_geozarr.s2_optimization.common import DISTRIBUTED_AVAILABLE
 
 if TYPE_CHECKING:
     from collections.abc import Hashable, Mapping
 
     from affine import Affine
 
+from importlib.util import find_spec
 
-log = structlog.get_logger()
+DISTRIBUTED_AVAILABLE = find_spec("distributed") is not None
 
 
 # Dimension names that represent a "band-like" axis (polarization) to allow a per-"band" sharding if they extend beyond ram
@@ -38,6 +39,35 @@ log = structlog.get_logger()
 BAND_LIKE_DIM_NAMES = frozenset({"polarization"})
 
 _LEGACY_CODEC_ENCODING_KEYS = {"compressor", "compressors", "filters"}
+
+log = structlog.get_logger()
+
+CF_STANDARD_NAME_URL = "https://raw.githubusercontent.com/cf-convention/cf-convention.github.io/master/Data/cf-standard-names/current/src/cf-standard-name-table.xml"
+
+
+@lru_cache(maxsize=1)
+def _cf_standard_names() -> frozenset[str]:
+    """Fetch + cache the CF standard-name table once, lazily, on first use (never at import)."""
+    import urllib.request
+
+    from cf_xarray.utils import parse_cf_standard_name_table
+
+    try:
+        with urllib.request.urlopen(CF_STANDARD_NAME_URL, timeout=5) as resp:
+            _info, table, _aliases = parse_cf_standard_name_table(source=resp)
+        return frozenset(table)
+    except Exception as e:  # offline, GitHub down, etc. — never block a write over this
+        log.warning(
+            "Could not fetch CF standard-name table; skipping standard_name checks", error=str(e)
+        )
+        return frozenset()
+
+
+def warn_if_not_cf_standard_name(name: str | None) -> None:
+    """Log (never raise) if *name* isn't a recognised CF standard name."""
+    table = _cf_standard_names()
+    if name and table and name not in table:
+        log.warning("standard_name not in CF standard name table", standard_name=name)
 
 
 def optimization_summary(dt_input: xr.DataTree, dt_output: xr.DataTree, output_path: str) -> None:
@@ -83,12 +113,32 @@ def simple_root_consolidation(
 
     for group_path in missing_groups:
         dt_parent = xr.DataTree()
+
+        # check if the parent root (eg per burst for slc) has root attributes which need to be added to root -> consolidated metadata
+        ref_root = dt_input[group_path]
+        group_attrs = ref_root.attrs
+        if len(group_attrs) > 0:
+            root_attrs = ["stac_discovery", "other_metadata", "processing_history"]
+            for attr_key in group_attrs:
+                if attr_key in root_attrs:
+                    dt_parent.attrs.update({attr_key: group_attrs[attr_key]})
+                else:
+                    log.warning(
+                        "Couldnt allocate available root attribute to those usually found at nested roots",
+                        not_found_key=attr_key,
+                        available_root_keys=root_attrs,
+                    )
+
         dt_parent.to_zarr(
             output_path + group_path,
             mode="a",
             zarr_format=3,
             consolidated=False,
         )
+
+        # also add some geo root metadata if its a parent root
+        if len(group_attrs) > 0 and "stac_discovery" in group_attrs:
+            write_store_root_geo_metadata(output_path + group_path, input_root_attrs=group_attrs)  # type: ignore[arg-type]
 
     # Create root zarr group if it doesn't exist
     log.info("Creating root zarr group")
@@ -116,7 +166,23 @@ def simple_root_consolidation(
     # and writes the union on the root `zarr.json`.
     write_store_root_geo_metadata(output_path, input_root_attrs=dt_input.attrs)  # type: ignore[arg-type]
 
-    write_store_root_stac_metadata(output_path, input_root_attrs=dt_input.attrs)  # type: ignore[arg-type]
+    if dt_input and dt_input.attrs:
+        # this can be used to add multiscale paths to the stac attributes
+        # wether we want that or not has to be discussed
+        # -> For now this data is not added, as we dont want to expose the additional multiscale arrays for users in the stac assets, this comes at the possibility of confusion for users, but we accept that risk
+        # as users wont need the multiscale, but they are just used for visualisation
+        # the code is currently commented out, as this discussion is not 100% final yet and changes might apply
+
+        # updated_stac_attrs = add_multiscale_pyramids_to_stac_metadata(datasets, dt_input.attrs)
+        # utils.write_store_root_stac_metadata(
+        #     output_path,
+        #     root_attrs=cast("dict[str, dict[str, Any]]", updated_stac_attrs),
+        # )
+
+        write_store_root_stac_metadata(
+            output_path,
+            root_attrs=cast("dict[str, dict[str, Any]]", dt_input.attrs),
+        )
 
     # consolidate reflectance group metadata
     # check if its available from root -> SLC has none! (only nested)
@@ -138,6 +204,38 @@ def simple_root_consolidation(
 
     # consolidate root group metadata
     zarr.consolidate_metadata(output_path, zarr_format=3)
+
+
+def add_multiscale_pyramids_to_stac_metadata(
+    datasets: Mapping[str, object], dt_attributes: dict[Hashable, Any]
+) -> dict[Hashable, Any]:
+    stac_attrs = dt_attributes["stac_discovery"]["assets"]
+
+    # a bit messy but effective split to get group parent from stac attrs
+    existing_group_paths = {"/".join(v["href"].split("/")[:-1]) for v in stac_attrs.values()}
+
+    # gEt mismatched ones -> we need pyramids not present
+    missing_group_paths = [
+        path for path, ds in datasets.items() if path not in existing_group_paths and ds is not None
+    ]
+
+    for group_path in missing_group_paths:
+        ds = datasets[group_path]
+
+        # catch object != datAset for typing
+        if isinstance(ds, xr.Dataset):
+            resolution = group_path.rsplit("/", 1)[-1]  # "r120m"
+            for var_name in ds.data_vars:
+                if var_name == "spatial_ref":
+                    continue
+                asset_key = f"{var_name}_{resolution}"
+                stac_attrs[asset_key] = {"href": f"{group_path}/{var_name}", "title": asset_key}
+        else:
+            log.warning("Found non-dataset object in datasets!", dataset=ds)
+
+    # replace attrs
+    dt_attributes["stac_discovery"]["assets"] = stac_attrs
+    return dt_attributes
 
 
 def transform_from_coordinates(
@@ -361,7 +459,6 @@ def stream_write_dataset(
         dataset_path: Output path for dataset
         encoding: Encoding dictionary for variables
         enable_sharding: Enable Zarr v3 sharding
-        crs: Coordinate Reference System for geographic metadata
 
     Returns:
         Written dataset
@@ -515,28 +612,6 @@ def coarsen_variable(
     if not fill_value:
         fill_value = var_data.encoding.get("_FillValue")
     if fill_value is not None:
-        # currently leads to mmo but i cant undertand why
-        # if other_fill_value is not None:
-        # # create two masks and join them to catch all nan values -> mask all fill_value and other_fill_value as nan in float array
-        # is_fill = var_data == fill_value
-        # is_other_fill = var_data == other_fill_value
-        # is_valid = ~(is_fill | is_other_fill)
-
-        # # Single masked-mean pass over real values
-        # result = (
-        #     var_data.where(is_valid)
-        #     .coarsen({"x": factor, "y": factor}, boundary="trim")
-        #     .mean(skipna=True)
-        # )
-
-        # # cheap boolean sums for backfilling
-        # valid_count = is_valid.coarsen({"x": factor, "y": factor}, boundary="trim").sum()
-        # fill_count = is_fill.coarsen({"x": factor, "y": factor}, boundary="trim").sum()
-        # other_count = is_other_fill.coarsen({"x": factor, "y": factor}, boundary="trim").sum()
-
-        # no_valid = valid_count == 0
-        # result = xr.where(no_valid, xr.where(fill_count >= other_count, fill_value, other_fill_value), result)
-
         # mask all 0 as nan in float array
         masked = var_data.where(var_data != fill_value)
 
@@ -792,41 +867,6 @@ def create_uniform_encoding(
         # would otherwise strip it.
         inject_nan_fillvalue = False
 
-        # if experimental_scale_offset_codec and not keep_scale_offset:
-        #     # THIS didnt work when previously tested
-
-        #     # Push CF scale-offset into the zarr codec pipeline instead of
-        #     # decoding to float. The data stays as packed integers on disk,
-        #     # but zarr transparently decodes on read.
-        #     scale_factor = var_data.encoding.get("scale_factor")
-        #     add_offset = var_data.encoding.get("add_offset")
-        #     packed_dtype = var_data.encoding.get("dtype")
-
-        #     if scale_factor is not None and add_offset is not None and packed_dtype is not None:
-        #         from eopf_geozarr.codecs.scale_offset import scale_offset_from_cf
-
-        #         so_codec = scale_offset_from_cf(
-        #             scale_factor=float(scale_factor), add_offset=float(add_offset)
-        #         )
-        #         packed_np_dtype = np.dtype(packed_dtype)
-        #         source_fill = var_data.encoding.get("_FillValue")
-        #         if source_fill is not None:
-        #             nan_sentinel = int(source_fill)
-        #         else:
-        #             nan_sentinel = int(np.iinfo(packed_np_dtype).min)
-        #         cv_codec = CastValue(
-        #             data_type=packed_np_dtype.name,
-        #             rounding="nearest-even",
-        #             scalar_map={
-        #                 "encode": [("NaN", nan_sentinel)],
-        #                 "decode": [(nan_sentinel, "NaN")],
-        #             },
-        #         )
-        #         var_encoding["filters"] = (so_codec, cv_codec)
-
-        #     keep_keys = keep_keys - CF_SCALE_OFFSET_KEYS - {"_FillValue", "filters"}
-        #     var_encoding["fill_value"] = "NaN"
-        #     inject_nan_fillvalue = True
         if not keep_scale_offset:
             # When stripping scale/offset, also strip _FillValue since the original
             # _FillValue is in raw integer units and meaningless for decoded float data.
@@ -841,7 +881,8 @@ def create_uniform_encoding(
             if fv is not UNSET:
                 var_encoding["fill_value"] = fv
             else:
-                # We need to pass _FillValue in the encoding to allow decode_cf to read it.. either this, or it gets removed from everywhere else?
+                # We need to pass _FillValue in the encoding to allow decode_cf to read it..
+                # either this, or it gets removed from everywhere else during the sanitize_array_attrs() call
                 if "fill_value" in var_data.attrs and "_FillValue" not in var_encoding:
                     var_encoding["_FillValue"] = var_data.attrs["fill_value"]
                 else:
@@ -866,10 +907,11 @@ def create_uniform_encoding(
         if inject_nan_fillvalue:
             var_data.attrs["_FillValue"] = np.nan
 
-        # if var_data.attrs['fill_value']:
-        #     var_encoding["_FillValue"] = var_data.attrs['fill_value']
-        # else:
-        #     pass
+            # need to validate this logic here - not tested but kept from orignal encoding function
+            # original_encoding = var_data.encoding
+            # dataset[var_name] = var_data.astype(np.float32)
+            # dataset[var_name].encoding = original_encoding
+
         encoding[str(var_name)] = var_encoding
 
     for coord_name, coord_data in dataset.coords.items():
@@ -1147,37 +1189,6 @@ def is_grid_mapping_variable(ds: xr.Dataset, var_name: str) -> bool:
     return False
 
 
-def calculate_aligned_chunk_size(dimension_size: int, target_chunk_size: int) -> int:
-    """
-    Calculate a chunk size that divides evenly into the dimension size.
-
-    This ensures that Zarr chunks align properly with the data dimensions,
-    preventing chunk overlap issues when writing with Dask.
-
-    Parameters
-    ----------
-    dimension_size : int
-        Size of the dimension to chunk
-    target_chunk_size : int
-        Desired chunk size
-
-    Returns
-    -------
-    int
-        Aligned chunk size that divides evenly into dimension_size
-    """
-    if target_chunk_size >= dimension_size:
-        return dimension_size
-
-    # Find the largest divisor of dimension_size that is <= target_chunk_size
-    for chunk_size in range(target_chunk_size, int(target_chunk_size * 0.51), -1):
-        if dimension_size % chunk_size == 0:
-            return chunk_size
-
-    # If no divisor is found, return the closest value to target_chunk_size
-    return min(target_chunk_size, dimension_size)
-
-
 def validate_existing_band_data(
     existing_group: xr.Dataset, var_name: str, reference_ds: xr.Dataset
 ) -> bool:
@@ -1420,6 +1431,12 @@ def write_store_root_geo_metadata(
         except KeyError:
             log.warning("No stac_discovery block found at all; skipping store-root metadata")
             return
+
+    if not bboxes_4326:
+        log.warning(
+            "No spatial:bbox found anywhere in the store; skipping store-root spatial metadata"
+        )
+        return
 
     if any(b[0] > b[2] for b in bboxes_4326):
         # At least one footprint crosses the antimeridian; a single
