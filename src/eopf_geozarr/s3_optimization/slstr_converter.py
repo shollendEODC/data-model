@@ -70,7 +70,7 @@ def sanitize_data_vars(ds: xr.Dataset) -> xr.Dataset:
     return ds.assign(new_vars)
 
 
-def own_convert_slstr_optimized(
+def convert_slstr_optimized(
     dt_input: xr.DataTree,
     *,
     output_path: str,

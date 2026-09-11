@@ -52,7 +52,7 @@ from eopf_geozarr.generic.generic_converter import create_generic_geozarr_datase
 from eopf_geozarr.s1_optimization.s1_converter import convert_s1grdh_optimized
 from eopf_geozarr.s2_optimization.s2_converter import convert_s2_optimized
 from eopf_geozarr.s3_optimization.olci_converter import own_convert_olci_optimized
-from eopf_geozarr.s3_optimization.slstr_converter import own_convert_slstr_optimized
+from eopf_geozarr.s3_optimization.slstr_converter import convert_slstr_optimized
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -265,7 +265,7 @@ class GeoZarrWriter(EOWriter):
             )
 
         if selected_pipeline == "s3-slstr-optimized":
-            return own_convert_slstr_optimized(
+            return convert_slstr_optimized(
                 dt_input=dtree,
                 output_path=output_path,
                 enable_sharding=enable_sharding,
