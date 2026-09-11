@@ -323,6 +323,14 @@ def remove_geozarr_attrs(ds: xr.Dataset) -> None:
     return
 
 
+def _half_pixel(coords: np.ndarray) -> float:
+    """Half the grid spacing of a coordinate array, or 0.0 when it has no spacing."""
+    if len(coords) < 2:
+        log.warning("Changing half-pixel offset and it triggerd len(coords) < 2")
+        return 0.0
+    return float(np.abs(coords[1] - coords[0])) / 2
+
+
 def write_geo_metadata(
     dataset: xr.Dataset,
     grid_mapping_var_name: str = "spatial_ref",
@@ -411,8 +419,21 @@ def write_geo_metadata(
         if "x" in dataset.coords and "y" in dataset.coords:
             x_coords = dataset.coords["x"].values
             y_coords = dataset.coords["y"].values
-            x_min, x_max = float(x_coords.min()), float(x_coords.max())
-            y_min, y_max = float(y_coords.min()), float(y_coords.max())
+
+            # this introduces an error in the calculated bbox as it uses pixel center, the corresponding transform uses pixel edges
+            # which would lead to inconsitencies when comapring them (halfpixel narrower!)
+            # x_min, x_max = float(x_coords.min()), float(x_coords.max())
+            # y_min, y_max = float(y_coords.min()), float(y_coords.max())
+
+            # `spatial:registration` below declares "pixel", so the bbox covers the
+            # pixel edges. Coordinates are centres, hence the half-pixel outset —
+            # without it the footprint is a half-pixel narrower than the raster and
+            # disagrees with the arrays' own `proj:bbox`.
+            half_x = _half_pixel(x_coords)
+            half_y = _half_pixel(y_coords)
+            x_min, x_max = float(x_coords.min()) - half_x, float(x_coords.max()) + half_x
+            y_min, y_max = float(y_coords.min()) - half_y, float(y_coords.max()) + half_y
+
             spatial_data["spatial:bbox"] = [x_min, y_min, x_max, y_max]
 
             spatial_transform = preferred_spatial_transform(dataset)
@@ -422,11 +443,21 @@ def write_geo_metadata(
                 spatial_data["spatial:transform"] = list(spatial_transform)
 
             # Add spatial shape if data variables exist
-            if dataset.data_vars:
-                first_var = next(iter(dataset.data_vars.values()))
-                if first_var.ndim >= 2:
-                    height, width = first_var.shape[-2:]
-                    spatial_data["spatial:shape"] = [height, width]
+            # if dataset.data_vars:
+            #     first_var = next(iter(dataset.data_vars.values()))
+            #     if first_var.ndim >= 2:
+            #         _set = True
+            #         height, width = first_var.shape[-2:]
+            #         spatial_data["spatial:shape"] = [height, width]
+
+            # new
+            # Shape comes from the raster dims themselves: the first data variable
+            # need not be 2-D, nor have (y, x) as its trailing dims.
+            if "y" in dataset.sizes and "x" in dataset.sizes:
+                spatial_data["spatial:shape"] = [
+                    int(dataset.sizes["y"]),
+                    int(dataset.sizes["x"]),
+                ]
 
         # Build validated spatial + proj convention attrs (data + CMOs) via zarr-cm
         dataset.attrs.update(build_convention_attrs(spatial=spatial_data, crs=crs))

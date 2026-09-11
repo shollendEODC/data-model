@@ -62,8 +62,15 @@ def _transform_from_coordinates(
 
     pixel_size_x = float(np.abs(x_coords[1] - x_coords[0]))
     pixel_size_y = float(np.abs(y_coords[1] - y_coords[0]))
-    x_min = float(x_coords.min())
-    y_max = float(y_coords.max())
+    # x_min = float(x_coords.min())
+    # y_max = float(y_coords.max())
+
+    # Coordinates label pixel centres, but an affine transform maps pixel *edges*,
+    # so the origin sits half a pixel outside the first centre. Without this the
+    # transform can never agree with rioxarray's and is half a cell off.
+    x_min = float(x_coords.min()) - pixel_size_x / 2
+    y_max = float(y_coords.max()) + pixel_size_y / 2
+
     return (pixel_size_x, 0.0, x_min, 0.0, -pixel_size_y, y_max)
 
 
