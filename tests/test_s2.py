@@ -12,19 +12,17 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING
 
-import files  # TestFiles, S2L2AFILES, S2L1CFILES
 import numpy as np
 import pytest
 import utils
 import xarray as xr
 import zarr
 from global_test_settings import ATOL, RTOL
+from utils import S2_STORE_CONFIGS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-STORES: dict[str, files.TestFiles] = {"L2A": files.S2L2AFILES, "L1C": files.S2L1CFILES}
-STORES: dict[str, files.TestFiles] = {"L2A": files.S2L2AFILES}
 # ---------------------------------------------------------------------------
 
 SAMPLE_FRACTION = 0.02  # fraction of chunks to sample per array (set to 1.0 for full compare)
@@ -91,18 +89,64 @@ def build_s2_pair_context(store_a: str, store_b: str) -> utils.PairContext:
     )
 
 
-# One PairContext per pair, built once at collection time.
-PAIRS: dict[str, utils.PairContext] = {
-    name: build_s2_pair_context(store.input_path, store.geozarr_path)
-    for name, store in STORES.items()
-}
+# One PairContext per pair ("L2A", "L1C", ...), built lazily and cached here
+# rather than eagerly for every pair at import time. Still has to happen at
+# collection time for any test below that parametrizes over discovered
+# group/array paths (pytest_generate_tests, below) - that part is unavoidable
+# since the list of paths can only be known by opening the stores. Tests that
+# only need the pair name itself get it lazily via this same cache, or via
+# the `pair_ctx` fixture (which shares this cache and won't recompute).
+_PAIR_CTX_CACHE: dict[str, utils.PairContext] = {}
 
-# Flat (pair, path) parametrize lists - each pair contributes its own paths, since different pairs can have different common groups/arrays/variable_groups.
-GROUP_PATH_PARAMS = [(pair, path) for pair, ctx in PAIRS.items() for path in ctx.common_groups]
-ARRAY_PATH_PARAMS = [(pair, path) for pair, ctx in PAIRS.items() for path in ctx.common_arrays]
-VARIABLE_GROUP_PARAMS = [
-    (pair, group) for pair, ctx in PAIRS.items() for group in ctx.variable_groups
-]
+
+def _get_pair_ctx(pair: str) -> utils.PairContext:
+    if pair not in _PAIR_CTX_CACHE:
+        cfg = S2_STORE_CONFIGS[pair]
+        product_files = utils.TestFiles(
+            sensor="S2",
+            mode=pair,
+            ref_input_path=cfg["ref_input_path"],
+            geozarr_path=cfg["geozarr_path"],
+        )
+        _PAIR_CTX_CACHE[pair] = build_s2_pair_context(
+            product_files.input_path, product_files.geozarr_path
+        )
+    return _PAIR_CTX_CACHE[pair]
+
+
+@pytest.fixture(scope="session")
+def pair_ctx(s2_product_files: utils.TestFiles) -> utils.PairContext:
+    """Fixture form of _get_pair_ctx, for tests that prefer requesting it by
+    name instead of calling _get_pair_ctx(pair) directly. Backed by the same
+    cache, so using both styles in the same session never reconverts."""
+    return _get_pair_ctx(s2_product_files.mode)
+
+
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    """Generate the (pair, group_path)/(pair, array_path)/(pair, group)
+    parametrize lists dynamically, by actually opening each pair's stores -
+    the list of common groups/arrays/variable-groups can't be known without
+    doing that. This runs at collection time for every test function in this
+    module, so _get_pair_ctx's cache is what keeps that from re-opening (or
+    re-converting) the same pair more than once."""
+    pairs = sorted(S2_STORE_CONFIGS)
+    names = set(metafunc.fixturenames)
+    if {"pair", "group_path"} <= names:
+        metafunc.parametrize(
+            ("pair", "group_path"),
+            [(p, path) for p in pairs for path in _get_pair_ctx(p).common_groups],
+        )
+    elif {"pair", "array_path"} <= names:
+        metafunc.parametrize(
+            ("pair", "array_path"),
+            [(p, path) for p in pairs for path in _get_pair_ctx(p).common_arrays],
+        )
+    elif {"pair", "group"} <= names:
+        metafunc.parametrize(
+            ("pair", "group"),
+            [(p, g) for p in pairs for g in _get_pair_ctx(p).variable_groups],
+        )
+
 
 # The two xarray decode modes exercised below: full CF decoding, and the
 # literal decode_cf=False + mask_and_scale=True combination.
@@ -115,46 +159,46 @@ XR_OPENERS: dict[str, Callable[[str, str], xr.Dataset]] = {
 # --------------------------------------------------------------------------- #
 # Tests
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("pair", sorted(PAIRS))
+@pytest.mark.parametrize("pair", sorted(S2_STORE_CONFIGS))
 def test_no_missing_or_extra_groups(pair: str) -> None:
-    ctx = PAIRS[pair]
+    ctx = _get_pair_ctx(pair)
     missing_in_b = sorted(set(ctx.groups_a) - set(ctx.groups_b))
     extra_in_b = sorted(set(ctx.groups_b) - set(ctx.groups_a))
     assert not missing_in_b, f"[{pair}] Groups present in A but missing in B: {missing_in_b}"
     assert not extra_in_b, f"[{pair}] Groups present in B but missing in A: {extra_in_b}"
 
 
-@pytest.mark.parametrize("pair", sorted(PAIRS))
+@pytest.mark.parametrize("pair", sorted(S2_STORE_CONFIGS))
 def test_no_missing_or_extra_arrays(pair: str) -> None:
-    ctx = PAIRS[pair]
+    ctx = _get_pair_ctx(pair)
     missing_in_b = sorted(set(ctx.arrays_a) - set(ctx.arrays_b))
     extra_in_b = sorted(set(ctx.arrays_b) - set(ctx.arrays_a))
     assert not missing_in_b, f"[{pair}] Arrays present in A but missing in B: {missing_in_b}"
     assert not extra_in_b, f"[{pair}] Arrays present in B but missing in A: {extra_in_b}"
 
 
-@pytest.mark.parametrize("pair", sorted(PAIRS))
+@pytest.mark.parametrize("pair", sorted(S2_STORE_CONFIGS))
 def test_root_attrs_match(pair: str) -> None:
-    ctx = PAIRS[pair]
+    ctx = _get_pair_ctx(pair)
     diffs = utils.diff_attrs(
         dict(ctx.group_a.attrs), dict(ctx.group_b.attrs), ignore_attrs=S2_IGNORE_ATTRS
     )
     assert not diffs, f"[{pair}] Root attrs differ:\n  " + "\n  ".join(diffs)
 
 
-@pytest.mark.parametrize(("pair", "path"), GROUP_PATH_PARAMS)
-def test_group_attrs_match(pair: str, path: str) -> None:
-    ctx = PAIRS[pair]
+def test_group_attrs_match(pair: str, group_path: str) -> None:
+    ctx = _get_pair_ctx(pair)
     diffs = utils.diff_attrs(
-        dict(ctx.groups_a[path].attrs), dict(ctx.groups_b[path].attrs), ignore_attrs=S2_IGNORE_ATTRS
+        dict(ctx.groups_a[group_path].attrs),
+        dict(ctx.groups_b[group_path].attrs),
+        ignore_attrs=S2_IGNORE_ATTRS,
     )
-    assert not diffs, f"[{pair}] Attrs differ for group '{path}':\n  " + "\n  ".join(diffs)
+    assert not diffs, f"[{pair}] Attrs differ for group '{group_path}':\n  " + "\n  ".join(diffs)
 
 
-@pytest.mark.parametrize(("pair", "path"), ARRAY_PATH_PARAMS)
-def test_array_metadata_match(pair: str, path: str) -> None:
-    ctx = PAIRS[pair]
-    arr_a, arr_b = ctx.arrays_a[path], ctx.arrays_b[path]
+def test_array_metadata_match(pair: str, array_path: str) -> None:
+    ctx = _get_pair_ctx(pair)
+    arr_a, arr_b = ctx.arrays_a[array_path], ctx.arrays_b[array_path]
     diffs = []
     if arr_a.shape != arr_b.shape:
         diffs.append(f"shape differs: A={arr_a.shape} vs B={arr_b.shape}")
@@ -162,22 +206,22 @@ def test_array_metadata_match(pair: str, path: str) -> None:
         diffs.append(f"dtype differs: A={arr_a.dtype} vs B={arr_b.dtype}")
     if arr_a.chunks != arr_b.chunks:
         diffs.append(f"chunks differ: A={arr_a.chunks} vs B={arr_b.chunks}")
-    assert not diffs, f"[{pair}] Metadata differs for '{path}':\n  " + "\n  ".join(diffs)
+    assert not diffs, f"[{pair}] Metadata differs for '{array_path}':\n  " + "\n  ".join(diffs)
 
 
-@pytest.mark.parametrize(("pair", "path"), ARRAY_PATH_PARAMS)
-def test_array_attrs_match(pair: str, path: str) -> None:
-    ctx = PAIRS[pair]
+def test_array_attrs_match(pair: str, array_path: str) -> None:
+    ctx = _get_pair_ctx(pair)
     diffs = utils.diff_attrs(
-        dict(ctx.arrays_a[path].attrs), dict(ctx.arrays_b[path].attrs), ignore_attrs=S2_IGNORE_ATTRS
+        dict(ctx.arrays_a[array_path].attrs),
+        dict(ctx.arrays_b[array_path].attrs),
+        ignore_attrs=S2_IGNORE_ATTRS,
     )
-    assert not diffs, f"[{pair}] Attrs differ for array '{path}':\n  " + "\n  ".join(diffs)
+    assert not diffs, f"[{pair}] Attrs differ for array '{array_path}':\n  " + "\n  ".join(diffs)
 
 
-@pytest.mark.parametrize(("pair", "path"), ARRAY_PATH_PARAMS)
-def test_array_values_match(pair: str, path: str) -> None:
-    ctx = PAIRS[pair]
-    arr_a, arr_b = ctx.arrays_a[path], ctx.arrays_b[path]
+def test_array_values_match(pair: str, array_path: str) -> None:
+    ctx = _get_pair_ctx(pair)
+    arr_a, arr_b = ctx.arrays_a[array_path], ctx.arrays_b[array_path]
 
     if arr_a.shape != arr_b.shape:
         pytest.skip("shape mismatch already reported by test_array_metadata_match")
@@ -204,7 +248,7 @@ def test_array_values_match(pair: str, path: str) -> None:
                 first_detail = f"at slice {sl}: {detail}"
 
     assert mismatches == 0, (
-        f"[{pair}] Values differ for '{path}': {mismatches}/{len(selected)} "
+        f"[{pair}] Values differ for '{array_path}': {mismatches}/{len(selected)} "
         f"sampled chunks mismatch. {first_detail}"
     )
 
@@ -220,9 +264,8 @@ def test_array_values_match(pair: str, path: str) -> None:
 #    boundary/no-data effects concentrate there.)
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("mode", sorted(XR_OPENERS))
-@pytest.mark.parametrize(("pair", "group"), VARIABLE_GROUP_PARAMS)
 def test_xr_open_zarr_succeeds(pair: str, group: str, mode: str) -> None:
-    ctx = PAIRS[pair]
+    ctx = _get_pair_ctx(pair)
     opener = XR_OPENERS[mode]
     try:
         opener(ctx.store_a, group)
@@ -239,9 +282,8 @@ def test_xr_open_zarr_succeeds(pair: str, group: str, mode: str) -> None:
 
 
 @pytest.mark.parametrize("mode", sorted(XR_OPENERS))
-@pytest.mark.parametrize(("pair", "group"), VARIABLE_GROUP_PARAMS)
 def test_xr_decoded_values_match(pair: str, group: str, mode: str) -> None:
-    ctx = PAIRS[pair]
+    ctx = _get_pair_ctx(pair)
     opener = XR_OPENERS[mode]
     ds_a = opener(ctx.store_a, group)
     ds_b = opener(ctx.store_b, group)
@@ -297,7 +339,6 @@ def test_xr_decoded_values_match(pair: str, group: str, mode: str) -> None:
 
 
 @pytest.mark.parametrize("mode", sorted(XR_OPENERS))
-@pytest.mark.parametrize(("pair", "group"), VARIABLE_GROUP_PARAMS)
 def test_xr_mask_and_scale_effective(pair: str, group: str, mode: str) -> None:
     """Sanity-check that decoding actually engaged: if a variable's raw attrs
     declare scale_factor/add_offset/_FillValue, the decoded array must come
@@ -311,7 +352,7 @@ def test_xr_mask_and_scale_effective(pair: str, group: str, mode: str) -> None:
             "signal. See test_xr_decoded_values_match for the A-vs-B comparison under "
             "this mode."
         )
-    ctx = PAIRS[pair]
+    ctx = _get_pair_ctx(pair)
     opener = XR_OPENERS[mode]
     ds_a = opener(ctx.store_a, group)
     ds_b = opener(ctx.store_b, group)
@@ -369,10 +410,10 @@ def test_xr_mask_and_scale_effective(pair: str, group: str, mode: str) -> None:
                 )
 
 
-@pytest.mark.parametrize("pair", PAIRS)
+@pytest.mark.parametrize("pair", sorted(S2_STORE_CONFIGS))
 def test_nan_decoding_on_multiscale(pair: str) -> None:
     # test different read-in combinations for decoding the array on full array, not just the corner window (-> but just on 360 measuremnts)
-    ctx = PAIRS[pair]
+    ctx = _get_pair_ctx(pair)
     for mask_and_scale in [True, False, None]:
         for decode_cf in [True, False, None]:
             ds_a = xr.open_zarr(

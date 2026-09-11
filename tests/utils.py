@@ -1,6 +1,9 @@
 import itertools
+import shutil
+import tempfile
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -8,6 +11,97 @@ import xarray as xr
 import zarr
 from eopf.store.convert import convert
 from global_test_settings import ATOL, RTOL
+
+S2_STORE_CONFIGS: dict[str, dict[str, str]] = {
+    "L2A": {
+        "ref_input_path": "/home/samuel/data/samples/cpm_v300rc4a/safe_products/S2B_MSIL2A_20260721T100559_N0512_R022_T33UWQ_20260721T143508.SAFE",
+        "geozarr_path": "/home/samuel/data/samples/cpm_v300rc4a/converted_zarr_stores/refactored_S2B_MSIL2A_20260721T100559_N0512_R022_T33UWQ_20260721T143508.zarr",
+    },
+    "L1C": {
+        "ref_input_path": "/home/samuel/data/samples/cpm_v300rc4a/safe_products/S2C_MSIL1C_20260909T124301_N0512_R095_T27WXN_20260909T143930.SAFE",
+        "geozarr_path": "/home/samuel/data/samples/cpm_v300rc4a/converted_zarr_stores/refactored_S2C_MSIL1C_20260909T124301_N0512_R095_T27WXN_20260909T143930.zarr",
+    },
+}
+
+_tmp_root_dir: Path | None = None
+
+
+def _tmp_root() -> Path:
+    """Lazily create one shared tmp root for this test session's SAFE/SEN3
+    -> zarr conversions, instead of a fresh untracked /tmp/<random> dir per
+    TestFiles instance. Removed in full by cleanup_tmp_root()."""
+    global _tmp_root_dir
+    if _tmp_root_dir is None:
+        _tmp_root_dir = Path(tempfile.mkdtemp(prefix="eopf_geozarr_test_"))
+    return _tmp_root_dir
+
+
+def cleanup_tmp_root() -> None:
+    """Remove the shared conversion tmp root, if one was created. Call once
+    at the end of the test session (see conftest.py)."""
+    global _tmp_root_dir
+    if _tmp_root_dir is not None:
+        shutil.rmtree(_tmp_root_dir, ignore_errors=True)
+        _tmp_root_dir = None
+
+
+@dataclass
+class TestFiles:
+    sensor: str
+    mode: str
+    ref_input_path: str
+    input_path: str = field(init=False, default="")
+    geozarr_path: str
+
+    def __post_init__(self) -> None:
+        """Runs automatically right after __init__ - the idiomatic place to
+        validate a dataclass's fields as soon as it's constructed."""
+        self.validate_model()
+
+    def validate_model(self) -> None:
+        # validate geozarr path
+        geozarr = Path(self.geozarr_path)
+        if not geozarr.exists():
+            raise FileNotFoundError(f"geozarr_path does not exist: {geozarr}")
+        try:
+            zarr.open_group(geozarr, mode="r")
+        except Exception as e:
+            raise ValueError(f"geozarr_path is not a readable zarr store: {geozarr}") from e
+
+        # validate and checkif zarr or safe
+        inputpath = Path(self.ref_input_path)
+        if not inputpath.exists():
+            raise FileNotFoundError(f"inputpath does not exist: {inputpath}")
+
+        if inputpath.suffix == ".zarr":
+            try:
+                zarr.open_group(inputpath, mode="r")
+                self.input_path = self.ref_input_path
+
+            except Exception as e:
+                raise ValueError(f"inputpath is not a readable zarr store: {inputpath}") from e
+
+        elif inputpath.suffix in [".SAFE", ".SEN3"]:
+            # convert the file to geozarr under the shared, managed tmp root
+            # (see _tmp_root/cleanup_tmp_root) and compare against that.
+            out_dir = _tmp_root() / f"{self.sensor}_{self.mode}_{inputpath.stem}"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            outpath = str(out_dir / f"{inputpath.stem}.zarr")
+
+            print(f"converting to: {outpath}")
+
+            convert_to_tmp(input_path=self.ref_input_path, output_path=outpath)
+
+            try:
+                zarr.open_group(outpath, mode="r")
+
+                # overwrite the orginal input path
+                self.input_path = outpath
+
+            except Exception as e:
+                raise ValueError(f"inputpath is not a readable zarr store: {inputpath}") from e
+
+        return
 
 
 @dataclass
