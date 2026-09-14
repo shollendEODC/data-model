@@ -184,23 +184,30 @@ def simple_root_consolidation(
             root_attrs=cast("dict[str, dict[str, Any]]", dt_input.attrs),
         )
 
-    # consolidate reflectance group metadata
+    # consolidate measurement group metadata
     # check if its available from root -> SLC has none! (only nested)
     if "/measurements" in dt_root.groups:
         zarr.consolidate_metadata(output_path + "/measurements", zarr_format=3)
+    if "/multiscales" in dt_root.groups:
+        zarr.consolidate_metadata(output_path + "/multiscales", zarr_format=3)
     else:
         log.info(
-            "Couldnt find a '/measurement' group in root -> trying to find measurements in children"
+            "Couldnt find a '/measurement' or '/multiscales' group in root -> trying to find measurements or multiscales in children"
         )
         consolidated_groups = []
         for group in dt_input.groups:
-            if "/measurements" in str(group):
+            if "/measurements" in str(group) or "/multiscales" in str(group):
                 zarr.consolidate_metadata(output_path + group, zarr_format=3)
                 consolidated_groups.append(group)
         if len(consolidated_groups) > 0:
-            log.info("consolidating other '/measurement' groups: ", groups=consolidated_groups)
+            log.info(
+                "consolidating other '/measurement' or '/multiscales' groups: ",
+                groups=consolidated_groups,
+            )
         else:
-            log.warning("Couldnt find a '/measurement' group at all -> nothing consolidated")
+            log.warning(
+                "Couldnt find a '/measurement' or '/multiscales' group at all -> nothing consolidated"
+            )
 
     # consolidate root group metadata
     zarr.consolidate_metadata(output_path, zarr_format=3)
