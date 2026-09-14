@@ -67,36 +67,10 @@ def in_s2_scope(path: str) -> bool:
     return any(path == prefix or path.startswith(prefix + "/") for prefix in PATH_PREFIXES)
 
 
-def s2_parent_group(array_path: str) -> str:
-    """'r10m/B02' -> 'r10m'; 'B02' (root array) -> ''"""
-    return array_path.rsplit("/", 1)[0] if "/" in array_path else ""
-
-
 def build_s2_pair_context(store_a: str, store_b: str) -> utils.PairContext:
     group_a = zarr.open_group(store_a, mode="r")
     group_b = zarr.open_group(store_b, mode="r")
-    groups_a, arrays_a = utils.collect_tree(group_a)
-    groups_b, arrays_b = utils.collect_tree(group_b)
-    groups_a = {p: g for p, g in groups_a.items() if in_s2_scope(p)}
-    groups_b = {p: g for p, g in groups_b.items() if in_s2_scope(p)}
-    arrays_a = {p: a for p, a in arrays_a.items() if in_s2_scope(p)}
-    arrays_b = {p: a for p, a in arrays_b.items() if in_s2_scope(p)}
-    common_groups = sorted(set(groups_a) & set(groups_b))
-    common_arrays = sorted(set(arrays_a) & set(arrays_b))
-    variable_groups = sorted({s2_parent_group(p) for p in common_arrays})
-    return utils.PairContext(
-        store_a=store_a,
-        store_b=store_b,
-        group_a=group_a,
-        group_b=group_b,
-        groups_a=groups_a,
-        groups_b=groups_b,
-        arrays_a=arrays_a,
-        arrays_b=arrays_b,
-        common_groups=common_groups,
-        common_arrays=common_arrays,
-        variable_groups=variable_groups,
-    )
+    return utils.build_pair_context(store_a, store_b, group_a, group_b, in_scope=in_s2_scope)
 
 
 # One PairContext per pair ("L2A", "L1C", ...), built lazily and cached here

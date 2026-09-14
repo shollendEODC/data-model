@@ -1,7 +1,7 @@
 import itertools
 import shutil
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -111,6 +111,51 @@ class PairContext:
     variable_groups: list[str]
 
 
+def parent_group(path: str) -> str:
+    """'r10m/B02' -> 'r10m'; 'IW1_258173/measurements/slc' -> 'IW1_258173/measurements';
+    'B02' (root array) -> ''"""
+    return path.rsplit("/", 1)[0] if "/" in path else ""
+
+
+def build_pair_context(
+    store_a: str,
+    store_b: str,
+    group_a: zarr.Group,
+    group_b: zarr.Group,
+    in_scope: Callable[[str], bool] | None = None,
+) -> PairContext:
+    """Build a PairContext from two already-open zarr groups. `group_a`/`group_b`
+    can be store roots or any subgroup within a store (e.g. one S1 burst) -
+    `store_a`/`store_b` are kept separately since they're the paths callers
+    later reopen through xarray, which may differ from the group scope used
+    for comparison here. `in_scope`, if given, restricts which discovered
+    group/array paths are compared (e.g. S2's per-resolution path prefixes) -
+    left out entirely, everything under group_a/group_b is compared."""
+    groups_a, arrays_a = collect_tree(group_a)
+    groups_b, arrays_b = collect_tree(group_b)
+    if in_scope is not None:
+        groups_a = {p: g for p, g in groups_a.items() if in_scope(p)}
+        groups_b = {p: g for p, g in groups_b.items() if in_scope(p)}
+        arrays_a = {p: a for p, a in arrays_a.items() if in_scope(p)}
+        arrays_b = {p: a for p, a in arrays_b.items() if in_scope(p)}
+    common_groups = sorted(set(groups_a) & set(groups_b))
+    common_arrays = sorted(set(arrays_a) & set(arrays_b))
+    variable_groups = sorted({parent_group(p) for p in common_arrays})
+    return PairContext(
+        store_a=store_a,
+        store_b=store_b,
+        group_a=group_a,
+        group_b=group_b,
+        groups_a=groups_a,
+        groups_b=groups_b,
+        arrays_a=arrays_a,
+        arrays_b=arrays_b,
+        common_groups=common_groups,
+        common_arrays=common_arrays,
+        variable_groups=variable_groups,
+    )
+
+
 def open_xr_group(store_path: str, group_path: str) -> xr.Dataset:
     """Open one group of a store through xarray with full CF decoding on."""
     return xr.open_zarr(
@@ -139,44 +184,49 @@ def open_xr_group_mask_scale_only(store_path: str, group_path: str) -> xr.Datase
     )
 
 
-def corner_selectors(sizes: dict[str, int], window: int) -> dict[str, dict[str, slice]]:
-    """Build isel selectors for the four spatial corners (top-left, top-right,
-    bottom-left, bottom-right) of a 'y'/'x'-indexed array. Boundary/no-data
-    effects (swath cutlines, incomplete overview blocks at coarse resolutions)
-    concentrate at the edges of a tile, so a single top-left window can miss
-    them entirely - checking all four corners catches this. Non-spatial dims
-    (e.g. band, detector, angle) are left unrestricted. Falls back to a single
-    window over all dims if the array has no 'y'/'x' dims."""
-    if "y" not in sizes or "x" not in sizes:
+def corner_selectors(
+    sizes: dict[str, int], window: int, dims: tuple[str, str] = ("y", "x")
+) -> dict[str, dict[str, slice]]:
+    """Build isel selectors for the four corners (top-left, top-right,
+    bottom-left, bottom-right) of an array indexed by `dims` (defaults to
+    'y'/'x'; S1 SLC data instead uses e.g. ('azimuth_time', 'slant_range_time')).
+    Boundary/no-data effects (swath cutlines, incomplete overview blocks at
+    coarse resolutions) concentrate at the edges of a tile, so a single
+    top-left window can miss them entirely - checking all four corners
+    catches this. Dims other than `dims` (e.g. band, polarization, angle) are
+    left unrestricted. Falls back to a single window over all dims if the
+    array doesn't have both of `dims`."""
+    dim_0, dim_1 = dims
+    if dim_0 not in sizes or dim_1 not in sizes:
         return {"window": {dim: slice(0, min(size, window)) for dim, size in sizes.items()}}
 
     def edge_slice(size: int, edge: str) -> slice:
         w = min(size, window)
         return slice(0, w) if edge == "start" else slice(max(0, size - w), size)
 
-    base = {dim: slice(0, size) for dim, size in sizes.items() if dim not in ("y", "x")}
-    y_size, x_size = sizes["y"], sizes["x"]
+    base = {dim: slice(0, size) for dim, size in sizes.items() if dim not in dims}
+    size_0, size_1 = sizes[dim_0], sizes[dim_1]
 
     return {
         "top_left": {
             **base,
-            "y": edge_slice(y_size, "start"),
-            "x": edge_slice(x_size, "start"),
+            dim_0: edge_slice(size_0, "start"),
+            dim_1: edge_slice(size_1, "start"),
         },
         "top_right": {
             **base,
-            "y": edge_slice(y_size, "start"),
-            "x": edge_slice(x_size, "end"),
+            dim_0: edge_slice(size_0, "start"),
+            dim_1: edge_slice(size_1, "end"),
         },
         "bottom_left": {
             **base,
-            "y": edge_slice(y_size, "end"),
-            "x": edge_slice(x_size, "start"),
+            dim_0: edge_slice(size_0, "end"),
+            dim_1: edge_slice(size_1, "start"),
         },
         "bottom_right": {
             **base,
-            "y": edge_slice(y_size, "end"),
-            "x": edge_slice(x_size, "end"),
+            dim_0: edge_slice(size_0, "end"),
+            dim_1: edge_slice(size_1, "end"),
         },
     }
 

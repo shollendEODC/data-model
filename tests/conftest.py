@@ -4,8 +4,28 @@
 from __future__ import annotations
 
 import pytest
+from test_s1 import S1_SLC_STORE_CONFIGS
 from test_s2 import S2_STORE_CONFIGS
 from utils import TestFiles, cleanup_tmp_root
+
+
+@pytest.fixture(scope="session", params=sorted(S1_SLC_STORE_CONFIGS))
+def s1_slc_product_files(request: pytest.FixtureRequest) -> TestFiles:
+    """Build (and, for .SAFE/.SEN3 inputs, convert) one S2 product's files.
+
+    Session-scoped + parametrized: pytest builds and caches one instance per
+    `request.param` ("L2A", "L1C", ...) for the whole session, so every test
+    needing that pair reuses the same converted store instead of re-converting
+    per test. Conversion itself (and its tmp dir) is managed by TestFiles /
+    utils._tmp_root - this fixture just supplies the config per pair.
+    """
+    cfg = S1_SLC_STORE_CONFIGS[request.param]
+    return TestFiles(
+        sensor="S1",
+        mode=request.param,
+        ref_input_path=cfg["ref_input_path"],
+        geozarr_path=cfg["geozarr_path"],
+    )
 
 
 @pytest.fixture(scope="session", params=sorted(S2_STORE_CONFIGS))
