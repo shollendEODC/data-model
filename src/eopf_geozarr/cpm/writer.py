@@ -284,9 +284,9 @@ class GeoZarrWriter(EOWriter):
                 enable_sharding=enable_sharding,
                 spatial_chunk=resolved_spatial_chunk,
                 compression_level=compression_level,
-                validate_output=validate_output,
+                # validate_output=validate_output,
                 keep_scale_offset=keep_scale_offset,
-                max_retries=max_retries,
+                # max_retries=max_retries,
             )
 
         return create_generic_geozarr_dataset(

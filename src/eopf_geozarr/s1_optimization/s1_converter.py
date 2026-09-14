@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import gc
 import time
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any, cast
@@ -9,12 +8,12 @@ import numpy as np
 import structlog
 import xarray as xr
 import zarr
+from pyproj import CRS
 
 from eopf_geozarr.conversion import utils
 from eopf_geozarr.s1_optimization.sentinel1_reprojection import reproject_sentinel1_with_gcps
 
 if TYPE_CHECKING:
-    from pyproj import CRS
     from zarr.core.common import JSON
     from zarr_cm import LayoutObject, MultiscalesAttrs, Transform
 
@@ -42,8 +41,10 @@ def flatten_dynamic_root_name(dt: xr.DataTree) -> xr.DataTree:
 
 def calculate_s1grdh_multiscales(
     measurements_ds: xr.Dataset,
+    gcp_ds: xr.Dataset,
     output_path: str,
     output_group: zarr.Group,
+    product_name: str,
     pyramid_dims: tuple[str, str] = ("y", "x"),
     spatial_chunk: int = 1024,
     min_dimension: int = 256,
@@ -54,21 +55,57 @@ def calculate_s1grdh_multiscales(
     **kwargs: Any,
 ) -> dict[str, xr.Dataset]:  # Tuple[Dict[str, xr.Dataset], Dict[str, xr.Dataset]]:
     # resolution_groups: dict[str, xr.Dataset] = {}
-    base_path = "/measurements"
+    base_path = f"{product_name}/multiscales"
+
+    log.info("Applying Sentinel-1 reprojection for measurements")
+    reproj_dataset = reproject_sentinel1_with_gcps(measurements_ds, gcp_ds, target_crs="EPSG:4326")
+
+    # write reproj dataset to disk
+    reproj_dataset = utils._rechunk_ds(reproj_dataset, spatial_chunk)
+    # Measurement groups: apply custom encoding
+    encoding = utils.create_uniform_encoding(
+        reproj_dataset,
+        spatial_chunk=spatial_chunk,
+        shard_along_smallest_dimension=True,
+        enable_sharding=enable_sharding,
+        keep_scale_offset=keep_scale_offset,
+        compression_level=compression_level,
+    )
+    utils.write_geo_metadata(reproj_dataset, crs=crs, input_is_image_array=False)
+
+    # Write dataset -> adds geo metadata
+    reproj_dataset = utils.stream_write_dataset(
+        reproj_dataset,
+        path=f"{base_path}/r2",
+        group=output_group,
+        encoding=encoding,
+        enable_sharding=enable_sharding,
+        # crs=crs,
+    )
+
+    # measurements_ds = reproj_dataset
 
     # Write /2 reduced overview subgroups: r2, r4, r8, …
-    rows = measurements_ds.sizes[pyramid_dims[0]]
-    cols = measurements_ds.sizes[pyramid_dims[1]]
+    rows = reproj_dataset.sizes[pyramid_dims[0]]
+    cols = reproj_dataset.sizes[pyramid_dims[1]]
     n_levels = utils.overview_levels(rows, cols, min_dimension)
     log.info("Generating overview levels", n_levels=n_levels)
 
-    level_datasets: dict[str, xr.Dataset] = {"r0": measurements_ds}
-    scale_levels: dict[str, list[float]] = {"r0": [1.0, 1.0]}
+    level_datasets: dict[str, xr.Dataset] = {"r2": reproj_dataset}
+    scale_levels: dict[str, list[float]] = {
+        "r2": [2.0, 2.0]
+    }  # -> change scale measurements_ds.shae ??
 
-    current = measurements_ds
+    reproj_trafo = list(reproj_dataset.rio.transform())
+    reproj_trafo = reproj_trafo[:6] if len(reproj_trafo) > 6 else reproj_trafo
+    spatial_levels: dict[str, dict[str, list[float] | list[int]]] = {
+        "r2": {"spatial:transform": reproj_trafo, "spatial:shape": [rows, cols]}
+    }
+
+    current = reproj_dataset
 
     # assumption of same shape in multiscale arrays -> this assumption is also applied in the geozarr spec so it should be alright
-    curr_shape = next(iter(measurements_ds.data_vars.values())).shape
+    curr_shape = next(iter(reproj_dataset.data_vars.values())).shape
     if len(curr_shape) == 2:
         curr_shape_xy = curr_shape
     elif len(curr_shape) == 3:
@@ -77,9 +114,9 @@ def calculate_s1grdh_multiscales(
     else:
         curr_shape_xy = curr_shape
 
-    for level in range(1, n_levels + 1):
+    for level in range(2, n_levels + 1):
         # Downsample all variables using existing lazy operations
-        group_name = f"r{level}"
+        group_name = f"r{level * 2}"
         level_datasets[group_name] = current
         output_filepath = f"{base_path}/{group_name}"
         log.info("Calculating overview", group=output_filepath, shape=dict(current.sizes))
@@ -109,6 +146,18 @@ def calculate_s1grdh_multiscales(
 
         scales = [c / d for c, d in zip(curr_shape_xy, downsample_shape_xy, strict=True)]
         scale_levels[group_name] = scales
+
+        # we only need the first 6 values form affine traFo
+        downsampled_trafo = list(current.rio.transform())
+        downsampled_trafo = (
+            downsampled_trafo[:6] if len(downsampled_trafo) > 6 else downsampled_trafo
+        )
+
+        spatial_levels[group_name] = {
+            "spatial:transform": downsampled_trafo,
+            "spatial:shape": list(downsample_shape_xy),
+        }
+
         curr_shape_xy = downsample_shape_xy
 
         # remove parent encoding
@@ -150,25 +199,36 @@ def calculate_s1grdh_multiscales(
         level_datasets[group_name] = ds_out
         # resolution_groups[group_name] = ds_out
 
-    layout: list[LayoutObject] = [{"asset": "r0"}]
+    layout: list[LayoutObject] = [
+        {
+            "asset": "r2",
+            "spatial:transform": spatial_levels["r2"]["spatial:transform"],
+            "spatial:shape": spatial_levels["r2"]["spatial:shape"],
+        }
+    ]
 
-    for level in range(1, n_levels + 1):
-        group_name = f"r{level}"
+    for level in range(2, n_levels + 1):
+        group_name = f"r{level * 2}"
         transform: Transform = {"scale": scale_levels[group_name], "translation": [0.0, 0.0]}
         lo: LayoutObject = {
-            "asset": f"r{level}",
-            "derived_from": f"r{level - 1}" if level > 1 else "r0",
+            "asset": group_name,
+            "derived_from": f"r{level * 2 - 2}" if level > 2 else "r2",
             "transform": transform,
-            "resampling_method": "average",
+            # add spatial ones
+            "spatial:shape": spatial_levels[group_name]["spatial:shape"],
+            "spatial:transform": spatial_levels[group_name]["spatial:transform"],
         }
         layout.append(lo)
+
+    # add metadata to layout
+    # "resampling_method": "average"
 
     # add metadata to root and multiscale-parent node
     root_rw = zarr.open_group(output_path, mode="a")
 
     base_spatial = utils.grid_spatial_attrs(
-        transform=measurements_ds.rio.transform(recalc=True),
-        shape=(measurements_ds.sizes["y"], measurements_ds.sizes["x"]),
+        transform=reproj_dataset.rio.transform(recalc=True),
+        shape=(reproj_dataset.sizes["y"], reproj_dataset.sizes["x"]),
     )
 
     for group_name, level_ds in level_datasets.items():
@@ -199,25 +259,25 @@ def convert_s1grdh_optimized(
     output_path: str,
     spatial_chunk: int,
     compression_level: int,
-    validate_output: bool,
+    # validate_output: bool,
     keep_scale_offset: bool,
-    max_retries: int = 3,
+    # max_retries: int = 3,
     gcp_group: str = "/conditions/gcp",
 ) -> dict[str, dict]:
     start_time = time.time()
 
     ouput_group = zarr.open_group(output_path)
     processed_groups = {}
-    crs = None
+    crs = CRS.from_epsg(4326)
     measurement_group_path: str | None = None
 
     # remove name from each node
-    dt = flatten_dynamic_root_name(dt=dt_input)
-
-    # add the structure for multiscales by adding a parent to grd_xm
+    # dt = flatten_dynamic_root_name(dt=dt_input)
+    dt = dt_input
 
     # data is polarised as vv and vh in same dataset -> redundant gcps
-    ds_gcp = dt[gcp_group].to_dataset()
+    product_name = next(iter(dt.children))
+    ds_gcp = dt[f"{product_name}/{gcp_group}"].to_dataset()
     if ds_gcp["polarization"].shape[0] > 1:
         arrs = [ds_gcp.isel(polarization=i) for i in range(ds_gcp.polarization.shape[0])]
 
@@ -249,15 +309,10 @@ def convert_s1grdh_optimized(
 
         # reprojection with gcps
         if "/measurements" in group_path:
-            log.info("Applying Sentinel-1 reprojection for group %s", group_path)
-            reproj_dataset = reproject_sentinel1_with_gcps(dataset, ds_gcp, target_crs="EPSG:4326")
+            dataset = utils._rechunk_ds(dataset, spatial_chunk)
 
-            # for debugging dont transform
-            # reproj_dataset = dataset
-
-            dataset = utils._rechunk_ds(reproj_dataset, spatial_chunk)
-            del reproj_dataset
-            gc.collect()
+            # del reproj_dataset
+            # gc.collect()
 
             # Measurement groups: apply custom encoding
             encoding = utils.create_uniform_encoding(
@@ -285,10 +340,11 @@ def convert_s1grdh_optimized(
                     dataset[data_var].encoding.pop("_FillValue", None)
 
             # rewrite Grup path to allow multiscales
-            measurement_group_path = f"{group_path}/r0"
+            # measurement_group_path = f"{group_path}/r0"
+            measurement_group_path = f"{group_path}"
 
             # Add the geo metadata before writing for geozarr
-            utils.write_geo_metadata(dataset, crs=crs)
+            utils.write_geo_metadata(dataset, crs=crs, input_is_image_array=False)
 
             # Write dataset -> adds geo metadata
             measurements = utils.stream_write_dataset(
@@ -326,26 +382,15 @@ def convert_s1grdh_optimized(
     if measurement_group_path is None:
         raise ValueError("No '/measurements' group found in input DataTree")
 
-    # add pyramids
-    # load the correct already written ds
-    # The zarr backend accepts a zarr `Store` here at runtime, but xarray's
-    # `open_dataset` stub only types the first arg as path/buffer/datastore.
-    # measurement_ds = xr.open_dataset(
-    #     ouput_group.store,
-    #     engine="zarr",
-    #     chunks={},
-    #     group=measurement_group_path,
-    #     mask_and_scale=False,
-    # )
-
     measurement_ds = processed_groups[measurement_group_path]
-
     crs = measurement_ds.rio.crs
 
     calculate_s1grdh_multiscales(
         measurement_ds,
+        ds_gcp,
         output_path=output_path,
         output_group=ouput_group,
+        product_name=product_name,
         crs=crs,
         # pyramid_dims=pyramids_factors,
         enable_sharding=enable_sharding,

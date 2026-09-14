@@ -29,6 +29,7 @@ def reproject_sentinel1_with_gcps(
 ) -> xr.Dataset:
     """
     Reproject Sentinel-1 dataset from radar geometry to geographic coordinates using GCPs.
+    Automatic reprojection to overview/multiscale level 1
 
     Parameters
     ----------
@@ -68,7 +69,7 @@ def reproject_sentinel1_with_gcps(
 
     log.info("Using nodata value", nodata_value=nodata_value)
 
-    # Calculate the target transform and dimensions
+    # Calculate the base target transform and dimensions
     transform, width, height = calculate_default_transform(
         src_crs="EPSG:4326",  # GCPs are in lat/lon
         dst_crs=target_crs,
@@ -77,30 +78,47 @@ def reproject_sentinel1_with_gcps(
         gcps=gcps,
     )
 
-    # calculate_default_transform sizes the grid, so width and height are populated
-    assert width is not None
-    assert height is not None
-    log.info("Calculated target dimensions", width=width, height=height)
-    log.info("Transform", transform=str(transform))
+    # -> Coaren transform by x2
+    coarse_width = max(1, width // 2)
+    coarse_height = max(1, height // 2)
+    coarse_transform = transform * rasterio.Affine.scale(
+        width / coarse_width, height / coarse_height
+    )
 
-    # Create target coordinate arrays
-    target_coords = _create_target_coordinates(transform, width, height, target_crs)
+    # calculate_default_transform sizes the grid, so width and height are populated
+    assert coarse_width is not None
+    assert coarse_height is not None
+    log.info(
+        "Calculated target dimensions for already coarsened reprojection of S1 data",
+        width=coarse_width,
+        height=coarse_height,
+    )
+    log.info("Transform", transform=str(transform))
 
     # Reproject all data variables
     reprojected_data_vars = {}
     for var_name in data_vars:
         log.info("  Reprojecting variable", var_name=var_name)
+        # apply additional nan masking to data array -> as its not used for scientific stuff, it hinders the rendering and understandability of arrays
+        var = ds[var_name].where(ds[var_name] != 0, other=nodata_value)
+
         reprojected_var = _reproject_data_variable(
-            ds[var_name],
+            # ds[var_name],
+            var,
             gcps,
-            transform,
-            width,
-            height,
+            coarse_transform,
+            coarse_width,
+            coarse_height,
             target_crs,
             resampling,
             nodata_value,
         )
         reprojected_data_vars[var_name] = reprojected_var
+
+    # Create target coordinate arrays
+    target_coords = _create_target_coordinates(
+        coarse_transform, coarse_width, coarse_height, target_crs
+    )
 
     # Create the reprojected dataset
     reprojected_ds = xr.Dataset(
@@ -141,10 +159,12 @@ def _create_gcps_from_dataset(
 
     # new rows and cols derived from the parent ds
     rows = full_ds.get_index("azimuth_time").get_indexer(
-        ds_gcp_flat["azimuth_time"].values, method="nearest"
+        ds_gcp_flat["azimuth_time"].values,
+        method="nearest",  # pyright: ignore[]
     )
     cols = full_ds.get_index("ground_range").get_indexer(
-        ds_gcp_flat["ground_range"].values, method="nearest"
+        ds_gcp_flat["ground_range"].values,
+        method="nearest",  # pyright: ignore[]
     )
 
     x = ds_gcp_flat["longitude"].values
