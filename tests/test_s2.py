@@ -18,12 +18,22 @@ import utils
 import xarray as xr
 import zarr
 from global_test_settings import ATOL, RTOL
-from utils import S2_STORE_CONFIGS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 # ---------------------------------------------------------------------------
+
+S2_STORE_CONFIGS: dict[str, dict[str, str]] = {
+    "L2A": {
+        "ref_input_path": "/home/samuel/data/samples/cpm_v300rc4a/safe_products/S2B_MSIL2A_20260721T100559_N0512_R022_T33UWQ_20260721T143508.SAFE",
+        "geozarr_path": "/home/samuel/data/samples/cpm_v300rc4a/converted_zarr_stores/refactored_S2B_MSIL2A_20260721T100559_N0512_R022_T33UWQ_20260721T143508.zarr",
+    },
+    "L1C": {
+        "ref_input_path": "/home/samuel/data/samples/cpm_v300rc4a/safe_products/S2C_MSIL1C_20260909T124301_N0512_R095_T27WXN_20260909T143930.SAFE",
+        "geozarr_path": "/home/samuel/data/samples/cpm_v300rc4a/converted_zarr_stores/refactored_S2C_MSIL1C_20260909T124301_N0512_R095_T27WXN_20260909T143930.zarr",
+    },
+}
 
 SAMPLE_FRACTION = 0.02  # fraction of chunks to sample per array (set to 1.0 for full compare)
 MAX_SAMPLES = 50  # max chunks sampled per array

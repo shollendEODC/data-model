@@ -4,7 +4,8 @@
 from __future__ import annotations
 
 import pytest
-from utils import S2_STORE_CONFIGS, TestFiles, cleanup_tmp_root
+from test_s2 import S2_STORE_CONFIGS
+from utils import TestFiles, cleanup_tmp_root
 
 
 @pytest.fixture(scope="session", params=sorted(S2_STORE_CONFIGS))
