@@ -155,6 +155,7 @@ def convert_s2_optimized(
     datasets = create_multiscale_from_datatree(
         dt_input,
         output_group=output_group,
+        output_path=output_path,
         spatial_chunk=spatial_chunk,
         enable_sharding=enable_sharding,
         crs=crs,

@@ -105,14 +105,13 @@ def create_generic_geozarr_dataset(
             compression_level=compression_level,
         )
 
-        # Write dataset -> adds geo metadata
+        # Write dataset -> does NOT add geo metadata
         ds_out = utils.stream_write_dataset(
             dataset,
             path=group_path,
             group=ouput_group,
             encoding=encoding,
             enable_sharding=enable_sharding,
-            # crs=crs,
         )
         processed_groups[group_path] = ds_out
 

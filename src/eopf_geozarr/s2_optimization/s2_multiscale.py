@@ -13,6 +13,7 @@ import structlog
 import xarray as xr
 import zarr
 from pydantic.experimental.missing_sentinel import MISSING
+from zarr_cm import LayoutObject, MultiscalesAttrs, Transform
 
 from eopf_geozarr import zcm
 from eopf_geozarr.conversion import sentinel_modes, utils
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from pyproj import CRS
-    from zarr_cm import MultiscalesAttrs
+    from zarr.core.common import JSON
 
     from eopf_geozarr.new_types import OverviewLevelJSON
 
@@ -39,13 +40,6 @@ pyramid_levels = {
     4: 360,  # Level 4: 360m (3x downsampling from 120m)
     5: 720,  # Level 5: 720m (2x downsampling from 360m)
 }
-
-
-# def get_grid_spacing(ds: xr.DataArray, coords: tuple[Hashable, ...]) -> tuple[float | int, ...]:
-#     """
-#     Get the grid spacing of a regularly-gridded DataArray along the specified coordinates.
-#     """
-#     return tuple(np.abs(ds.coords[coord][0].data - ds.coords[coord][1].data) for coord in coords)
 
 
 def _transform_from_coordinates(
@@ -120,94 +114,6 @@ def _preferred_spatial_transform(
         return rio_transform
 
     return coordinate_transform or rio_transform
-
-
-### these can be removed as variable type is not relevant and coarsening is done in utils
-
-# def determine_variable_type(
-#     var_name: str, var_data: xr.DataArray
-# ) -> Literal["reflectance", "classification", "probability", "quality_mask"]:
-#     """
-#     Determine the type of a variable for appropriate resampling.
-
-#     Args:
-#         var_name: Name of the variable
-#         var_data: The data array
-
-#     Returns:
-#         Variable type string
-#     """
-#     # Spectral bands
-#     if var_name.startswith("b") and (var_name[1:].isdigit() or var_name == "b8a"):
-#         return "reflectance"
-
-#     # Quality data
-#     if var_name == "scl":  # Scene Classification Layer
-#         return "classification"
-
-#     if var_name in ["cld", "snw"]:  # Probability data
-#         return "probability"
-
-#     if var_name in ["aot", "wvp"]:  # Atmosphere quality - treat as reflectance
-#         return "reflectance"
-
-#     if var_name.startswith(("detector_footprint_", "quality_")):
-#         return "quality_mask"
-
-#     # Default to reflect
-# ance for unknown variables
-#     return "reflectance"
-
-# def _coarsen_variable(var_name: str, var_data: xr.DataArray, factor: int) -> xr.DataArray:
-#     """Coarsen a single variable using type-aware resampling.
-
-#     Dispatches to the appropriate coarsen reduction (mean, max, subsample)
-#     based on `determine_variable_type`.  Preserves encoding and dtype.
-#     """
-#     var_type = determine_variable_type(var_name, var_data)
-
-#     coarsened = var_data.coarsen({"x": factor, "y": factor}, boundary="trim")
-#     if var_type in ("reflectance", "probability"):
-#         # Cast the input array to float and ignore nans during the .coarsen() operation, which could not be considered in int array with "nan-value" == 0.
-#         # This prohibits the inclusion of 0 values in the mean calculation of multiscales, mainly impacting the boder regions of arrays
-
-#         # nan values are later refilled again with 0s (or fillna values) to conform with int array requirements
-#         # fill_value = var_data.fill_value
-
-#         fill_value = var_data.attrs.get("fill_value")
-
-#         # resort to _FillValue from encoding (-> likely empty anyway, as encodings are set later) is not found via fill_value
-#         if not fill_value:
-#             fill_value = var_data.encoding.get("_FillValue")
-
-#         if fill_value is not None:
-#             # mask all 0 as nan in float array
-#             masked = var_data.where(var_data != fill_value)
-
-#             # redefine coarsen operation to ignore nans and fill up with fill_value later
-#             result = (
-#                 masked.coarsen({"x": factor, "y": factor}, boundary="trim")
-#                 .mean(skipna=True)
-#                 .fillna(fill_value)
-#             )
-#         else:
-#             result = coarsened.mean()
-#     elif var_type == "classification":
-#         result = coarsened.reduce(subsample_2)
-#     elif var_type == "quality_mask":
-#         # xarray stubs omit reduction methods on DataArrayCoarsen.
-#         result = coarsened.max()
-#     else:
-#         raise ValueError(f"Unknown variable type {var_type}")
-
-#     # `xr.DataArray.astype` clears `.encoding`, so we capture it first and
-#     # restore it on the cast result. Without this, downstream code that
-#     # inspects encoding (e.g. to push CF scale-offset into a codec pipeline)
-#     # would see an empty encoding on every coarsened level.
-#     encoding = var_data.encoding
-#     cast_result: xr.DataArray = result.astype(var_data.dtype)
-#     cast_result.encoding = encoding
-#     return cast_result
 
 
 def inject_missing_bands(
@@ -297,6 +203,7 @@ def create_multiscale_from_datatree(
     dt_input: xr.DataTree,
     *,
     output_group: zarr.Group,
+    output_path: str,
     enable_sharding: bool,
     spatial_chunk: int,
     crs: CRS | None = None,
@@ -318,9 +225,11 @@ def create_multiscale_from_datatree(
         Dictionary of processed groups
     """
     processed_groups: dict[str, Any] = {}
-    # The scale levels in the output data. 10, 20, 60 already exist in the source data.
 
-    # cheap dEtermination if its L2A or L1C
+    # helper dicts to keep track of attrs for multiscales
+    spatial_levels: dict[str, dict[str, list[float] | list[int]]] = {}
+
+    # cheap determination if its L2A or L1C
     filename = dt_input.name
     s2_type = sentinel_modes.S2Type.from_filename(filename)
 
@@ -457,6 +366,12 @@ def create_multiscale_from_datatree(
 
             utils.write_geo_metadata(dataset, crs=crs)
 
+            # add spatial: metadta to outside dict for multuiscale layouts
+            spatial_levels[group_name] = {
+                "spatial:shape": dataset.attrs["spatial:shape"],
+                "spatial:transform": dataset.attrs["spatial:transform"],
+            }
+
             ds_out = utils.stream_write_dataset(
                 dataset,
                 path=group_path,
@@ -498,35 +413,40 @@ def create_multiscale_from_datatree(
             )
             processed_groups[group_path] = ds_out
 
-    # Step 2: Create downsampled resolution groups ONLY for measurements
-    # Find all resolution-based groups under /measurements/ and organize by base path
-    resolution_groups: dict[str, xr.Dataset] = {}
-    base_path = "/measurements/reflectance"
-    for group_path in processed_groups:
-        # Only process groups under /measurements/reflectance
-        if not group_path.startswith(base_path):
-            continue
-
-        group_name = group_path.split("/")[-1]
-        if group_name in ["r10m", "r20m", "r60m"]:
-            resolution_groups[group_name] = processed_groups[group_path]
+    # predefined layout asset
+    layout_: list[dict[str, Any]] = [
+        {"asset": "r10m", **spatial_levels["r10m"]},
+        {
+            "asset": "r20m",
+            "derived_from": "r10m",
+            "transform": Transform({"scale": [2.0, 2.0], "translation": [0.0, 0.0]}),
+            **spatial_levels["r20m"],
+        },
+        {
+            "asset": "r60m",
+            "derived_from": "r10m",
+            "transform": Transform({"scale": [6.0, 6.0], "translation": [0.0, 0.0]}),
+            **spatial_levels["r60m"],
+        },
+    ]
 
     scale_levels = tuple(pyramid_levels.values())
 
-    # iterate over source, dest pairs: (60, 120), (120, 360), ...
-    for source_level, dest_level in pairwise(scale_levels[2:]):
-        dest_level_name = f"r{dest_level}m"
-        dest_level_path = f"{base_path}/{dest_level_name}"
+    # iterate over pre-defined pyramid-dict (or smth) and generate layout data -> use LayoutObject/...
+    current = processed_groups["/measurements/reflectance/r60m"]
+    current_level_name = "r60m"
 
-        source_ds = resolution_groups[f"r{source_level}m"]
+    for src_scale_level, dst_scale_level in pairwise(scale_levels[2:]):
+        dest_level_name = f"r{dst_scale_level}m"
+        dest_level_path = f"/measurements/reflectance/{dest_level_name}"
 
-        downsample_factor = dest_level // source_level
-        log.info("Creating level with resolution", level=dest_level_name, resolution=dest_level)
+        downsample_factor = dst_scale_level // src_scale_level
+        log.info(
+            "Creating level with resolution", level=dest_level_name, resolution=dst_scale_level
+        )
 
         # Create downsampled dataset
-        downsampled_dataset = create_downsampled_resolution_group(
-            source_ds, factor=downsample_factor
-        )
+        downsampled_dataset = create_downsampled_resolution_group(current, factor=downsample_factor)
 
         log.info("Writing level to path", level=dest_level_name, output_path=dest_level_path)
 
@@ -543,7 +463,27 @@ def create_multiscale_from_datatree(
             for data_var in downsampled_dataset.data_vars:
                 downsampled_dataset[data_var].encoding.pop("_FillValue", None)
 
+        # add geo metadata
         utils.write_geo_metadata(downsampled_dataset, crs=crs)
+
+        transform: Transform = {
+            "scale": [downsample_factor, downsample_factor],
+            "translation": [0.0, 0.0],
+        }
+
+        spatial_levels[dest_level_name] = {
+            "spatial:shape": downsampled_dataset.attrs["spatial:shape"],
+            "spatial:transform": downsampled_dataset.attrs["spatial:transform"],
+        }
+
+        lo = {
+            "asset": dest_level_name,
+            "derived_from": current_level_name,
+            "transform": transform,
+            **spatial_levels[dest_level_name],
+        }
+
+        layout_.append(lo)
 
         # Write dataset
         ds_out = utils.stream_write_dataset(
@@ -552,38 +492,40 @@ def create_multiscale_from_datatree(
             group=output_group,
             encoding=encoding,
             enable_sharding=enable_sharding,
-            # crs=crs,
         )
 
         # Store results
         processed_groups[dest_level_path] = ds_out
-        resolution_groups[dest_level_name] = ds_out
 
-    # Step 3: Add multiscales metadata to parent groups
-    log.info("Adding multiscales metadata to parent groups")
+        current = downsampled_dataset
+        current_level_name = dest_level_name
 
-    # Get the parent group (it was created when writing the resolution groups).
-    # `output_group[base_path]` is typed `Array | Group`; `base_path` always
-    # addresses a group (the reflectance parent), so verify that at runtime.
-    parent_group = output_group[base_path]
-    if not isinstance(parent_group, zarr.Group):
-        raise TypeError(
-            f"expected a zarr.Group at {base_path!r}, got {type(parent_group).__name__}"
-        )
+    # add metadata to root and multiscale-parent node
+    root_rw = zarr.open_group(output_path, mode="a")
 
-    add_multiscales_metadata_to_parent(
-        parent_group,
-        resolution_groups,
+    # create layoutobjects -> also checks accordance (i think)
+    layout: list[LayoutObject] = [LayoutObject(**lo) for lo in layout_]
+    ms: MultiscalesAttrs = {"layout": layout, "resampling_method": "average"}
+
+    # add geozarr attrs to base of /measurements/reflectance/
+    base_measurement_ds_10m = processed_groups["/measurements/reflectance/r10m"]
+    base_spatial = utils.grid_spatial_attrs(
+        transform=base_measurement_ds_10m.rio.transform(recalc=True),
+        shape=(base_measurement_ds_10m.sizes["y"], base_measurement_ds_10m.sizes["x"]),
     )
-    processed_groups[base_path] = None
+
+    conv = utils.build_convention_attrs(multiscales=ms, spatial=base_spatial, crs=crs)
+    root_rw["/measurements/reflectance/"].attrs.update(cast("dict[str, JSON]", conv))
+
+    processed_groups["/measurements/reflectance"] = None
 
     return processed_groups
 
 
-def add_multiscales_metadata_to_parent(
+def unused_add_multiscales_metadata_to_parent(
     group: zarr.Group,
     res_groups: Mapping[str, xr.Dataset],
-) -> None:
+) -> Any:
     """Add GeoZarr-compliant multiscales metadata to parent group.
 
     Returns ``None`` in all cases: metadata is written directly to ``group``
@@ -606,7 +548,7 @@ def add_multiscales_metadata_to_parent(
             "Skipping {} - only one resolution available",
             base_path=group.path,
         )
-        return
+        return None
 
     # Get CRS and bounds from first available dataset (load from output path)
     first_res = all_resolutions[0]
@@ -616,14 +558,14 @@ def add_multiscales_metadata_to_parent(
     native_crs = first_dataset.rio.crs if hasattr(first_dataset, "rio") else None
     if native_crs is None:
         log.info("No CRS found, skipping multiscales metadata", base_path=group.path)
-        return
+        return None
 
     # Calculate bounds directly from coordinates for consistency with the data arrays
     if "x" not in first_dataset.coords or "y" not in first_dataset.coords:
         log.error(
             "Missing x/y coordinates in dataset, cannot determine bounds", base_path=group.path
         )
-        return
+        return None
 
     x_coords = first_dataset.x.values
     y_coords = first_dataset.y.values
@@ -748,7 +690,7 @@ def add_multiscales_metadata_to_parent(
 
     if len(overview_levels) < 2:
         log.info("    Could not create overview levels for {}", base_path=group.path)
-        return
+        return None
 
     layout: list[zcm.ScaleLevel] | MISSING = MISSING
 
@@ -821,6 +763,8 @@ def add_multiscales_metadata_to_parent(
 
     log.info("Added %s multiscale levels to %s", len(overview_levels), group.path)
 
+    return attrs_to_write
+
 
 def create_downsampled_resolution_group(source_dataset: xr.Dataset, factor: int) -> xr.Dataset:
     """Create a downsampled version of a dataset by given factor."""
@@ -851,231 +795,3 @@ def create_downsampled_resolution_group(source_dataset: xr.Dataset, factor: int)
 
     # Create dataset with lazy variables and coordinates
     return xr.Dataset(lazy_vars, attrs=source_dataset.attrs)
-
-
-# def get_chunking_for_encoding(var_data: xr.DataArray) -> tuple[int, ...]:
-#     """
-#     requires a prior rechunking of the dataset by calling _rechunk_ds() to rechunk non-metadata arrays to spatial_chunk
-#     get a tuple of maximal chunksize for the dataarray
-#     -> (spatial_chukn, spatial_chukn) for spatial arrays
-#     -> (x, y, z, ..) for multidimensional metadata arrays (just to allow sharding later on)
-
-#     Args:
-#         var_data: DataArray to get the chunks from
-
-#     """
-#     if var_data.chunks:
-#         # get the maximal chunk shape for zarr encoding -> theoretically it wouldnt be necessary to take the max, as non-uniform chukning (1024, 806)
-#         # has irregular chunksizes trailing, but the syntax and goal of the code is much clearer this way
-#         return tuple(max(c) for c in var_data.chunks)
-#     raise ValueError(
-#         f"Datavariable {var_data.name!r} is not chunked already, cannot derive Zarr encoding chunks -> will lead to unchunked array"
-#     )
-
-
-# def calculate_aligned_chunk_size(dimension_size: int, target_chunk: int) -> int:
-#     """
-#     Calculate aligned chunk size following geozarr.py logic.
-
-#     This ensures good chunk alignment without complex calculations.
-#     """
-#     if target_chunk >= dimension_size:
-#         return dimension_size
-
-#     # Find the largest divisor of dimension_size that's close to target_chunk
-#     best_chunk = target_chunk
-#     for chunk_candidate in range(target_chunk, max(target_chunk // 2, 1), -1):
-#         if dimension_size % chunk_candidate == 0:
-#             best_chunk = chunk_candidate
-#             break
-
-#     return best_chunk
-
-
-# depenency of corasen
-# def subsample_2(a: xr.DataArray, axis: tuple[int, ...] | None = None) -> xr.DataArray:
-#     if axis is None:
-#         return a[((0,) * a.ndim)]
-#     indexer = [0 if i in axis else slice(None) for i in range(a.ndim)]
-#     return a[tuple(indexer)]
-
-
-# available in utils -> has been changes but now lets take a look if it works
-
-
-# def stream_write_dataset(
-#     dataset: xr.Dataset,
-#     *,
-#     path: str,
-#     group: zarr.Group,
-#     encoding: dict[str, XarrayDataArrayEncoding],
-#     enable_sharding: bool,
-#     crs: CRS | None = None,
-# ) -> xr.Dataset:
-#     """
-#     Stream write a lazy dataset with advanced chunking and sharding.
-
-#     This is where the magic happens: all the lazy downsampling operations
-#     are executed as the data is streamed to storage with optimal performance.
-
-#     Args:
-#         dataset: Dataset to write
-#         dataset_path: Output path for dataset
-#         encoding: Encoding dictionary for variables
-#         enable_sharding: Enable Zarr v3 sharding
-#         crs: Coordinate Reference System for geographic metadata
-
-#     Returns:
-#         Written dataset
-#     """
-#     # Check if level already exists
-#     if path in group:
-#         log.info(
-#             "Level path {} already exists. Skipping write.",
-#             dataset_path=path,
-#         )
-#         # The zarr backend accepts a zarr `Store` here at runtime, but xarray's
-#         # `open_dataset` stub only types the first arg as path/buffer/datastore.
-#         return xr.open_dataset(
-#             group.store,
-#             engine="zarr",
-#             chunks={},
-#             decode_coords="all",
-#             group=path,
-#         )
-
-#     log.info("Streaming computation and write to {}", dataset_path=path)
-#     log.info("Variables", variables=list(dataset.data_vars.keys()))
-
-#     # Rechunk dataset to align with encoding
-#     dataset = utils.rechunk_dataset_for_encoding(dataset, encoding)
-
-#     # Add the geo metadata before writing for
-#     # - /measurements/ groups
-#     # - /quality/ groups
-#     # - /consitions/mask groups
-#     if "/measurements/" in path or "/quality/" in path or "/conditions/mask" in path:
-#         write_geo_metadata(dataset, crs=crs)
-
-#     # Sanitize NaN values in dataset attributes before writing
-#     dataset = sanitize_dataset_attributes(dataset)
-
-#     # Write with streaming computation and progress tracking
-#     # The to_zarr operation will trigger all lazy computations
-#     write_job = dataset.to_zarr(
-#         group.store,
-#         mode="w",
-#         consolidated=False,
-#         zarr_format=3,
-#         encoding=encoding,
-#         group=path,
-#         compute=False,  # Create job first for progress tracking
-#     )
-#     write_job = write_job.persist()
-
-#     if DISTRIBUTED_AVAILABLE:
-#         try:
-#             import distributed
-
-#             # Try to get current client for better status monitoring
-#             try:
-#                 client = distributed.Client.current()
-#                 # client.compute is untyped (returns Any); verify we got a
-#                 # Future rather than asserting it with a cast.
-#                 future = client.compute(write_job)
-#                 if not isinstance(future, distributed.Future):
-#                     raise TypeError(f"expected a distributed.Future, got {type(future).__name__}")
-#                 log.info("Using distributed client for write job monitoring")
-
-#                 try:
-#                     distributed.progress(future, notebook=False)
-#                 except Exception as progress_error:
-#                     log.warning("Could not display progress bar: {}", e=progress_error)
-
-#                 # Get result and raise if computation failed
-#                 future.result()
-#             except ValueError:
-#                 # No current client, fall back to regular distributed.progress
-#                 log.info("No distributed client available, using regular progress")
-#                 distributed.progress(write_job, notebook=False)
-#                 write_job.compute()
-
-#         except Exception as e:
-#             log.warning("Could not use distributed features: {}", e=e)
-#             write_job.compute()
-#     else:
-#         log.info("Writing zarr file...")
-#         write_job.compute()
-
-#     log.info("Streaming write complete for dataset {}", dataset_path=path)
-#     return dataset
-
-
-# def write_geo_metadata(
-#     dataset: xr.Dataset,
-#     grid_mapping_var_name: str = "spatial_ref",
-#     crs: CRS | None = None,
-# ) -> None:
-#     """
-#     Write geographic metadata to the dataset.
-
-#     Args:
-#         dataset: Dataset to write metadata to
-#         grid_mapping_var_name: Name for grid mapping variable
-#         crs: Coordinate Reference System to use (if None, attempts to detect from dataset)
-#     """
-#     # Use provided CRS or try to detect from dataset
-#     if crs is None:
-#         for var in dataset.data_vars.values():
-#             if hasattr(var, "rio") and var.rio.crs:
-#                 crs = var.rio.crs
-#                 break
-#             if "proj:epsg" in var.attrs:
-#                 epsg = var.attrs["proj:epsg"]
-#                 crs = CRS.from_epsg(epsg)
-#                 break
-
-#     if crs is not None:
-#         # Write CRS using rioxarray
-#         # NOTE: for now rioxarray only supports writing grid mapping using CF conventions
-#         dataset.rio.write_crs(crs, grid_mapping_name=grid_mapping_var_name, inplace=True)
-#         dataset.rio.write_grid_mapping(grid_mapping_var_name, inplace=True)
-#         dataset.attrs["grid_mapping"] = grid_mapping_var_name
-
-#         for var in dataset.data_vars.values():
-#             var.rio.write_grid_mapping(grid_mapping_var_name, inplace=True)
-#             var.attrs["grid_mapping"] = grid_mapping_var_name
-
-#         # Also add proj: and spatial: zarr conventions at dataset level
-#         # TODO : Remove once rioxarray supports writing these conventions directly
-#         # https://github.com/corteva/rioxarray/pull/883
-
-#         # Assemble spatial convention data
-#         spatial_data: spatial_cm.SpatialAttrs = {
-#             "spatial:dimensions": ["y", "x"],  # Required field
-#             "spatial:registration": "pixel",  # Default registration type
-#         }
-
-#         # Calculate and add spatial bbox if coordinates are available
-#         if "x" in dataset.coords and "y" in dataset.coords:
-#             x_coords = dataset.coords["x"].values
-#             y_coords = dataset.coords["y"].values
-#             x_min, x_max = float(x_coords.min()), float(x_coords.max())
-#             y_min, y_max = float(y_coords.min()), float(y_coords.max())
-#             spatial_data["spatial:bbox"] = [x_min, y_min, x_max, y_max]
-
-#             spatial_transform = _preferred_spatial_transform(dataset)
-
-#             # Only add spatial:transform if we have valid transform data (not all zeros)
-#             if spatial_transform is not None and not all(t == 0 for t in spatial_transform):
-#                 spatial_data["spatial:transform"] = list(spatial_transform)
-
-#             # Add spatial shape if data variables exist
-#             if dataset.data_vars:
-#                 first_var = next(iter(dataset.data_vars.values()))
-#                 if first_var.ndim >= 2:
-#                     height, width = first_var.shape[-2:]
-#                     spatial_data["spatial:shape"] = [height, width]
-
-#         # Build validated spatial + proj convention attrs (data + CMOs) via zarr-cm
-#         dataset.attrs.update(utils.build_convention_attrs(spatial=spatial_data, crs=crs))
