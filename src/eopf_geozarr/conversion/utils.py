@@ -213,6 +213,141 @@ def simple_root_consolidation(
     zarr.consolidate_metadata(output_path, zarr_format=3)
 
 
+def updated_root_consolidation(
+    dt_input: xr.DataTree, output_path: str, datasets: Mapping[str, object]
+) -> None:
+    """Simple root-level metadata consolidation with proper zarr group creation."""
+    # create missing intermediary groups (/conditions, /quality, etc.)
+    # using the keys of the datasets dict
+
+    missing_groups = set()
+    for group_path in datasets:
+        # extract all the parent paths
+        parts = group_path.strip("/").split("/")
+        for i in range(1, len(parts)):
+            parent_path = "/" + "/".join(parts[:i])
+            if parent_path not in datasets:
+                missing_groups.add(parent_path)
+
+    has_subroots = dtree_has_subroot(dt_input)
+    consolidate_groups = []
+    subroots = list(dt_input.children) if has_subroots else None
+
+    for group_path in missing_groups:
+        dt_parent = xr.DataTree()
+
+        dt_parent.to_zarr(
+            output_path + group_path,
+            mode="a",
+            zarr_format=3,
+            consolidated=False,
+        )
+
+        # also add some geo root metadata if its a parent root
+        if has_subroots:
+            ref_root = dt_input[group_path]
+            group_attrs = ref_root.attrs
+
+            if (
+                subroots
+                and ref_root.path.lstrip("/") in subroots
+                and len(group_attrs) > 0
+                and "stac_discovery" in group_attrs
+            ):
+                consolidate_groups.append(group_path)
+                write_store_root_geo_metadata(
+                    output_path + group_path,
+                    input_root_attrs=group_attrs,  # pyright: ignore[reportArgumentType]
+                )
+
+    # Create root zarr group if it doesn't exist
+    log.info("Creating root zarr group")
+    dt_root = xr.DataTree()
+    dt_root.to_zarr(
+        output_path,
+        mode="a",
+        consolidated=False,
+        zarr_format=3,
+    )
+    dt_root = xr.DataTree()
+    for group_path in datasets:
+        dt_root[group_path] = xr.DataTree()
+
+    dt_root.to_zarr(
+        output_path,
+        mode="r+",
+        consolidated=False,
+        zarr_format=3,
+    )
+    log.info("Root zarr group created")
+
+    # Write the store-root spatial footprint (geozarr minispec, Store Root section).
+    # Aggregates child-group `spatial:bbox` values, reprojects them to EPSG:4326
+    # and writes the union on the root `zarr.json`.
+    write_store_root_geo_metadata(output_path, input_root_attrs=dt_input.attrs)  # type: ignore[arg-type]
+
+    if dt_input and dt_input.attrs:
+        # this can be used to add multiscale paths to the stac attributes
+        # wether we want that or not has to be discussed
+        # -> For now this data is not added, as we dont want to expose the additional multiscale arrays for users in the stac assets, this comes at the possibility of confusion for users, but we accept that risk
+        # as users wont need the multiscale, but they are just used for visualisation
+        # the code is currently commented out, as this discussion is not 100% final yet and changes might apply
+
+        # updated_stac_attrs = add_multiscale_pyramids_to_stac_metadata(datasets, dt_input.attrs)
+        # utils.write_store_root_stac_metadata(gi
+        #     output_path,
+        #     root_attrs=cast("dict[str, dict[str, Any]]", updated_stac_attrs),
+        # )
+
+        write_store_root_stac_metadata(
+            output_path,
+            root_attrs=cast("dict[str, dict[str, Any]]", dt_input.attrs),
+        )
+
+    # consolidate metadata
+    if has_subroots:
+        for consolidate_subroot in consolidate_groups:
+            zarr.consolidate_metadata(output_path + consolidate_subroot, zarr_format=3)
+    else:
+        zarr.consolidate_metadata(output_path, zarr_format=3)
+
+
+def dtree_has_subroot(dtree: xr.DataTree, children_to_check: list[str] | None = None) -> bool:
+    # dtrees can have subroots, which carry the relevant data. -> eg S1 SLC with bursts, S1 GRDH with its data
+    # in such a case, the subroot needs to be consolidated instead of the overarcing root..
+    # this function checks if a tree has a normal root (measurements, .. etc as children) or not
+    if not children_to_check:
+        children_to_check = ["measurements", "quality", "conditions"]
+
+    if sorted(children_to_check) != sorted(["measurements", "quality", "conditions"]):
+        log.warning(
+            "Set different children to validate against than the usual selection. Will likely work, but it is unusal behaviour and definitevly to spec.",
+            children_to_check=children_to_check,
+        )
+
+    children = list(dtree.children)
+
+    if children:
+        # standard case -> no subroots jsut basic mode with measurements/.. in root
+        if len(children) == len(children_to_check) and sorted(children) == sorted(
+            children_to_check
+        ):
+            return False
+
+        # extra check, measurements are in children but its possible that there are more and different children present than anticipated
+        if sum(c in children_to_check for c in children):
+            log.info(
+                "No Subroots present, but found children are no precise overlap with expected",
+                found_children=children,
+                children_to_check=children_to_check,
+            )
+            return False
+
+        log.info("Subroots present:", subroots=children)
+        return True
+    raise ValueError("Given Datatree has no children at all... Is it empty?")
+
+
 def add_multiscale_pyramids_to_stac_metadata(
     datasets: Mapping[str, object], dt_attributes: dict[Hashable, Any]
 ) -> dict[Hashable, Any]:

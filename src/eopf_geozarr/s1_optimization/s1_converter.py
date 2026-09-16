@@ -405,6 +405,7 @@ def convert_s1grdh_optimized(
 
     # root level consolidation
     utils.simple_root_consolidation(dt_input, output_path, processed_groups)
+    # utils.updated_root_consolidation(dt_input, output_path, processed_groups)
 
     # Create result DataTree
     result_dt = utils.create_result_datatree(output_path)
