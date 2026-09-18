@@ -882,6 +882,7 @@ def initialize_crs_from_dataset(dt_input: xr.DataTree) -> CRS | None:
 
 
 def reduced_create_multiscale_from_datatree(
+    full_band_60m_reference_dataset: xr.Dataset,
     processed_groups: dict[str, Any],
     # spatial_levels: dict[str, dict[str, list[float] | list[int]]],
     *,
@@ -915,7 +916,7 @@ def reduced_create_multiscale_from_datatree(
     base_resolution = 60
 
     # iterate over pre-defined pyramid-dict (or smth) and generate layout data -> use LayoutObject/...
-    current = processed_groups["/measurements/reflectance/r60m"]
+    current = full_band_60m_reference_dataset
     current_level_name = str
 
     for src_scale_level, dst_scale_level in pairwise(scale_levels[2:]):
@@ -1010,6 +1011,7 @@ def reduced_create_multiscale_from_datatree(
     conv = utils.build_convention_attrs(multiscales=ms, spatial=base_spatial, crs=crs)
     root_rw["/multiscales"].attrs.update(cast("dict[str, JSON]", conv))
 
+    # add it as none here to be recognized later and can be created as a zarr root with necessary metadata
     processed_groups["/multiscales"] = None
 
     return processed_groups
@@ -1053,6 +1055,7 @@ def convert_s2_optimized(
     crs = initialize_crs_from_dataset(dt_input)
     output_group = zarr.open_group(output_path)
     processed_groups: dict[str, Any] = {}
+    full_band_60m_reference_dataset: xr.Dataset = xr.Dataset()
 
     # helper dicts to keep track of attrs for multiscales
     # spatial_levels: dict[str, dict[str, list[float] | list[int]]] = {}
@@ -1104,7 +1107,7 @@ def convert_s2_optimized(
 
         if is_measurement_group:
             # Inject bands whose native resolution is finer than this group's
-            # (e.g. b08 native at 10m into r20m/r60m) so they propagate through
+            # (e.g. b08 native at 10m into r60m fir L2A, all other ones for L1c) so they propagate through
             # the full overview chain (r120m … r720m).
             if group_path.startswith("/measurements/reflectance/"):
                 try:
@@ -1112,51 +1115,36 @@ def convert_s2_optimized(
                 except ValueError:
                     group_resolution = 0
 
-                # just add the b08 band
-                if s2_type == "L2A":
-                    if group_resolution > 10:
-                        dataset = inject_missing_bands(
-                            dataset,
-                            dt_input,
-                            group_resolution,
-                            spatial_chunk,
-                            bands={"b08"},
-                        )
+                # just add the b08 band to 60m reference dataset
+                if s2_type == "L2A" and group_resolution == 60:
+                    full_band_60m_reference_dataset = inject_missing_bands(
+                        dataset,
+                        dt_input,
+                        group_resolution,
+                        spatial_chunk,
+                        bands={"b08"},
+                    )
 
                 # add all lower level bands here!
-                elif s2_type == "L1C":
-                    if group_resolution == 20:
-                        dataset = inject_missing_bands(
-                            dataset,
-                            dt_input,
-                            group_resolution,
-                            spatial_chunk,
-                            bands={
-                                "b02",
-                                "b03",
-                                "b04",
-                                "b08",
-                            },
-                        )
-                    elif group_resolution == 60:
-                        dataset = inject_missing_bands(
-                            dataset,
-                            dt_input,
-                            group_resolution,
-                            spatial_chunk,
-                            bands={
-                                "b02",
-                                "b03",
-                                "b04",
-                                "b08",
-                                "b05",
-                                "b06",
-                                "b07",
-                                "b8a",
-                                "b11",
-                                "b12",
-                            },
-                        )
+                elif s2_type == "L1C" and group_resolution == 60:
+                    full_band_60m_reference_dataset = inject_missing_bands(
+                        dataset,
+                        dt_input,
+                        group_resolution,
+                        spatial_chunk,
+                        bands={
+                            "b02",
+                            "b03",
+                            "b04",
+                            "b08",
+                            "b05",
+                            "b06",
+                            "b07",
+                            "b8a",
+                            "b11",
+                            "b12",
+                        },
+                    )
 
             # Measurement groups: apply custom encoding
             encoding = utils.create_uniform_encoding(
@@ -1242,6 +1230,7 @@ def convert_s2_optimized(
     # Step 2: Multiscale calculation
     log.info("Step 2: Multiscale calculation")
     reduced_create_multiscale_from_datatree(
+        full_band_60m_reference_dataset=full_band_60m_reference_dataset,
         processed_groups=processed_groups,
         # spatial_levels=spatial_levels,
         output_group=output_group,
