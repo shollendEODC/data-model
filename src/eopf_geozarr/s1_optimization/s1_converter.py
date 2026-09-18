@@ -192,9 +192,6 @@ def calculate_s1grdh_multiscales(
             # crs=crs,
         )
 
-        # issues:
-        # not considering 0 or 65?? nodata vals -> issue in resampling during coarsening
-
         # Store results -> add metadta to zarr root here!
         level_datasets[group_name] = ds_out
         # resolution_groups[group_name] = ds_out
@@ -231,6 +228,7 @@ def calculate_s1grdh_multiscales(
         shape=(reproj_dataset.sizes["y"], reproj_dataset.sizes["x"]),
     )
 
+    # is theoretically irrellevant as metadata is added in utils.write_geo_metadata(dataset, crs=crs) above
     for group_name, level_ds in level_datasets.items():
         _level_spatial = utils.grid_spatial_attrs(
             transform=level_ds.rio.transform(recalc=True),

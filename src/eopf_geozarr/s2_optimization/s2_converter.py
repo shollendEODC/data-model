@@ -883,7 +883,7 @@ def initialize_crs_from_dataset(dt_input: xr.DataTree) -> CRS | None:
 
 def reduced_create_multiscale_from_datatree(
     processed_groups: dict[str, Any],
-    spatial_levels: dict[str, dict[str, list[float] | list[int]]],
+    # spatial_levels: dict[str, dict[str, list[float] | list[int]]],
     *,
     output_group: zarr.Group,
     output_path: str,
@@ -908,41 +908,33 @@ def reduced_create_multiscale_from_datatree(
     """
 
     # predefined layout asset
-    layout_: list[dict[str, Any]] = [
-        {"asset": "r10m", **spatial_levels["r10m"]},
-        {
-            "asset": "r20m",
-            "derived_from": "r10m",
-            "transform": Transform({"scale": [2.0, 2.0], "translation": [0.0, 0.0]}),
-            **spatial_levels["r20m"],
-        },
-        {
-            "asset": "r60m",
-            "derived_from": "r10m",
-            "transform": Transform({"scale": [6.0, 6.0], "translation": [0.0, 0.0]}),
-            **spatial_levels["r60m"],
-        },
-    ]
+    layout_: list[dict[str, Any]] = []
+    spatial_levels: dict[str, dict[str, list[float] | list[int]]] = {}
 
     scale_levels = tuple(pyramid_levels.values())
+    base_resolution = 60
 
     # iterate over pre-defined pyramid-dict (or smth) and generate layout data -> use LayoutObject/...
     current = processed_groups["/measurements/reflectance/r60m"]
-    current_level_name = "r60m"
+    current_level_name = str
 
     for src_scale_level, dst_scale_level in pairwise(scale_levels[2:]):
-        dest_level_name = f"r{dst_scale_level}m"
-        dest_level_path = f"/measurements/reflectance/{dest_level_name}"
-
         downsample_factor = dst_scale_level // src_scale_level
+
+        # dest_level_name = f"r{dst_scale_level}m"
+        dest_level_saving_name = f"r{dst_scale_level // base_resolution}"
+        dest_level_path = f"/multiscales/{dest_level_saving_name}"
+
         log.info(
-            "Creating level with resolution", level=dest_level_name, resolution=dst_scale_level
+            "Creating level with resolution",
+            level=dest_level_saving_name,
+            resolution=dst_scale_level,
         )
 
         # Create downsampled dataset
         downsampled_dataset = create_downsampled_resolution_group(current, factor=downsample_factor)
 
-        log.info("Writing level to path", level=dest_level_name, output_path=dest_level_path)
+        log.info("Writing level to path", level=dest_level_saving_name, output_path=dest_level_path)
 
         # Create encoding
         encoding = utils.create_uniform_encoding(
@@ -960,22 +952,29 @@ def reduced_create_multiscale_from_datatree(
         # add geo metadata
         utils.write_geo_metadata(downsampled_dataset, crs=crs)
 
-        transform: Transform = {
-            "scale": [downsample_factor, downsample_factor],
-            "translation": [0.0, 0.0],
-        }
-
-        spatial_levels[dest_level_name] = {
+        spatial_levels[dest_level_saving_name] = {
             "spatial:shape": downsampled_dataset.attrs["spatial:shape"],
             "spatial:transform": downsampled_dataset.attrs["spatial:transform"],
         }
 
-        lo = {
-            "asset": dest_level_name,
-            "derived_from": current_level_name,
-            "transform": transform,
-            **spatial_levels[dest_level_name],
-        }
+        # first asset level -> not 'derived_from' and 'transform' set
+        if not layout_:
+            lo = {
+                "asset": dest_level_saving_name,
+                **spatial_levels[dest_level_saving_name],
+            }
+        # already have a reference -> derive scale factor from it
+        else:
+            transform: Transform = {
+                "scale": [downsample_factor, downsample_factor],
+                "translation": [0.0, 0.0],
+            }
+            lo = {
+                "asset": dest_level_saving_name,
+                "derived_from": current_level_name,
+                "transform": transform,
+                **spatial_levels[dest_level_saving_name],
+            }
 
         layout_.append(lo)
 
@@ -992,7 +991,7 @@ def reduced_create_multiscale_from_datatree(
         processed_groups[dest_level_path] = ds_out
 
         current = downsampled_dataset
-        current_level_name = dest_level_name
+        current_level_name = dest_level_saving_name
 
     # add metadata to root and multiscale-parent node
     root_rw = zarr.open_group(output_path, mode="a")
@@ -1001,17 +1000,17 @@ def reduced_create_multiscale_from_datatree(
     layout: list[LayoutObject] = [LayoutObject(**lo) for lo in layout_]
     ms: MultiscalesAttrs = {"layout": layout, "resampling_method": "average"}
 
-    # add geozarr attrs to base of /measurements/reflectance/
-    base_measurement_ds_10m = processed_groups["/measurements/reflectance/r10m"]
+    # add geozarr attrs to base of /multiscales
+    base_measurement_ds_120m = processed_groups["/multiscales/r2"]
     base_spatial = utils.grid_spatial_attrs(
-        transform=base_measurement_ds_10m.rio.transform(recalc=True),
-        shape=(base_measurement_ds_10m.sizes["y"], base_measurement_ds_10m.sizes["x"]),
+        transform=base_measurement_ds_120m.rio.transform(recalc=True),
+        shape=(base_measurement_ds_120m.sizes["y"], base_measurement_ds_120m.sizes["x"]),
     )
 
     conv = utils.build_convention_attrs(multiscales=ms, spatial=base_spatial, crs=crs)
-    root_rw["/measurements/reflectance/"].attrs.update(cast("dict[str, JSON]", conv))
+    root_rw["/multiscales"].attrs.update(cast("dict[str, JSON]", conv))
 
-    processed_groups["/measurements/reflectance"] = None
+    processed_groups["/multiscales"] = None
 
     return processed_groups
 
@@ -1056,7 +1055,7 @@ def convert_s2_optimized(
     processed_groups: dict[str, Any] = {}
 
     # helper dicts to keep track of attrs for multiscales
-    spatial_levels: dict[str, dict[str, list[float] | list[int]]] = {}
+    # spatial_levels: dict[str, dict[str, list[float] | list[int]]] = {}
 
     # cheap determination if its L2A or L1C
     filename = dt_input.name
@@ -1102,9 +1101,6 @@ def convert_s2_optimized(
             and group_name.endswith("m")
             and "/measurements/" in group_path
         )
-
-        if "quality/probability" in group_path:
-            pass
 
         if is_measurement_group:
             # Inject bands whose native resolution is finer than this group's
@@ -1195,11 +1191,11 @@ def convert_s2_optimized(
 
             utils.write_geo_metadata(dataset, crs=crs)
 
-            # add spatial: metadta to outside dict for multuiscale layouts
-            spatial_levels[group_name] = {
-                "spatial:shape": dataset.attrs["spatial:shape"],
-                "spatial:transform": dataset.attrs["spatial:transform"],
-            }
+            # # add spatial: metadta to outside dict for multuiscale layouts
+            # spatial_levels[group_name] = {
+            #     "spatial:shape": dataset.attrs["spatial:shape"],
+            #     "spatial:transform": dataset.attrs["spatial:transform"],
+            # }
 
             ds_out = utils.stream_write_dataset(
                 dataset,
@@ -1242,9 +1238,12 @@ def convert_s2_optimized(
             )
             processed_groups[group_path] = ds_out
 
-    datasets = reduced_create_multiscale_from_datatree(
+    processed_groups["/measurements/reflectance"] = None
+    # Step 2: Multiscale calculation
+    log.info("Step 2: Multiscale calculation")
+    reduced_create_multiscale_from_datatree(
         processed_groups=processed_groups,
-        spatial_levels=spatial_levels,
+        # spatial_levels=spatial_levels,
         output_group=output_group,
         output_path=output_path,
         spatial_chunk=spatial_chunk,
@@ -1252,13 +1251,12 @@ def convert_s2_optimized(
         crs=crs,
         keep_scale_offset=keep_scale_offset,
     )
-
-    log.info("Created multiscale pyramids", num_groups=len(datasets))
+    # log.info("Created multiscale pyramids", num_groups=len(datasets))
 
     # Step 3: Root-level consolidation
     log.info("Step 3: Final root-level metadata consolidation")
     # utils.simple_root_consolidation(dt_input, output_path, datasets)
-    utils.updated_root_consolidation(dt_input, output_path, datasets)
+    utils.updated_root_consolidation(dt_input, output_path, processed_groups)
 
     # Create result DataTree
     result_dt = utils.create_result_datatree(output_path)
