@@ -248,6 +248,7 @@ def updated_root_consolidation(
             ref_root = dt_input[group_path]
             group_attrs = ref_root.attrs
 
+            # rework this, as store_root metadata should also be added to non-stac_discovery nodes
             if (
                 subroots
                 and ref_root.path.lstrip("/") in subroots
@@ -304,7 +305,7 @@ def updated_root_consolidation(
             root_attrs=cast("dict[str, dict[str, Any]]", dt_input.attrs),
         )
 
-    # consolidate metadata
+    # consolidate metadata in root OR in each subroot
     if has_subroots:
         for consolidate_subroot in consolidate_groups:
             zarr.consolidate_metadata(output_path + consolidate_subroot, zarr_format=3)
@@ -314,7 +315,7 @@ def updated_root_consolidation(
 
 def dtree_has_subroot(dtree: xr.DataTree, children_to_check: list[str] | None = None) -> bool:
     # dtrees can have subroots, which carry the relevant data. -> eg S1 SLC with bursts, S1 GRDH with its data
-    # in such a case, the subroot needs to be consolidated instead of the overarcing root..
+    # in such a case, the subroot needs to be consolidated instead of the overarching root..
     # this function checks if a tree has a normal root (measurements, .. etc as children) or not
     if not children_to_check:
         children_to_check = ["measurements", "quality", "conditions"]
@@ -327,6 +328,7 @@ def dtree_has_subroot(dtree: xr.DataTree, children_to_check: list[str] | None = 
 
     children = list(dtree.children)
 
+    # single depth logic
     if children:
         # standard case -> no subroots jsut basic mode with measurements/.. in root
         if len(children) == len(children_to_check) and sorted(children) == sorted(

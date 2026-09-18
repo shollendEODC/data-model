@@ -167,7 +167,8 @@ def convert_s2_optimized(
 
     # Step 3: Root-level consolidation
     log.info("Step 3: Final root-level metadata consolidation")
-    utils.simple_root_consolidation(dt_input, output_path, datasets)
+    # utils.simple_root_consolidation(dt_input, output_path, datasets)
+    utils.updated_root_consolidation(dt_input, output_path, datasets)
 
     # Step 4: Validation
 
@@ -214,119 +215,3 @@ def create_result_datatree(output_path: str) -> xr.DataTree:
         mask_and_scale=False,
         storage_options=storage_options,
     )
-
-
-# def simple_root_consolidation(
-#     output_path: str, datasets: Mapping[str, object], dt_input: xr.DataTree | None = None
-# ) -> None:
-#     """Simple root-level metadata consolidation with proper zarr group creation."""
-#     # create missing intermediary groups (/conditions, /quality, etc.)
-#     # using the keys of the datasets dict
-#     missing_groups = set()
-#     for group_path in datasets:
-#         # extract all the parent paths
-#         parts = group_path.strip("/").split("/")
-#         for i in range(1, len(parts)):
-#             parent_path = "/" + "/".join(parts[:i])
-#             if parent_path not in datasets:
-#                 missing_groups.add(parent_path)
-
-#     for group_path in missing_groups:
-#         dt_parent = xr.DataTree()
-#         dt_parent.to_zarr(
-#             output_path + group_path,
-#             mode="a",
-#             zarr_format=3,
-#             consolidated=False,
-#         )
-
-#     # Create root zarr group if it doesn't exist
-#     log.info("Creating root zarr group")
-#     dt_root = xr.DataTree()
-#     dt_root.to_zarr(
-#         output_path,
-#         mode="a",
-#         consolidated=False,
-#         zarr_format=3,
-#     )
-#     dt_root = xr.DataTree()
-#     for group_path in datasets:
-#         dt_root[group_path] = xr.DataTree()
-
-#     dt_root.to_zarr(
-#         output_path,
-#         mode="r+",
-#         consolidated=False,
-#         zarr_format=3,
-#     )
-#     log.info("Root zarr group created")
-
-#     # Write the store-root spatial footprint (geozarr minispec, Store Root section).
-#     # Aggregates child-group `spatial:bbox` values, reprojects them to EPSG:4326
-#     # and writes the union on the root `zarr.json`.
-#     write_store_root_bbox(output_path)
-
-#     if dt_input and dt_input.attrs:
-#         # this can be used to add multiscale paths to the stac attributes
-#         # wether we want that or not has to be discussed
-#         # -> For now this data is not added, as we dont want to expose the additional multiscale arrays for users in the stac assets, this comes at the possibility of confusion for users, but we accept that risk
-#         # as users wont need the multiscale, but they are just used for visualisation
-#         # the code is currently commented out, as this discussion is not 100% final yet and changes might apply
-
-#         # updated_stac_attrs = add_multiscale_pyramids_to_stac_metadata(datasets, dt_input.attrs)
-#         # utils.write_store_root_stac_metadata(
-#         #     output_path,
-#         #     root_attrs=cast("dict[str, dict[str, Any]]", updated_stac_attrs),
-#         # )
-
-#         utils.write_store_root_stac_metadata(
-#             output_path,
-#             root_attrs=cast("dict[str, dict[str, Any]]", dt_input.attrs),
-#         )
-
-#     # consolidate reflectance group metadata
-#     zarr.consolidate_metadata(output_path + "/measurements/reflectance", zarr_format=3)
-
-#     # consolidate root group metadata
-#     zarr.consolidate_metadata(output_path, zarr_format=3)
-
-
-# def is_sentinel2_dataset(group: zarr.Group) -> bool:
-#     if group.metadata.zarr_format == 3:
-#         return _is_sentinel2_dataset_v3(group)
-
-#     from eopf_geozarr.pyz.v2 import GroupSpec
-
-#     adapter = TypeAdapter(Sentinel1Root | Sentinel2Root)
-#     try:
-#         model = adapter.validate_python(GroupSpec.from_zarr(group).model_dump())
-#     except ValueError as e:
-#         log.warning("Could not validate Sentinel-2 dataset", error=str(e))
-#         return False
-
-#     return isinstance(model, Sentinel2Root)
-
-
-# def _is_sentinel2_dataset_v3(group: zarr.Group) -> bool:
-#     """Lightweight structural check for Zarr V3 Sentinel-2 stores.
-
-#     ``Sentinel2Root`` (and its full-fidelity round-trip validation) is defined
-#     against the Zarr V2 pydantic model only; there is no V3 counterpart yet.
-#     Rather than guess at one, this checks the handful of root-level members
-#     that already distinguish an S2 product from anything else we route on:
-#     S2 has ``measurements``/``quality``/``conditions`` directly at the root,
-#     with an S2-specific ``measurements/reflectance`` group underneath.
-#     Sentinel-1, by contrast, nests those same three groups one level down
-#     under arbitrary per-polarization product-id groups.
-#     """
-#     if set(group.keys()) != {"measurements", "quality", "conditions"}:
-#         return False
-
-#     measurements = group.get("measurements")
-#     if not isinstance(measurements, zarr.Group):
-#         return False
-
-#     reflectance = measurements.get("reflectance")
-#     return isinstance(reflectance, zarr.Group) and any(
-#         isinstance(sub, zarr.Group) for _, sub in reflectance.groups()
-#     )
