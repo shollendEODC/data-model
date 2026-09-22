@@ -100,6 +100,7 @@ def create_generic_geozarr_dataset(
             dataset,
             spatial_chunk=spatial_chunk,
             enable_sharding=enable_sharding,
+            chunk_along_smallest_dimension=False,
             shard_along_smallest_dimension=False,
             keep_scale_offset=keep_scale_offset,
             compression_level=compression_level,
