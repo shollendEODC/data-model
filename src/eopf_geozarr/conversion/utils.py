@@ -976,6 +976,7 @@ def create_uniform_encoding(
     *,
     spatial_chunk: int,
     enable_sharding: bool = True,
+    chunk_along_smallest_dimension: bool = False,
     shard_along_smallest_dimension: bool = False,
     keep_scale_offset: bool = True,
     compression_level: int = 3,
@@ -995,6 +996,15 @@ def create_uniform_encoding(
     edge chunks ending up in their own oddly-sized shard when e.g. shape=1830
     and chunk=1024 (shard becomes 2048, i.e. 2 chunks, not some 1830-based
     value that would clip/overlap the second chunk).
+
+    this fucntion has the capability to realign the shards and chunks if required. This is controlled by
+    chunk_along_smallest_dimension:
+        will reassign the chunks to single chukns per smalles dimension. This resolves 3 dim bands such as S1 GRD
+        from (2, 1024, 1024) to (1, 1024, 1024) so each polarisation is chunked separately.
+    shard_along_smallest_dimension:
+        will reassign the shards along the smalles dimension. This helps to OVERRIDE the separate chunking (as for S1 GRD or other 3dim data variables) as everything
+        will be sharded into a single file. This should be turned of for LARGE arrays over 500MB as sahrding along the smallest dim might help for such large arrays
+
     """
     import math
 
@@ -1006,7 +1016,7 @@ def create_uniform_encoding(
     for var_name, var_data in dataset.data_vars.items():
         var_encoding: XarrayDataArrayEncoding = {}
 
-        encoding_chunks = get_chunking_for_encoding(var_data, shard_along_smallest_dimension)
+        encoding_chunks = get_chunking_for_encoding(var_data, chunk_along_smallest_dimension)
 
         var_encoding["chunks"] = encoding_chunks
         var_encoding["compressors"] = (compressor,)

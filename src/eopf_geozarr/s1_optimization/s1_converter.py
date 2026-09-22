@@ -318,7 +318,8 @@ def convert_s1grdh_optimized(
             encoding = utils.create_uniform_encoding(
                 dataset,
                 spatial_chunk=spatial_chunk,
-                shard_along_smallest_dimension=True,
+                chunk_along_smallest_dimension=True,
+                shard_along_smallest_dimension=False,
                 enable_sharding=enable_sharding,
                 keep_scale_offset=keep_scale_offset,
                 compression_level=compression_level,
@@ -398,10 +399,6 @@ def convert_s1grdh_optimized(
         compression_level=compression_level,
         spatial_chunk=spatial_chunk,
     )
-
-    # issues:
-    # - wgs84 crs -> scale from transform? weird scale values
-    # - what pyramid levels do we generally want?
 
     # root level consolidation
     # utils.simple_root_consolidation(dt_input, output_path, processed_groups)
