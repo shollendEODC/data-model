@@ -11,6 +11,7 @@ import xarray as xr
 import zarr
 from rasterio.crs import CRS
 
+from eopf_geozarr.conversion import utils
 from eopf_geozarr.conversion.utils import (
     _rechunk_ds,
     build_convention_attrs,
@@ -392,12 +393,8 @@ def own_convert_olci_optimized(
     if min_dimension < 1:
         raise ValueError(f"min_dimension must be >= 1; got {min_dimension}")
 
-    # two processing steps
-    # 0.5) Rechunkg all data
-    # 1.) measurements
-    # 2.) all other conditions/quality
-
     rechunked_dt: xr.DataTree = xr.DataTree()
+    output_grid = "EPSG:4326"
 
     # Truncate any pre-existing store first: the writes below are per-group
     # (mode="w" scoped to measurements/r0, mode="a" for overviews/ancillary),
@@ -434,11 +431,7 @@ def own_convert_olci_optimized(
             group_path=group_path,
         )
 
-        # first rechunk the dataset
-        if next(iter(base_dataset.data_vars.values())).chunksizes:
-            dataset = _rechunk_ds(base_dataset, spatial_chunk)
-        else:
-            dataset = base_dataset
+        dataset = _rechunk_ds(base_dataset, spatial_chunk)
 
         rechunked_dt[group_path] = dataset
 
@@ -530,6 +523,7 @@ def own_convert_olci_optimized(
         # attrs and encoding disagree on an encoding-owned key, so clear the
         # inherited encoding once more after the warp.
         measurements = _clear_encoding(measurements)
+        measurements = utils._rechunk_ds(measurements, spatial_chunk)
         pyramid_dims = GRID_DIMS
     else:
         pyramid_dims = SWATH_DIMS

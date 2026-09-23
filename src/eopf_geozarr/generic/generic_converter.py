@@ -74,6 +74,9 @@ def create_generic_geozarr_dataset(
 
         # Skip parent groups that have children (only process leaf groups)
         if hasattr(group_node, "children") and len(group_node.children) > 0:
+            # this silently fails for groups which have data variables at group level (eg.: S3 OLC EFR) and children groups -> if orphans are assigned to measurements!
+            # ERR works, as it has no orphans!
+            # does this need to be considered? maybe, as generic verison will likely have this issue (ans its a stupid scheem anyway)
             continue
 
         base_dataset = group_node.to_dataset()

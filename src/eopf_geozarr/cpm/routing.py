@@ -212,8 +212,8 @@ def select_pipeline(
         return force
     if looks_like_sentinel2(dtree):
         return "s2-optimized"
-    # if looks_like_sentinel3_olci(dtree):
-    #     return "s3-olci-optimized"
+    if looks_like_sentinel3_olci(dtree):
+        return "s3-olci-optimized"
     # if looks_like_sentinel3_slstr(dtree):
     #     return "s3-slstr-optimized"
     if looks_like_sentinel1_grdh(dtree):
