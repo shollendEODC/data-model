@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
-import numpy as np
 import rioxarray  # noqa: F401
 import structlog
 import xarray as xr
@@ -14,16 +13,13 @@ from rasterio.crs import CRS
 from eopf_geozarr.conversion import utils
 from eopf_geozarr.conversion.utils import (
     _rechunk_ds,
-    build_convention_attrs,
     create_uniform_encoding,
     rechunk_dataset_for_encoding,
 )
 
 # from eopf_geozarr.data_api.s3_olci import Sentinel3OlciRoot
 from eopf_geozarr.s3_optimization.olci_multiscale import (
-    SWATH_DIMS,
     grid_spatial_attrs,
-    reduce_swath,
     swath_spatial_attrs,
 )
 from eopf_geozarr.s3_optimization.olci_reproject import GRID_DIMS, reproject_olci
@@ -215,17 +211,19 @@ def write_olci_part(
     return rechunked_ds
 
 
-def calculate_olci_pyramids(
-    measurements_ds: xr.Dataset,
+def calculate_olci_multiscales(
+    measurements: xr.Dataset,
     output_path: str,
-    pyramid_dims: tuple[str, str],
+    output_group: zarr.Group,
     spatial_chunk: int,
-    output_group: str = "measurements",
+    crs: CRS,
+    enable_sharding: bool = True,
+    keep_scale_offset: bool = True,
+    compression_level: int = 3,
     min_dimension: int = 256,
-    crs: CRS | None = None,
     **kwargs: Any,
 ) -> dict[str, xr.Dataset]:
-    def _level_spatial(level_ds: xr.Dataset, crs: CRS | None) -> SpatialAttrs:
+    def func_level_spatial(level_ds: xr.Dataset, crs: CRS | None) -> SpatialAttrs:
         if crs is None:
             return swath_spatial_attrs()
 
@@ -234,79 +232,180 @@ def calculate_olci_pyramids(
             (level_ds.sizes["y"], level_ds.sizes["x"]),
         )
 
+    # Warp the curvilinear swath onto a regular grid (1-D y/x coords,
+    # spatial_ref + grid_mapping on every variable) at (approximately)
+    # native resolution. Everything downstream — the pyramid, spatial
+    # attrs, and CRS metadata — operates on this gridded dataset.
+    reproj_measurements = reproject_olci(measurements, target_crs=crs.to_string())
+    # rioxarray's write_crs records grid_mapping in both .attrs and
+    # .encoding; xarray's to_zarr refuses to serialize a variable whose
+    # attrs and encoding disagree on an encoding-owned key, so clear the
+    # inherited encoding once more after the warp.
+    reproj_measurements = _clear_encoding(reproj_measurements)
+
+    pyramid_dims = GRID_DIMS
+    base_path = "/multiscales"
+
+    reproj_measurements = utils._rechunk_ds(reproj_measurements, spatial_chunk)
+    # Measurement groups: apply custom encoding
+    encoding = utils.create_uniform_encoding(
+        reproj_measurements,
+        spatial_chunk=spatial_chunk,
+        enable_sharding=enable_sharding,
+        keep_scale_offset=keep_scale_offset,
+        compression_level=compression_level,
+    )
+    utils.write_geo_metadata(reproj_measurements, crs=crs, input_is_image_array=True)
+
+    # Write dataset -> adds geo metadata
+    reproj_dataset = utils.stream_write_dataset(
+        reproj_measurements,
+        path=f"{base_path}/r2",
+        group=output_group,
+        encoding=encoding,
+        enable_sharding=enable_sharding,
+        # crs=crs,
+    )
+
     # Write /2 reduced overview subgroups: r2, r4, r8, …
-    rows = measurements_ds.sizes[pyramid_dims[0]]
-    cols = measurements_ds.sizes[pyramid_dims[1]]
-    n_levels = _overview_levels(rows, cols, min_dimension)
+    rows = reproj_dataset.sizes[pyramid_dims[0]]
+    cols = reproj_dataset.sizes[pyramid_dims[1]]
+    n_levels = utils.overview_levels(rows, cols, min_dimension)
     log.info("Generating overview levels", n_levels=n_levels)
 
-    level_datasets: dict[str, xr.Dataset] = {"r0": measurements_ds}
-    base_transform = measurements_ds.rio.transform(recalc=True) if crs is not None else None
-    current = measurements_ds
+    level_datasets: dict[str, xr.Dataset] = {"r2": reproj_dataset}
+    scale_levels: dict[str, list[float]] = {
+        "r2": [2.0, 2.0]
+    }  # -> change scale measurements_ds.shae ??
 
-    for level in range(1, n_levels + 1):
-        current = reduce_swath(current, factor=2, dims=pyramid_dims)
-        current = _clear_encoding(current)
+    reproj_trafo = list(reproj_dataset.rio.transform())
+    reproj_trafo = reproj_trafo[:6] if len(reproj_trafo) > 6 else reproj_trafo
+    spatial_levels: dict[str, dict[str, list[float] | list[int]]] = {
+        "r2": {"spatial:transform": reproj_trafo, "spatial:shape": [rows, cols]}
+    }
 
-        # first rechunk the dataset
-        current = _rechunk_ds(current, spatial_chunk)
+    current = reproj_dataset
+    curr_shape_xy = next(iter(reproj_dataset.data_vars.values())).shape
 
-        # Attrs already sanitized at native level and passed through by
-        # reduce_swath; no second sanitize pass needed.
-        if base_transform is not None:
-            # Radiance is block-AVERAGED, so an overview coordinate is the
-            # CENTER of the 2^level x 2^level base-pixel block it aggregates.
-            # Stride-decimated coords (the first fine pixel's center) would
-            # shift every level's recomputed transform/bbox by
-            # (2^level - 1)/2 base pixels and contradict the multiscales
-            # layout's declared {scale: [2, 2], translation: [0, 0]}.
-            # Derive edge-aligned coords from the r0 transform instead.
-            step = float(2**level)
-            xs = base_transform.c + base_transform.a * step * (np.arange(current.sizes["x"]) + 0.5)
-            ys = base_transform.f + base_transform.e * step * (np.arange(current.sizes["y"]) + 0.5)
-            current = current.assign_coords(
-                x=("x", xs, dict(measurements_ds["x"].attrs)),
-                y=("y", ys, dict(measurements_ds["y"].attrs)),
-            )
-        group_name = f"r{2**level}"
-        level_datasets[group_name] = current
-        log.info(
-            "Writing overview", group=f"{output_group}/{group_name}", shape=dict(current.sizes)
+    for level in range(2, n_levels + 1):
+        # Downsample all variables using existing lazy operations
+        group_name = f"r{level * 2}"
+        # level_datasets[group_name] = current
+        output_filepath = f"{base_path}/{group_name}"
+        log.info("Calculating overview", group=output_filepath, shape=dict(current.sizes))
+
+        lazy_vars = {}
+        for var_name, var_data in current.data_vars.items():
+            if var_data.ndim < 2:
+                continue
+
+            lazy_vars[var_name] = utils.coarsen_variable(
+                str(var_name), var_data, factor=2
+            )  # , other_fill_value=0
+
+        # Create dataset with lazy variables and coordinates
+        current = xr.Dataset(lazy_vars, attrs=measurements.attrs)
+
+        # calculate scale level beforehand
+        downsample_shape = next(iter(current.data_vars.values())).shape
+
+        scales = [c / d for c, d in zip(curr_shape_xy, downsample_shape, strict=True)]
+        scale_levels[group_name] = scales
+
+        # we only need the first 6 values form affine traFo
+        downsampled_trafo = list(current.rio.transform())
+        downsampled_trafo = (
+            downsampled_trafo[:6] if len(downsampled_trafo) > 6 else downsampled_trafo
         )
 
-        write_olci_part(
-            current, output_path=output_path, output_group=f"{output_group}/{group_name}", **kwargs
+        spatial_levels[group_name] = {
+            "spatial:transform": downsampled_trafo,
+            "spatial:shape": list(downsample_shape),
+        }
+
+        curr_shape_xy = downsample_shape
+
+        # remove parent encoding
+        current = utils.clear_encoding(current)
+        dataset = utils._rechunk_ds(current, spatial_chunk)
+        # Measurement groups: apply custom encoding
+        encoding = utils.create_uniform_encoding(
+            dataset,
+            spatial_chunk=spatial_chunk,
+            enable_sharding=enable_sharding,
+            chunk_along_smallest_dimension=True,
+            shard_along_smallest_dimension=False,
+            keep_scale_offset=keep_scale_offset,
+            compression_level=compression_level,
         )
 
-    # Build and attach GeoZarr convention metadata (spatial + multiscales CMO)
-    # to the measurements group attrs.
-    layout: list[LayoutObject] = [{"asset": "r0"}]
-    for lvl in range(1, n_levels + 1):
-        transform: Transform = {"scale": [2.0, 2.0], "translation": [0.0, 0.0]}
+        # Strip _FillValue from DataArray encoding for downsampled levels too
+        if not keep_scale_offset:
+            for data_var in dataset.data_vars:
+                dataset[data_var].encoding.pop("_FillValue", None)
+
+        # Add the geo metadata before writing for
+        utils.write_geo_metadata(dataset, crs=crs)
+
+        ds_out = utils.stream_write_dataset(
+            dataset,
+            path=output_filepath,
+            group=output_group,
+            encoding=encoding,
+            enable_sharding=enable_sharding,
+            # crs=crs,
+        )
+        level_datasets[group_name] = ds_out
+
+    layout: list[LayoutObject] = [
+        {
+            "asset": "r2",
+            "spatial:transform": spatial_levels["r2"]["spatial:transform"],
+            "spatial:shape": spatial_levels["r2"]["spatial:shape"],
+        }
+    ]
+
+    for level in range(2, n_levels + 1):
+        group_name = f"r{level * 2}"
+        transform: Transform = {"scale": scale_levels[group_name], "translation": [0.0, 0.0]}
         lo: LayoutObject = {
-            "asset": f"r{2**lvl}",
-            "derived_from": f"r{2 ** (lvl - 1)}" if lvl > 1 else "r0",
+            "asset": group_name,
+            "derived_from": f"r{level * 2 - 2}" if level > 2 else "r2",
             "transform": transform,
-            "resampling_method": "average",
+            # add spatial ones
+            "spatial:shape": spatial_levels[group_name]["spatial:shape"],
+            "spatial:transform": spatial_levels[group_name]["spatial:transform"],
         }
         layout.append(lo)
+
+    # add metadata to layout
+    # "resampling_method": "average"
 
     # add metadata to root and multiscale-parent node
     root_rw = zarr.open_group(output_path, mode="a")
 
-    base_spatial = _level_spatial(measurements_ds, crs=crs)
-    for group_name, level_ds in level_datasets.items():
-        level_conv = build_convention_attrs(spatial=_level_spatial(level_ds, crs=crs), crs=crs)
+    base_spatial = utils.grid_spatial_attrs(
+        transform=reproj_dataset.rio.transform(recalc=True),
+        shape=(reproj_dataset.sizes["y"], reproj_dataset.sizes["x"]),
+    )
 
-        root_rw[f"{output_group}/{group_name}"].attrs.update(cast("dict[str, JSON]", level_conv))
+    for group_name, level_ds in level_datasets.items():
+        _level_spatial = utils.grid_spatial_attrs(
+            transform=level_ds.rio.transform(recalc=True),
+            shape=(level_ds.sizes["y"], level_ds.sizes["x"]),
+        )
+
+        level_conv = utils.build_convention_attrs(spatial=_level_spatial, crs=crs)
+
+        root_rw[f"{base_path}/{group_name}"].attrs.update(cast("dict[str, JSON]", level_conv))
 
     if n_levels > 0:
         ms: MultiscalesAttrs = {"layout": layout, "resampling_method": "average"}
-        conv = build_convention_attrs(multiscales=ms, spatial=base_spatial, crs=crs)
+        conv = utils.build_convention_attrs(multiscales=ms, spatial=base_spatial, crs=crs)
     else:
-        conv = build_convention_attrs(spatial=base_spatial, crs=crs)
+        conv = utils.build_convention_attrs(spatial=base_spatial, crs=crs)
 
-    root_rw[output_group].attrs.update(cast("dict[str, JSON]", conv))
+    root_rw[base_path].attrs.update(cast("dict[str, JSON]", conv))
 
     # bogus
     return level_datasets
@@ -395,13 +494,7 @@ def own_convert_olci_optimized(
 
     rechunked_dt: xr.DataTree = xr.DataTree()
     output_grid = "EPSG:4326"
-
-    # Truncate any pre-existing store first: the writes below are per-group
-    # (mode="w" scoped to measurements/r0, mode="a" for overviews/ancillary),
-    # so a prior run with more overview levels or extra ancillary groups would
-    # otherwise leave stale sibling groups behind, and the returned DataTree
-    # (built by re-scanning the store) would surface them.
-    zarr.open_group(output_path, mode="w", zarr_format=3)
+    ouput_group = zarr.open_group(output_path)
 
     ### apply pre-rechunking ###
     for group_path in dt_input.groups:
@@ -492,6 +585,17 @@ def own_convert_olci_optimized(
     # add_offset, _FillValue) live in .attrs and are preserved here.
 
     measurements = _clear_encoding(measurements)
+
+    write_olci_part(
+        ds=measurements,
+        output_path=output_path,
+        output_group="measurements",
+        enable_sharding=enable_sharding,
+        spatial_chunk=spatial_chunk,
+        compression_level=compression_level,
+        keep_scale_offset=keep_scale_offset,
+    )
+
     # Sanitize radiance variable attrs: strip source-only / misleading attrs
     # (_eopf_attrs, dtype, valid_min, valid_max) while keeping CF scale/offset
     # and _FillValue so that downstream readers and reduce_swath can work
@@ -513,46 +617,20 @@ def own_convert_olci_optimized(
             ) from e
 
     if crs_obj is not None:
-        # Warp the curvilinear swath onto a regular grid (1-D y/x coords,
-        # spatial_ref + grid_mapping on every variable) at (approximately)
-        # native resolution. Everything downstream — the pyramid, spatial
-        # attrs, and CRS metadata — operates on this gridded dataset.
-        measurements = reproject_olci(measurements, target_crs=output_grid)
-        # rioxarray's write_crs records grid_mapping in both .attrs and
-        # .encoding; xarray's to_zarr refuses to serialize a variable whose
-        # attrs and encoding disagree on an encoding-owned key, so clear the
-        # inherited encoding once more after the warp.
-        measurements = _clear_encoding(measurements)
-        measurements = utils._rechunk_ds(measurements, spatial_chunk)
-        pyramid_dims = GRID_DIMS
-    else:
-        pyramid_dims = SWATH_DIMS
+        ### pyramids ###
+        calculate_olci_multiscales(
+            measurements,
+            output_path=output_path,
+            output_group=ouput_group,
+            spatial_chunk=spatial_chunk,
+            min_dimension=min_dimension,
+            crs=crs_obj,
+            enable_sharding=enable_sharding,
+            compression_level=compression_level,
+            keep_scale_offset=keep_scale_offset,
+        )
 
-    write_olci_part(
-        ds=measurements,
-        output_path=output_path,
-        output_group="measurements/r0",
-        enable_sharding=enable_sharding,
-        spatial_chunk=spatial_chunk,
-        compression_level=compression_level,
-        keep_scale_offset=keep_scale_offset,
-    )
-
-    ### pyramids ###
-    calculate_olci_pyramids(
-        measurements,
-        output_path=output_path,
-        pyramid_dims=pyramid_dims,
-        spatial_chunk=spatial_chunk,
-        output_group="measurements",
-        min_dimension=min_dimension,
-        crs=crs_obj,
-        enable_sharding=enable_sharding,
-        compression_level=compression_level,
-        keep_scale_offset=keep_scale_offset,
-    )
-
-    # iteratively copy children of node (noteably parent)
+    # iteratively copy children of node (noteably parent) -> orphans!
     for child in rechunked_dt["/measurements"].children.values():
         log.info("Copying measurements subgroup", group=f"measurements/{child.name}")
         for subchild in child.subtree:
