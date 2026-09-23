@@ -233,6 +233,10 @@ def updated_root_consolidation(
     consolidate_groups = []
     subroots = list(dt_input.children) if has_subroots else None
 
+    # check for subsubroots -> if so, replace subroots with subroot1/subroot2/...
+    # subsubroots = [dtree_has_subroot(dt_input[child]) for child in dt_input.children]
+    # do logic by call to get_subroots_from_dtree(dt_input/dt_processed)
+
     for group_path in missing_groups:
         dt_parent = xr.DataTree()
 
@@ -311,6 +315,35 @@ def updated_root_consolidation(
             zarr.consolidate_metadata(output_path + consolidate_subroot, zarr_format=3)
     else:
         zarr.consolidate_metadata(output_path, zarr_format=3)
+
+
+def get_subroots_from_dtree(dtree: xr.DataTree) -> tuple[bool, list[str] | None]:
+    # check if subroots are present by traversing the dtree with children to find the /measurement /quality and /conditions groups
+    children_to_check = ["/measurements", "/quality", "/conditions"]
+    has_subroots: bool = False
+    all_subroots = []
+
+    for group in dtree.groups:
+        for child in children_to_check:
+            # if clauses by order
+            # child is not the child folder itself
+            # Child is in the group name (/asljkd/measurements)
+            # its actually the last thing in the anem (/asljkd/measurements) and not the a parent (/asljkd/measurements/quality)
+            # check its not actually the parent fileder itseld == /measureemtn (should be checked above already??)
+
+            if (
+                child != group
+                and child in group
+                and group.split("/")[-1] == child
+                and group.rstrip(child) != "/"
+            ):
+                all_subroots.append(group.rstrip(child).rstrip("/"))
+                has_subroots = True
+
+    if len(all_subroots) > 0:
+        subroots = set(all_subroots)
+        return has_subroots, list(subroots)
+    return has_subroots, None
 
 
 def dtree_has_subroot(dtree: xr.DataTree, children_to_check: list[str] | None = None) -> bool:
