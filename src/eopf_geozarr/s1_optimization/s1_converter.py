@@ -72,6 +72,7 @@ def calculate_s1grdh_multiscales(
         keep_scale_offset=keep_scale_offset,
         compression_level=compression_level,
     )
+    # change input_is_image_array=True (?)
     utils.write_geo_metadata(reproj_dataset, crs=crs, input_is_image_array=False)
 
     # Write dataset -> adds geo metadata
@@ -118,7 +119,7 @@ def calculate_s1grdh_multiscales(
     for level in range(2, n_levels + 1):
         # Downsample all variables using existing lazy operations
         group_name = f"r{level * 2}"
-        level_datasets[group_name] = current
+        # level_datasets[group_name] = current
         output_filepath = f"{base_path}/{group_name}"
         log.info("Calculating overview", group=output_filepath, shape=dict(current.sizes))
 
@@ -179,8 +180,8 @@ def calculate_s1grdh_multiscales(
 
         # Strip _FillValue from DataArray encoding for downsampled levels too
         if not keep_scale_offset:
-            for data_var in current.data_vars:
-                current[data_var].encoding.pop("_FillValue", None)
+            for data_var in dataset.data_vars:
+                dataset[data_var].encoding.pop("_FillValue", None)
 
         # Add the geo metadata before writing for
         utils.write_geo_metadata(dataset, crs=crs)
