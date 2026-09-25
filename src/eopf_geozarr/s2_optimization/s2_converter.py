@@ -343,43 +343,8 @@ def simple_root_consolidation(
     write_store_root_bbox(output_path)
 
     if dt_input and dt_input.attrs:
-        # this can be used to add multiscale paths to the stac attributes
-        # wether we want that or not has to be discussed
-        # -> For now this data is not added, as we dont want to expose the additional multiscale arrays for users in the stac assets, this comes at the possibility of confusion for users, but we accept that risk
-        # as users wont need the multiscale, but they are just used for visualisation
-        # the code is currently commented out, as this discussion is not 100% final yet and changes might apply
-
-        # updated_stac_attrs = add_multiscale_pyramids_to_stac_metadata(datasets, dt_input.attrs)
-        # utils.write_store_root_stac_metadata(
-        #     output_path,
-        #     root_attrs=cast("dict[str, dict[str, Any]]", updated_stac_attrs),
-        # )
-
-        # addition of measurements as its own stac asset in root -> will needto be verified and tested
-        # likely triggErs addtionial modifications in eopf-stac -> cannot be tested here as eopf-stac is out of scope from this repo
-        root_attrs = cast("dict[str, dict[str, Any]]", dt_input.attrs)
-        # Reference the pyramid root group, not the individual levels. That
-        # group carries the `multiscales` attribute, and the
-        # `profile=multiscales` media-type parameter tells a consumer to look
-        # for it there and resolve the levels from the convention itself.
-        stac = root_attrs.get("stac_discovery")
-        if stac is not None:
-            reflectance_asset: dict[str, Any] = {
-                "href": "/measurements/reflectance",
-                "type": "application/vnd.zarr; version=3; profile=multiscales",
-                "title": "Surface Reflectance",
-                "roles": ["data", "reflectance"],
-                "gsd": 10,
-            }
-
-            if crs is not None and crs.to_epsg() is not None:
-                reflectance_asset.update(utils.proj_attrs_for_crs(crs))
-
-            base = datasets.get("/measurements/reflectance/r10m")
-            if isinstance(base, xr.Dataset):
-                reflectance_asset["proj:shape"] = [base.sizes["y"], base.sizes["x"]]
-
-            stac.setdefault("assets", {})["reflectance"] = reflectance_asset
+        # add multiscale generated paths and /measurement/refectance to the stac attributes
+        update_stac_discovery_metadata(datasets, dt_input.attrs, crs)
 
         utils.write_store_root_stac_metadata(
             output_path,
@@ -393,35 +358,68 @@ def simple_root_consolidation(
     zarr.consolidate_metadata(output_path, zarr_format=3)
 
 
-def add_multiscale_pyramids_to_stac_metadata(
-    datasets: Mapping[str, object], dt_attributes: dict[Hashable, Any]
+def update_stac_discovery_metadata(
+    datasets: Mapping[str, object], dt_attributes: dict[Hashable, Any], crs: CRS | None
 ) -> dict[Hashable, Any]:
-    stac_attrs = dt_attributes["stac_discovery"]["assets"]
+    # add relevant metadata to stac_discovery:
+    # - "/measurements/reflectance" -> needs to be generalized for non-S2 products once this all gets refactored into covnersion/utils.py
+    # - adds all 'new' assets (all bands that were generated during the multiscale generation)
+    stac = dt_attributes.get("stac_discovery")
+    if stac is not None:
+        # add the reflectance asset
+        reflectance_asset: dict[str, Any] = {
+            "href": "/measurements/reflectance",
+            "type": "application/vnd.zarr; version=3; profile=multiscales",
+            "title": "Surface Reflectance",
+            "roles": ["data", "reflectance"],
+            "gsd": 10,
+        }
 
-    # a bit messy but effective split to get group parent from stac attrs
-    existing_group_paths = {"/".join(v["href"].split("/")[:-1]) for v in stac_attrs.values()}
+        if crs is not None and crs.to_epsg() is not None:
+            reflectance_asset.update(utils.proj_attrs_for_crs(crs))
 
-    # gEt mismatched ones -> we need pyramids not present
-    missing_group_paths = [
-        path for path, ds in datasets.items() if path not in existing_group_paths and ds is not None
-    ]
+        base = datasets.get("/measurements/reflectance/r10m")
+        if isinstance(base, xr.Dataset):
+            reflectance_asset["proj:shape"] = [base.sizes["y"], base.sizes["x"]]
 
-    for group_path in missing_group_paths:
-        ds = datasets[group_path]
+        stac.setdefault("assets", {})["reflectance"] = reflectance_asset
 
-        # catch object != datAset for typing
-        if isinstance(ds, xr.Dataset):
-            resolution = group_path.rsplit("/", 1)[-1]  # "r120m"
-            for var_name in ds.data_vars:
-                if var_name == "spatial_ref":
-                    continue
-                asset_key = f"{var_name}_{resolution}"
-                stac_attrs[asset_key] = {"href": f"{group_path}/{var_name}", "title": asset_key}
-        else:
-            log.warning("Found non-dataset object in datasets!", dataset=ds)
+        # add the missing multiscale generated bands to the stac_discvoery
+        # stac_attrs = dt_attributes["stac_discovery"]["assets"]
 
-    # replace attrs
-    dt_attributes["stac_discovery"]["assets"] = stac_attrs
+        # a bit messy but effective split to get group parent from stac attrs
+        existing_group_paths = {
+            "/".join(v["href"].split("/")[:-1]) for v in stac["assets"].values()
+        }
+
+        # gEt mismatched ones -> we need pyramids not present
+        missing_group_paths = [
+            path
+            for path, ds in datasets.items()
+            if path not in existing_group_paths and ds is not None
+        ]
+
+        for group_path in missing_group_paths:
+            ds = datasets[group_path]
+
+            # catch object != datAset for typing
+            if isinstance(ds, xr.Dataset):
+                resolution = group_path.rsplit("/", 1)[-1]  # "r120m"
+                for var_name in ds.data_vars:
+                    if var_name == "spatial_ref":
+                        continue
+                    asset_key = f"{var_name}_{resolution}"
+                    stac["assets"][asset_key] = {
+                        "href": f"{group_path}/{var_name}",
+                        "title": asset_key,
+                    }
+            else:
+                log.warning("Found non-dataset object in datasets!", dataset=ds)
+    else:
+        log.warning(
+            'No "stac_discovery" attribute set in root metadata -> skipping annotation and metadata addition processes'
+        )
+
     return dt_attributes
 
 
