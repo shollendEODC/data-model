@@ -236,7 +236,9 @@ def calculate_olci_multiscales(
     # spatial_ref + grid_mapping on every variable) at (approximately)
     # native resolution. Everything downstream — the pyramid, spatial
     # attrs, and CRS metadata — operates on this gridded dataset.
-    reproj_measurements = reproject_olci(measurements, target_crs=crs.to_string())
+    reproj_measurements = reproject_olci(
+        measurements, target_crs=crs.to_string(), initial_downsampling_factor=4
+    )
     # rioxarray's write_crs records grid_mapping in both .attrs and
     # .encoding; xarray's to_zarr refuses to serialize a variable whose
     # attrs and encoding disagree on an encoding-owned key, so clear the

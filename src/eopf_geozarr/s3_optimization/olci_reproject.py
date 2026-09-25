@@ -10,6 +10,7 @@ geolocation-array support (``src_geoloc_array``, rasterio >= 1.4).
 from __future__ import annotations
 
 import numpy as np
+import rasterio
 import rioxarray  # noqa: F401  # enables the .rio accessor
 import structlog
 import xarray as xr
@@ -84,6 +85,7 @@ def reproject_olci(
     *,
     target_crs: str = "EPSG:4326",
     resampling: Resampling = Resampling.bilinear,
+    initial_downsampling_factor: int = 1,
 ) -> xr.Dataset:
     """Warp an OLCI swath dataset onto a regular *target_crs* grid.
 
@@ -130,13 +132,22 @@ def reproject_olci(
         height=src_height,
         src_geoloc_array=geoloc,
     )
+
     assert width is not None
     assert height is not None
+
+    # -> Coaren transform by initial_downsampling_factor
+    coarse_width = max(1, width // initial_downsampling_factor)
+    coarse_height = max(1, height // initial_downsampling_factor)
+    coarse_transform: rasterio.Affine = transform * rasterio.Affine.scale(
+        width / coarse_width, height / coarse_height
+    )
+
     log.info(
         "Reprojecting OLCI swath",
         target_crs=target_crs,
         src_shape=(src_height, src_width),
-        dst_shape=(height, width),
+        dst_shape=(coarse_height, coarse_width),
     )
 
     result_vars: dict[str, xr.DataArray] = {}
@@ -168,7 +179,7 @@ def reproject_olci(
                 )
                 else None
             )
-            dest = np.full((height, width), nodata, dtype=var.dtype)
+            dest = np.full((coarse_height, coarse_width), nodata, dtype=var.dtype)
             reproject(
                 source=np.ascontiguousarray(var.values),
                 destination=dest,
@@ -176,10 +187,14 @@ def reproject_olci(
                 src_geoloc_array=geoloc,
                 src_nodata=src_nodata,
                 dst_crs=CRS.from_string(target_crs),
-                dst_transform=transform,
+                dst_transform=coarse_transform,
                 dst_nodata=nodata,
                 resampling=resampling,
             )
+            # overwrite transform to allow the passthrough of non-transformable data variables
+            transform = coarse_transform
+            width = coarse_width
+            height = coarse_height
             out_attrs = dict(var.attrs)
             if np.issubdtype(var.dtype, np.integer):
                 out_attrs["_FillValue"] = int(nodata)
@@ -196,6 +211,7 @@ def reproject_olci(
 
     xs = transform.c + transform.a * (np.arange(width) + 0.5)
     ys = transform.f + transform.e * (np.arange(height) + 0.5)
+
     y_attrs, x_attrs = _grid_coord_attrs(target_crs)
     out = xr.Dataset(
         result_vars,
