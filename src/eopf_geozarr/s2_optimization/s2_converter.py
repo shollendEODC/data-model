@@ -171,6 +171,7 @@ def convert_s2(
     log.info("Step 2: Creating multiscale pyramids (preserving original hierarchy)")
     datasets = create_multiscale_from_datatree(
         dt_input,
+        output_path=output_path,
         output_group=zarr.open_group(output_path),
         spatial_chunk=spatial_chunk,
         enable_sharding=enable_sharding,
@@ -260,6 +261,7 @@ def convert_s2_optimized(
 
     datasets = create_multiscale_from_datatree(
         dt_input,
+        output_path=output_path,
         output_group=output_group,
         spatial_chunk=spatial_chunk,
         enable_sharding=enable_sharding,

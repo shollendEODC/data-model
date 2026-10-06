@@ -290,6 +290,7 @@ def test_create_multiscale_from_datatree_snapshot(
         create_multiscale_from_datatree(
             dt_input,
             output_group=zarr.create_group(output_path),
+            output_path=output_path,
             enable_sharding=True,
             spatial_chunk=1024,
         )
@@ -556,6 +557,7 @@ def test_create_multiscale_from_datatree_behavior(
         create_multiscale_from_datatree(
             dt_input,
             output_group=zarr.create_group(output_path),
+            output_path=output_path,
             enable_sharding=False,
             spatial_chunk=_BEHAVIOR_SPATIAL_CHUNK,
             scale_offset_codec=scale_offset_codec,

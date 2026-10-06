@@ -10,6 +10,8 @@ from itertools import pairwise
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
+import rasterio  # Import to enable .rio accessor
+import rasterio.transform
 import structlog
 import xarray as xr
 import zarr
@@ -17,6 +19,7 @@ from dask.array import from_delayed
 from dask.delayed import delayed
 from pydantic.experimental.missing_sentinel import MISSING
 from pyproj import CRS
+from zarr_cm import LayoutObject, MultiscalesAttrs, SpatialAttrs, Transform
 
 from eopf_geozarr.conversion import encoding_utils, utils
 from eopf_geozarr.conversion.fs_utils import sanitize_dataset_attributes
@@ -34,7 +37,9 @@ from .s2_resampling import determine_variable_type, downsample_variable
 if TYPE_CHECKING:
     from collections.abc import Hashable, Mapping
 
-    from zarr_cm import MultiscalesAttrs
+    from affine import Affine
+    from zarr.core.common import JSON
+    from zarr_cm import MultiscalesAttrs, SpatialAttrs, Transform
     from zarr_cm import spatial as spatial_cm
 
     from eopf_geozarr.data_api.geozarr.types import (
@@ -321,9 +326,187 @@ def inject_missing_bands(
     return utils._rechunk_ds(dataset, spatial_chunk)
 
 
+def generic_multiscales(
+    base_path: str,
+    src_processed_groups: dict[str, Any],
+    output_path: str,
+    output_group: zarr.Group,
+    coarsest_dataset_key: str,
+    enable_sharding: bool = True,
+    crs: CRS | None = None,
+    scale_offset_codec: bool = False,
+) -> dict[str, Any]:
+    # Create downsampled resolution groups
+    scale_levels = tuple(pyramid_levels.values())
+    if coarsest_dataset_key not in src_processed_groups:
+        raise KeyError(
+            f"The given `coarsest_dataset_key` {coarsest_dataset_key} is not present in `src_processed_groups` {list(src_processed_groups.keys())} which is required for the correct calculation of multiscales."
+        )
+
+    # iterate over pre-defined pyramid-dict (or smth) and generate layout data -> use LayoutObject/...
+    current_level_name = str
+    current = src_processed_groups[coarsest_dataset_key]
+
+    spatial_levels: dict[str, dict[str, list[float] | list[int]]] = {
+        coarsest_dataset_key: {
+            "spatial:shape": current.attrs["spatial:shape"],
+            "spatial:transform": current.attrs["spatial:transform"],
+        }
+    }
+
+    # predefined layout asset
+    layout_: list[dict[str, Any]] = [
+        {
+            "asset": coarsest_dataset_key,
+            **spatial_levels[coarsest_dataset_key],
+        }
+    ]
+
+    # iterate over source, dest pairs: (60, 120), (120, 360), ...
+    for source_level, dest_level in pairwise(scale_levels):
+        dest_level_name = f"r{dest_level}m"
+        dest_level_path = f"{base_path}/{dest_level_name}"
+
+        source_ds = src_processed_groups[f"r{source_level}m"]
+
+        downsample_factor = dest_level // source_level
+        log.info("Creating level with resolution", level=dest_level_name, resolution=dest_level)
+
+        if dest_level_name in src_processed_groups:
+            # just assign already existing group as we dont need any coarsening
+            # loadly fails afterwards, if `src_processed_groups[dest_level_name]`
+            # was not procesed correctly as its geo metadata is queryied
+            ds_out = src_processed_groups[dest_level_name]
+        else:
+            # Create downsampled dataset by coarsening
+            downsampled_dataset = create_downsampled_resolution_group(
+                source_ds, factor=downsample_factor
+            )
+
+            log.info("Writing level to path", level=dest_level_name, output_path=dest_level_path)
+
+            # Create encoding
+            encoding = utils.create_uniform_encoding(
+                downsampled_dataset,
+                enable_sharding=enable_sharding,
+                scale_offset_codec=scale_offset_codec,
+            )
+
+            # add geo metadata
+            write_geo_metadata(downsampled_dataset, crs=crs)
+
+            # Write dataset
+            # ds_out = utils.stream_write_dataset(
+            #     downsampled_dataset,
+            #     path=dest_level_path,
+            #     group=output_group,
+            #     encoding=encoding,
+            #     enable_sharding=enable_sharding,
+            # )
+
+            # Write dataset
+            ds_out = stream_write_s2dataset(
+                downsampled_dataset,
+                path=dest_level_path,
+                group=output_group,
+                encoding=encoding,
+                enable_sharding=enable_sharding,
+                crs=crs,
+            )
+
+            # Store results
+            src_processed_groups[dest_level_name] = ds_out
+
+        # determine multiscale metadata for all datasets
+        spatial_levels[dest_level_name] = {
+            "spatial:shape": ds_out.attrs["spatial:shape"],
+            "spatial:transform": ds_out.attrs["spatial:transform"],
+        }
+
+        # already have a reference -> derive scale factor from it
+        transform: Transform = {
+            "scale": [downsample_factor, downsample_factor],
+            "translation": [0.0, 0.0],
+        }
+        lo = {
+            "asset": dest_level_name,
+            "derived_from": current_level_name,
+            "transform": transform,
+            **spatial_levels[dest_level_name],
+        }
+
+        layout_.append(lo)
+
+        current_level_name = dest_level_name
+
+    # Step 3: Add multiscales metadata to parent groups
+    log.info("Adding multiscales metadata to parent groups")
+
+    # Get the parent group (it was created when writing the resolution groups).
+    # `output_group[base_path]` is typed `Array | Group`; `base_path` always
+    # addresses a group (the reflectance parent), so verify that at runtime.
+    parent_group = output_group[base_path]
+    if not isinstance(parent_group, zarr.Group):
+        raise TypeError(
+            f"expected a zarr.Group at {base_path!r}, got {type(parent_group).__name__}"
+        )
+
+    # add_multiscales_metadata_to_parent(
+    #     parent_group,
+    #     src_processed_groups,
+    # )
+
+    # add metadata to root and multiscale-parent node
+    root_rw = zarr.open_group(output_path, mode="a")
+
+    # create layoutobjects -> also checks accordance (i think)
+    layout: list[LayoutObject] = [LayoutObject(**lo) for lo in layout_]
+    ms: MultiscalesAttrs = {"layout": layout, "resampling_method": "average"}
+
+    # add geozarr attrs to base of /multiscales
+    coarse_base = src_processed_groups[coarsest_dataset_key]
+    base_spatial = grid_spatial_attrs(
+        transform=coarse_base.rio.transform(recalc=True),
+        shape=(coarse_base.sizes["y"], coarse_base.sizes["x"]),
+    )
+
+    conv = utils.build_convention_attrs(multiscales=ms, spatial=base_spatial, crs=crs)
+    root_rw[base_path].attrs.update(cast("dict[str, JSON]", conv))
+
+    # add it as none here to be recognized later and can be created as a zarr root with necessary metadata
+    src_processed_groups[base_path] = None
+
+    return src_processed_groups
+
+
+def grid_spatial_attrs(transform: Affine, shape: tuple[int, int]) -> SpatialAttrs:
+    """Spatial-convention data for a regular grid with an affine *transform*.
+
+    *shape* is ``(height, width)``.  Emits ``spatial:dimensions`` ``["y","x"]``,
+    pixel registration, the bounding box, and the 6-element row-major affine
+    transform.
+    """
+    height, width = shape
+    left, bottom, right, top = rasterio.transform.array_bounds(height, width, transform)
+    return {
+        "spatial:dimensions": ["y", "x"],
+        "spatial:registration": "pixel",
+        "spatial:bbox": [float(left), float(bottom), float(right), float(top)],
+        "spatial:transform": [
+            float(transform.a),
+            float(transform.b),
+            float(transform.c),
+            float(transform.d),
+            float(transform.e),
+            float(transform.f),
+        ],
+    }
+
+
 def create_multiscale_from_datatree(
     dt_input: xr.DataTree,
     *,
+    output_path: str,
     output_group: zarr.Group,
     enable_sharding: bool,
     spatial_chunk: int,
@@ -495,76 +678,99 @@ def create_multiscale_from_datatree(
             crs=crs,
         )
         processed_groups[group_path] = ds_out
-    # Step 2: Create downsampled resolution groups ONLY for measurements
-    # Find all resolution-based groups under /measurements/ and organize by base path
-    resolution_groups: dict[str, xr.Dataset] = {}
-    base_path = "/measurements/reflectance"
-    for group_path in processed_groups:
-        # Only process groups under /measurements/reflectance
-        if not group_path.startswith(base_path):
-            continue
 
-        group_name = group_path.split("/")[-1]
-        if group_name in ["r10m", "r20m", "r60m"]:
-            resolution_groups[group_name] = processed_groups[group_path]
-
-    scale_levels = tuple(pyramid_levels.values())
-
-    # iterate over source, dest pairs: (60, 120), (120, 360), ...
-    for source_level, dest_level in pairwise(scale_levels[2:]):
-        dest_level_name = f"r{dest_level}m"
-        dest_level_path = f"{base_path}/{dest_level_name}"
-
-        source_ds = resolution_groups[f"r{source_level}m"]
-
-        downsample_factor = dest_level // source_level
-        log.info("Creating level with resolution", level=dest_level_name, resolution=dest_level)
-
-        # Create downsampled dataset
-        downsampled_dataset = create_downsampled_resolution_group(
-            source_ds, factor=downsample_factor
-        )
-
-        log.info("Writing level to path", level=dest_level_name, output_path=dest_level_path)
-
-        # Create encoding
-        encoding = utils.create_uniform_encoding(
-            downsampled_dataset,
-            enable_sharding=enable_sharding,
-            scale_offset_codec=scale_offset_codec,
-        )
-
-        # Write dataset
-        ds_out = stream_write_s2dataset(
-            downsampled_dataset,
-            path=dest_level_path,
-            group=output_group,
-            encoding=encoding,
-            enable_sharding=enable_sharding,
-            crs=crs,
-        )
-
-        # Store results
-        processed_groups[dest_level_path] = ds_out
-        resolution_groups[dest_level_name] = ds_out
-
-    # Step 3: Add multiscales metadata to parent groups
-    log.info("Adding multiscales metadata to parent groups")
-
-    # Get the parent group (it was created when writing the resolution groups).
-    # `output_group[base_path]` is typed `Array | Group`; `base_path` always
-    # addresses a group (the reflectance parent), so verify that at runtime.
-    parent_group = output_group[base_path]
-    if not isinstance(parent_group, zarr.Group):
-        raise TypeError(
-            f"expected a zarr.Group at {base_path!r}, got {type(parent_group).__name__}"
-        )
-
-    add_multiscales_metadata_to_parent(
-        parent_group,
-        resolution_groups,
+    # multiscales for "/measurements/reflectance"
+    measurement_processed_groups: dict[str, Any] = {
+        "r10m": processed_groups["/measurements/reflectance/r10m"],
+        "r20m": processed_groups["/measurements/reflectance/r20m"],
+        "r60m": processed_groups["/measurements/reflectance/r60m"],
+    }
+    ms_measurement_processed_groups = generic_multiscales(
+        base_path="/measurements/reflectance",
+        src_processed_groups=measurement_processed_groups,
+        output_path=output_path,
+        output_group=output_group,
+        coarsest_dataset_key="r10m",
+        enable_sharding=enable_sharding,
+        crs=crs,
+        scale_offset_codec=scale_offset_codec,
     )
-    processed_groups[base_path] = None
+
+    # update processed groups with multiscale included groups, old instances of dataset are replaced,
+    # which is no issue as they were not touched
+    processed_groups.update(ms_measurement_processed_groups)
+
+    # # Step 2: Create downsampled resolution groups ONLY for measurements
+    # # Find all resolution-based groups under /measurements/ and organize by base path
+    # resolution_groups: dict[str, xr.Dataset] = {}
+    # base_path = "/measurements/reflectance"
+    # for group_path in processed_groups:
+    #     # Only process groups under /measurements/reflectance
+    #     if not group_path.startswith(base_path):
+    #         continue
+
+    #     group_name = group_path.split("/")[-1]
+    #     if group_name in ["r10m", "r20m", "r60m"]:
+    #         resolution_groups[group_name] = processed_groups[group_path]
+
+    # scale_levels = tuple(pyramid_levels.values())
+
+    # # iterate over source, dest pairs: (60, 120), (120, 360), ...
+    # for source_level, dest_level in pairwise(scale_levels[2:]):
+    #     dest_level_name = f"r{dest_level}m"
+    #     dest_level_path = f"{base_path}/{dest_level_name}"
+
+    #     source_ds = resolution_groups[f"r{source_level}m"]
+
+    #     downsample_factor = dest_level // source_level
+    #     log.info("Creating level with resolution", level=dest_level_name, resolution=dest_level)
+
+    #     # Create downsampled dataset
+    #     downsampled_dataset = create_downsampled_resolution_group(
+    #         source_ds, factor=downsample_factor
+    #     )
+
+    #     log.info("Writing level to path", level=dest_level_name, output_path=dest_level_path)
+
+    #     # Create encoding
+    #     encoding = utils.create_uniform_encoding(
+    #         downsampled_dataset,
+    #         enable_sharding=enable_sharding,
+    #         scale_offset_codec=scale_offset_codec,
+    #     )
+
+    #     # Write dataset
+    #     ds_out = stream_write_s2dataset(
+    #         downsampled_dataset,
+    #         path=dest_level_path,
+    #         group=output_group,
+    #         encoding=encoding,
+    #         enable_sharding=enable_sharding,
+    #         crs=crs,
+    #     )
+
+    #     # Store results
+    #     processed_groups[dest_level_path] = ds_out
+    #     resolution_groups[dest_level_name] = ds_out
+
+    # # Step 3: Add multiscales metadata to parent groups
+    # log.info("Adding multiscales metadata to parent groups")
+
+    # # Get the parent group (it was created when writing the resolution groups).
+    # # `output_group[base_path]` is typed `Array | Group`; `base_path` always
+    # # addresses a group (the reflectance parent), so verify that at runtime.
+    # parent_group = output_group[base_path]
+    # if not isinstance(parent_group, zarr.Group):
+    #     raise TypeError(
+    #         f"expected a zarr.Group at {base_path!r}, got {type(parent_group).__name__}"
+    #     )
+
+    # add_multiscales_metadata_to_parent(
+    #     parent_group,
+    #     resolution_groups,
+    # )
+
+    # processed_groups[base_path] = None
 
     return processed_groups
 

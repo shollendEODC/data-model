@@ -126,7 +126,6 @@ def init_zarr_group(
         zarr_format=ZARR_FORMAT,
         consolidated=False,
     )
-    return
 
 
 def init_root_zarr_group(
@@ -150,14 +149,12 @@ def init_root_zarr_group(
     # Aggregates child-group `spatial:bbox` values, reprojects them to EPSG:4326
     # and writes the union on the root `zarr.json`.
     write_store_root_metadata(output_path, attrs=dt_input_attrs)
-    return
 
 
 def write_store_root_metadata(output_path: str, attrs: dict[str, dict[str, Any]]) -> None:
     """Function wrapper for calling two metadata writing functions to add geo and stac metadata to zarr groups."""
     write_store_geo_metadata(output_path, input_root_attrs=attrs)
     write_store_stac_metadata(output_path, input_root_attrs=attrs)
-    return
 
 
 def get_subroots(groups: tuple[str, ...]) -> set[str] | None:
