@@ -344,7 +344,7 @@ def generic_multiscales(
         )
 
     # iterate over pre-defined pyramid-dict (or smth) and generate layout data -> use LayoutObject/...
-    current_level_name = str
+    current_level_name: str = coarsest_dataset_key
     current = src_processed_groups[coarsest_dataset_key]
 
     spatial_levels: dict[str, dict[str, list[float] | list[int]]] = {
