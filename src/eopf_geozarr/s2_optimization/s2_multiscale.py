@@ -345,12 +345,12 @@ def generic_multiscales(
 
     # iterate over pre-defined pyramid-dict (or smth) and generate layout data -> use LayoutObject/...
     current_level_name: str = coarsest_dataset_key
-    current = src_processed_groups[coarsest_dataset_key]
+    coarse_base = src_processed_groups[coarsest_dataset_key]
 
     spatial_levels: dict[str, dict[str, list[float] | list[int]]] = {
         coarsest_dataset_key: {
-            "spatial:shape": current.attrs["spatial:shape"],
-            "spatial:transform": current.attrs["spatial:transform"],
+            "spatial:shape": coarse_base.attrs["spatial:shape"],
+            "spatial:transform": coarse_base.attrs["spatial:transform"],
         }
     }
 
@@ -362,22 +362,36 @@ def generic_multiscales(
         }
     ]
 
+    dst_processed_groups: dict[str, Any] = {f"{base_path}/{coarsest_dataset_key}": coarse_base}
+
     # iterate over source, dest pairs: (60, 120), (120, 360), ...
     for source_level, dest_level in pairwise(scale_levels):
+        src_level_name = f"r{source_level}m"
+        src_level_path = f"{base_path}/{src_level_name}"
+
         dest_level_name = f"r{dest_level}m"
         dest_level_path = f"{base_path}/{dest_level_name}"
 
-        source_ds = src_processed_groups[f"r{source_level}m"]
-
+        # incorrect downsample factor
         downsample_factor = dest_level // source_level
-        log.info("Creating level with resolution", level=dest_level_name, resolution=dest_level)
 
-        if dest_level_name in src_processed_groups:
+        if dest_level_path in src_processed_groups:
             # just assign already existing group as we dont need any coarsening
             # loadly fails afterwards, if `src_processed_groups[dest_level_name]`
             # was not procesed correctly as its geo metadata is queryied
-            ds_out = src_processed_groups[dest_level_name]
+            ds_out = src_processed_groups[dest_level_path]
+
+            # Store results
+            dst_processed_groups[dest_level_path] = ds_out
         else:
+            source_ds = (
+                src_processed_groups[src_level_name]
+                if src_level_name in src_processed_groups
+                else dst_processed_groups[src_level_path]
+            )
+
+            log.info("Creating level with resolution", level=dest_level_name, resolution=dest_level)
+
             # Create downsampled dataset by coarsening
             downsampled_dataset = create_downsampled_resolution_group(
                 source_ds, factor=downsample_factor
@@ -415,10 +429,10 @@ def generic_multiscales(
             )
 
             # Store results
-            src_processed_groups[dest_level_name] = ds_out
+            dst_processed_groups[dest_level_path] = ds_out
 
         # determine multiscale metadata for all datasets
-        spatial_levels[dest_level_name] = {
+        spatial_levels[dest_level_path] = {
             "spatial:shape": ds_out.attrs["spatial:shape"],
             "spatial:transform": ds_out.attrs["spatial:transform"],
         }
@@ -432,7 +446,7 @@ def generic_multiscales(
             "asset": dest_level_name,
             "derived_from": current_level_name,
             "transform": transform,
-            **spatial_levels[dest_level_name],
+            **spatial_levels[dest_level_path],
         }
 
         layout_.append(lo)
@@ -464,19 +478,18 @@ def generic_multiscales(
     ms: MultiscalesAttrs = {"layout": layout, "resampling_method": "average"}
 
     # add geozarr attrs to base of /multiscales
-    coarse_base = src_processed_groups[coarsest_dataset_key]
-    base_spatial = grid_spatial_attrs(
+    coarse_base_spatial = grid_spatial_attrs(
         transform=coarse_base.rio.transform(recalc=True),
         shape=(coarse_base.sizes["y"], coarse_base.sizes["x"]),
     )
 
-    conv = utils.build_convention_attrs(multiscales=ms, spatial=base_spatial, crs=crs)
+    conv = utils.build_convention_attrs(multiscales=ms, spatial=coarse_base_spatial, crs=crs)
     root_rw[base_path].attrs.update(cast("dict[str, JSON]", conv))
 
     # add it as none here to be recognized later and can be created as a zarr root with necessary metadata
-    src_processed_groups[base_path] = None
+    dst_processed_groups[base_path] = None
 
-    return src_processed_groups
+    return dst_processed_groups
 
 
 def grid_spatial_attrs(transform: Affine, shape: tuple[int, int]) -> SpatialAttrs:
