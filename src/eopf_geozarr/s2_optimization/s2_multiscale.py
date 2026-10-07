@@ -331,13 +331,14 @@ def generic_multiscales(
     src_processed_groups: dict[str, Any],
     output_path: str,
     output_group: zarr.Group,
+    scale_levels: tuple[int, ...],
     coarsest_dataset_key: str,
     enable_sharding: bool = True,
     crs: CRS | None = None,
     scale_offset_codec: bool = False,
 ) -> dict[str, Any]:
     # Create downsampled resolution groups
-    scale_levels = tuple(pyramid_levels.values())
+    # scale_levels = tuple(pyramid_levels.values())
     if coarsest_dataset_key not in src_processed_groups:
         raise KeyError(
             f"The given `coarsest_dataset_key` {coarsest_dataset_key} is not present in `src_processed_groups` {list(src_processed_groups.keys())} which is required for the correct calculation of multiscales."
@@ -692,6 +693,57 @@ def create_multiscale_from_datatree(
         )
         processed_groups[group_path] = ds_out
 
+    # cld and snw
+    cld_snw_processed_groups: dict[str, Any] = {
+        "r20m": processed_groups["/quality/probability/r20m"],
+    }
+    ms_cld_snw_classification_processed_groups = generic_multiscales(
+        base_path="/quality/probability",
+        src_processed_groups=cld_snw_processed_groups,
+        output_path=output_path,
+        output_group=output_group,
+        scale_levels=(20, 60, 120, 360, 720),
+        coarsest_dataset_key="r20m",
+        enable_sharding=enable_sharding,
+        crs=crs,
+        scale_offset_codec=scale_offset_codec,
+    )
+    processed_groups.update(ms_cld_snw_classification_processed_groups)
+
+    # l1c_classification
+    l1c_classification_processed_groups: dict[str, Any] = {
+        "r60m": processed_groups["/conditions/mask/l1c_classification/r60m"],
+    }
+    ms_l1c_classification_processed_groups = generic_multiscales(
+        base_path="/conditions/mask/l1c_classification",
+        src_processed_groups=l1c_classification_processed_groups,
+        output_path=output_path,
+        output_group=output_group,
+        scale_levels=(60, 120, 360, 720),
+        coarsest_dataset_key="r60m",
+        enable_sharding=enable_sharding,
+        crs=crs,
+        scale_offset_codec=scale_offset_codec,
+    )
+    processed_groups.update(ms_l1c_classification_processed_groups)
+
+    # l2a_classification
+    l2a_classification_processed_groups: dict[str, Any] = {
+        "r20m": processed_groups["/conditions/mask/l2a_classification/r20m"],
+    }
+    ms_l2a_classification_processed_groups = generic_multiscales(
+        base_path="/conditions/mask/l2a_classification",
+        src_processed_groups=l2a_classification_processed_groups,
+        output_path=output_path,
+        output_group=output_group,
+        scale_levels=(20, 60, 120, 360, 720),
+        coarsest_dataset_key="r20m",
+        enable_sharding=enable_sharding,
+        crs=crs,
+        scale_offset_codec=scale_offset_codec,
+    )
+    processed_groups.update(ms_l2a_classification_processed_groups)
+
     # multiscales for "/measurements/reflectance"
     measurement_processed_groups: dict[str, Any] = {
         "r10m": processed_groups["/measurements/reflectance/r10m"],
@@ -703,6 +755,7 @@ def create_multiscale_from_datatree(
         src_processed_groups=measurement_processed_groups,
         output_path=output_path,
         output_group=output_group,
+        scale_levels=(10, 20, 60, 120, 360, 720),
         coarsest_dataset_key="r10m",
         enable_sharding=enable_sharding,
         crs=crs,
