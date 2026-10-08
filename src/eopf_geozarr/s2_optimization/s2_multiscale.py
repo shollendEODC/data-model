@@ -15,8 +15,6 @@ import rasterio.transform
 import structlog
 import xarray as xr
 import zarr
-from dask.array import from_delayed
-from dask.delayed import delayed
 from pydantic.experimental.missing_sentinel import MISSING
 from pyproj import CRS
 from zarr_cm import LayoutObject, MultiscalesAttrs, SpatialAttrs, Transform
@@ -29,13 +27,14 @@ from eopf_geozarr.data_api.geozarr.multiscales import zcm
 from eopf_geozarr.data_api.geozarr.multiscales.geozarr import (
     MultiscaleMeta,
 )
+from eopf_geozarr.s2_optimization import s2_resampling
 from eopf_geozarr.s2_optimization.common import DISTRIBUTED_AVAILABLE
 from eopf_geozarr.s2_optimization.s2_band_mapping import BAND_INFO
 
-from .s2_resampling import determine_variable_type, downsample_variable
+from .s2_resampling import determine_variable_type
 
 if TYPE_CHECKING:
-    from collections.abc import Hashable, Mapping
+    from collections.abc import Mapping
 
     from affine import Affine
     from zarr.core.common import JSON
@@ -73,22 +72,6 @@ class S2Type(StrEnum):
 log = structlog.get_logger()
 
 MultiscalesFlavor = Literal["experimental_multiscales_convention"]
-
-pyramid_levels = {
-    0: 10,  # Level 0: 10m (native for b02,b03,b04,b08)
-    1: 20,  # Level 1: 20m (native for b05,b06,b07,b11,b12,b8a + all quality)
-    2: 60,  # Level 2: 60m (native for b01,b09,b10)
-    3: 120,  # Level 3: 120m (2x downsampling from 60m)
-    4: 360,  # Level 4: 360m (3x downsampling from 120m)
-    5: 720,  # Level 5: 720m (2x downsampling from 360m)
-}
-
-
-def get_grid_spacing(ds: xr.DataArray, coords: tuple[Hashable, ...]) -> tuple[float | int, ...]:
-    """
-    Get the grid spacing of a regularly-gridded DataArray along the specified coordinates.
-    """
-    return tuple(np.abs(ds.coords[coord][0].data - ds.coords[coord][1].data) for coord in coords)
 
 
 def _transform_from_coordinates(
@@ -188,7 +171,7 @@ def _coarsen_variable(var_name: str, var_data: xr.DataArray, factor: int) -> xr.
     Dispatches to the appropriate coarsen reduction (mean, max, subsample)
     based on `determine_variable_type`.  Preserves encoding and dtype.
     """
-    var_type = determine_variable_type(var_name, var_data)
+    var_type = determine_variable_type(var_name)
 
     coarsened = var_data.coarsen({"x": factor, "y": factor}, boundary="trim")
     if var_type in ("reflectance", "probability"):
@@ -211,11 +194,8 @@ def _coarsen_variable(var_name: str, var_data: xr.DataArray, factor: int) -> xr.
                 )
     elif var_type == "classification":
         result = coarsened.reduce(subsample_2)
-    elif var_type == "quality_mask":
-        # xarray stubs omit reduction methods on DataArrayCoarsen.
-        result = coarsened.max()  # type: ignore[attr-defined]
     else:
-        raise ValueError(f"Unknown variable type {var_type}")
+        raise ValueError(f"Unknown/Unapplicable variable type {var_type}")
 
     # `xr.DataArray.astype` clears `.encoding`, so we capture it first and
     # restore it on the cast result. Without this, downstream code that
@@ -338,7 +318,6 @@ def generic_multiscales(
     scale_offset_codec: bool = False,
 ) -> dict[str, Any]:
     # Create downsampled resolution groups
-    # scale_levels = tuple(pyramid_levels.values())
     if coarsest_dataset_key not in src_processed_groups:
         raise KeyError(
             f"The given `coarsest_dataset_key` {coarsest_dataset_key} is not present in `src_processed_groups` {list(src_processed_groups.keys())} which is required for the correct calculation of multiscales."
@@ -347,6 +326,22 @@ def generic_multiscales(
     # iterate over pre-defined pyramid-dict (or smth) and generate layout data -> use LayoutObject/...
     current_level_name: str = coarsest_dataset_key
     coarse_base = src_processed_groups[coarsest_dataset_key]
+
+    # determine variable type and subsequent resampling method for MS layout
+    variable_type = s2_resampling.determine_variable_type(coarse_base)
+    resampling_method = (
+        "average"
+        if variable_type in ("reflectance", "probability")
+        else "nearest"
+        if variable_type in ("classification")
+        else None
+    )
+
+    # only accept ('reflectance', 'probability', or 'classification') which arr covered by determine_variable_type(..) loudly fail for other input types, as they are not safely implemented yet
+    if resampling_method is None:
+        raise ValueError(
+            f"resampling method for MS generation is derived from variable_type {variable_type} and didnt match any from ('reflectance', 'probability', or 'classification')"
+        )
 
     spatial_levels: dict[str, dict[str, list[float] | list[int]]] = {
         coarsest_dataset_key: {
@@ -411,15 +406,6 @@ def generic_multiscales(
             write_geo_metadata(downsampled_dataset, crs=crs)
 
             # Write dataset
-            # ds_out = utils.stream_write_dataset(
-            #     downsampled_dataset,
-            #     path=dest_level_path,
-            #     group=output_group,
-            #     encoding=encoding,
-            #     enable_sharding=enable_sharding,
-            # )
-
-            # Write dataset
             ds_out = stream_write_s2dataset(
                 downsampled_dataset,
                 path=dest_level_path,
@@ -466,17 +452,12 @@ def generic_multiscales(
             f"expected a zarr.Group at {base_path!r}, got {type(parent_group).__name__}"
         )
 
-    # add_multiscales_metadata_to_parent(
-    #     parent_group,
-    #     src_processed_groups,
-    # )
-
     # add metadata to root and multiscale-parent node
     root_rw = zarr.open_group(output_path, mode="a")
 
     # create layoutobjects -> also checks accordance (i think)
     layout: list[LayoutObject] = [LayoutObject(**lo) for lo in layout_]
-    ms: MultiscalesAttrs = {"layout": layout, "resampling_method": "average"}
+    ms: MultiscalesAttrs = {"layout": layout, "resampling_method": resampling_method}
 
     # add geozarr attrs to base of /multiscales
     coarse_base_spatial = grid_spatial_attrs(
@@ -765,78 +746,6 @@ def create_multiscale_from_datatree(
     # update processed groups with multiscale included groups, old instances of dataset are replaced,
     # which is no issue as they were not touched
     processed_groups.update(ms_measurement_processed_groups)
-
-    # # Step 2: Create downsampled resolution groups ONLY for measurements
-    # # Find all resolution-based groups under /measurements/ and organize by base path
-    # resolution_groups: dict[str, xr.Dataset] = {}
-    # base_path = "/measurements/reflectance"
-    # for group_path in processed_groups:
-    #     # Only process groups under /measurements/reflectance
-    #     if not group_path.startswith(base_path):
-    #         continue
-
-    #     group_name = group_path.split("/")[-1]
-    #     if group_name in ["r10m", "r20m", "r60m"]:
-    #         resolution_groups[group_name] = processed_groups[group_path]
-
-    # scale_levels = tuple(pyramid_levels.values())
-
-    # # iterate over source, dest pairs: (60, 120), (120, 360), ...
-    # for source_level, dest_level in pairwise(scale_levels[2:]):
-    #     dest_level_name = f"r{dest_level}m"
-    #     dest_level_path = f"{base_path}/{dest_level_name}"
-
-    #     source_ds = resolution_groups[f"r{source_level}m"]
-
-    #     downsample_factor = dest_level // source_level
-    #     log.info("Creating level with resolution", level=dest_level_name, resolution=dest_level)
-
-    #     # Create downsampled dataset
-    #     downsampled_dataset = create_downsampled_resolution_group(
-    #         source_ds, factor=downsample_factor
-    #     )
-
-    #     log.info("Writing level to path", level=dest_level_name, output_path=dest_level_path)
-
-    #     # Create encoding
-    #     encoding = utils.create_uniform_encoding(
-    #         downsampled_dataset,
-    #         enable_sharding=enable_sharding,
-    #         scale_offset_codec=scale_offset_codec,
-    #     )
-
-    #     # Write dataset
-    #     ds_out = stream_write_s2dataset(
-    #         downsampled_dataset,
-    #         path=dest_level_path,
-    #         group=output_group,
-    #         encoding=encoding,
-    #         enable_sharding=enable_sharding,
-    #         crs=crs,
-    #     )
-
-    #     # Store results
-    #     processed_groups[dest_level_path] = ds_out
-    #     resolution_groups[dest_level_name] = ds_out
-
-    # # Step 3: Add multiscales metadata to parent groups
-    # log.info("Adding multiscales metadata to parent groups")
-
-    # # Get the parent group (it was created when writing the resolution groups).
-    # # `output_group[base_path]` is typed `Array | Group`; `base_path` always
-    # # addresses a group (the reflectance parent), so verify that at runtime.
-    # parent_group = output_group[base_path]
-    # if not isinstance(parent_group, zarr.Group):
-    #     raise TypeError(
-    #         f"expected a zarr.Group at {base_path!r}, got {type(parent_group).__name__}"
-    #     )
-
-    # add_multiscales_metadata_to_parent(
-    #     parent_group,
-    #     resolution_groups,
-    # )
-
-    # processed_groups[base_path] = None
 
     return processed_groups
 
@@ -1185,87 +1094,6 @@ def subsample_2(a: xr.DataArray, axis: tuple[int, ...] | None = None) -> xr.Data
         return a[((0,) * a.ndim)]
     indexer = [0 if i in axis else slice(None) for i in range(a.ndim)]
     return a[tuple(indexer)]
-
-
-def create_downsampled_coordinates(
-    level_2_dataset: xr.Dataset,
-    target_height: int,
-    target_width: int,
-    downsample_factor: int,
-) -> dict[str, Any]:
-    """Create downsampled coordinates for higher pyramid levels."""
-
-    # Get original coordinates from level 2
-    if "x" not in level_2_dataset.coords or "y" not in level_2_dataset.coords:
-        return {}
-
-    x_coords_orig = level_2_dataset.coords["x"].values
-    y_coords_orig = level_2_dataset.coords["y"].values
-
-    # Calculate downsampled coordinates by taking every nth point
-    # where n is the downsample_factor
-    x_coords_downsampled = x_coords_orig[::downsample_factor][:target_width]
-    y_coords_downsampled = y_coords_orig[::downsample_factor][:target_height]
-
-    # Create coordinate dictionary with proper attributes
-    coords = {}
-
-    # Copy x coordinate with attributes
-    x_attrs = level_2_dataset.coords["x"].attrs.copy()
-    coords["x"] = (["x"], x_coords_downsampled, x_attrs)
-
-    # Copy y coordinate with attributes
-    y_attrs = level_2_dataset.coords["y"].attrs.copy()
-    coords["y"] = (["y"], y_coords_downsampled, y_attrs)
-
-    # Copy any other coordinates that might exist
-    coords.update(
-        {
-            str(coord_name): coord_data
-            for coord_name, coord_data in level_2_dataset.coords.items()
-            if coord_name not in ["x", "y"]
-        }
-    )
-
-    return coords
-
-
-def create_lazy_downsample_operation_from_existing(
-    source_data: xr.DataArray, target_height: int, target_width: int
-) -> xr.DataArray:
-    """Create lazy downsampling operation from existing data."""
-
-    @delayed
-    def downsample_operation() -> Any:
-        var_type = determine_variable_type(str(source_data.name), source_data)
-        return downsample_variable(source_data, target_height, target_width, var_type)
-
-    # Create delayed operation
-    lazy_result = downsample_operation()
-
-    # Estimate output shape and chunks
-    output_shape: tuple[int, ...]
-    chunks: tuple[int, ...]
-    if source_data.ndim == 3:
-        output_shape = (source_data.shape[0], target_height, target_width)
-        chunks = (1, min(256, target_height), min(256, target_width))
-    else:
-        output_shape = (target_height, target_width)
-        chunks = (min(256, target_height), min(256, target_width))
-
-    # Create Dask array from delayed operation
-    dask_array = from_delayed(lazy_result, shape=output_shape, dtype=source_data.dtype).rechunk(
-        chunks
-    )
-
-    # Return as xarray DataArray with lazy data - no coords to avoid alignment issues
-    # Coordinates will be set when the lazy operation is computed
-    return xr.DataArray(
-        dask_array,
-        dims=source_data.dims,
-        attrs=source_data.attrs.copy(),
-        name=source_data.name,
-    )
 
 
 def stream_write_s2dataset(

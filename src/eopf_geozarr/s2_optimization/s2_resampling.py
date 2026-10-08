@@ -170,14 +170,13 @@ def downsample_probability(
 
 
 def determine_variable_type(
-    var_name: str, var_data: xr.DataArray
+    var_name: str,
 ) -> Literal["reflectance", "classification", "probability", "quality_mask"]:
     """
     Determine the type of a variable for appropriate resampling.
 
     Args:
         var_name: Name of the variable
-        var_data: The data array
 
     Returns:
         Variable type string
