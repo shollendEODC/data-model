@@ -15,7 +15,6 @@ import rasterio.transform
 import structlog
 import xarray as xr
 import zarr
-from pydantic.experimental.missing_sentinel import MISSING
 from pyproj import CRS
 from zarr_cm import LayoutObject, MultiscalesAttrs, SpatialAttrs, Transform
 
@@ -23,10 +22,6 @@ from eopf_geozarr.conversion import encoding_utils, utils
 from eopf_geozarr.conversion.fs_utils import sanitize_dataset_attributes
 from eopf_geozarr.conversion.utils import ZARR_FORMAT
 from eopf_geozarr.cpm.routing import product_type_of
-from eopf_geozarr.data_api.geozarr.multiscales import zcm
-from eopf_geozarr.data_api.geozarr.multiscales.geozarr import (
-    MultiscaleMeta,
-)
 from eopf_geozarr.s2_optimization import s2_resampling
 from eopf_geozarr.s2_optimization.common import DISTRIBUTED_AVAILABLE
 from eopf_geozarr.s2_optimization.s2_band_mapping import BAND_INFO
@@ -34,8 +29,6 @@ from eopf_geozarr.s2_optimization.s2_band_mapping import BAND_INFO
 from .s2_resampling import determine_variable_type
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
     from affine import Affine
     from zarr.core.common import JSON
     from zarr_cm import MultiscalesAttrs, SpatialAttrs, Transform
@@ -44,7 +37,45 @@ if TYPE_CHECKING:
     from eopf_geozarr.data_api.geozarr.types import (
         XarrayDataArrayEncoding,
     )
-    from eopf_geozarr.types import OverviewLevelJSON
+
+
+SCL_VALUES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+SCL_LABELS = [
+    "NO_DATA",
+    "SATURATED_OR_DEFECTIVE",
+    "CAST_SHADOWS",
+    "CLOUD_SHADOWS",
+    "VEGETATION",
+    "NOT_VEGETATED",
+    "WATER",
+    "UNCLASSIFIED",
+    "CLOUD_MEDIUM_PROBABILITY",
+    "CLOUD_HIGH_PROBABILITY",
+    "THIN_CIRRUS",
+    "SNOW_ICE",
+]
+
+SCL_ATTRS = {
+    "flag_values": SCL_VALUES,
+    "flag_meanings": SCL_LABELS,
+}
+
+# Auxiliary (non-reflectance) groups that get their own pyramid:
+# (base_path, finest_dataset_key, scale_levels, additional_attributes, product levels).
+# A product level set of `None` means the group is required for every product.
+_AUX_MULTISCALES: tuple[
+    tuple[str, str, tuple[int, ...], dict[str, list[Any]] | None, frozenset[str] | None], ...
+] = (
+    (
+        "/conditions/mask/l2a_classification",
+        "r20m",
+        (20, 60, 120, 360, 720),
+        SCL_ATTRS,
+        frozenset({"L2A"}),
+    ),
+    ("/quality/probability", "r20m", (20, 60, 120, 360, 720), None, frozenset({"L2A"})),
+    ("/conditions/mask/l1c_classification", "r60m", (60, 120, 360, 720), None, None),
+)
 
 
 class S2Type(StrEnum):
@@ -312,23 +343,24 @@ def generic_multiscales(
     output_path: str,
     output_group: zarr.Group,
     scale_levels: tuple[int, ...],
-    coarsest_dataset_key: str,
+    finest_dataset_key: str,
     enable_sharding: bool = True,
     crs: CRS | None = None,
     scale_offset_codec: bool = False,
+    additional_attributes: dict[str, list[Any]] | None = None,
 ) -> dict[str, Any]:
     # Create downsampled resolution groups
-    if coarsest_dataset_key not in src_processed_groups:
+    if finest_dataset_key not in src_processed_groups:
         raise KeyError(
-            f"The given `coarsest_dataset_key` {coarsest_dataset_key} is not present in `src_processed_groups` {list(src_processed_groups.keys())} which is required for the correct calculation of multiscales."
+            f"The given `finest_dataset_key` {finest_dataset_key} is not present in `src_processed_groups` {list(src_processed_groups.keys())} which is required for the correct calculation of multiscales."
         )
 
     # iterate over pre-defined pyramid-dict (or smth) and generate layout data -> use LayoutObject/...
-    current_level_name: str = coarsest_dataset_key
-    coarse_base = src_processed_groups[coarsest_dataset_key]
+    current_level_name: str = finest_dataset_key
+    fine_base: xr.Dataset = src_processed_groups[finest_dataset_key]
 
     # determine variable type and subsequent resampling method for MS layout
-    variable_type = s2_resampling.determine_variable_type(coarse_base)
+    variable_type = s2_resampling.determine_variable_type(str(next(iter(fine_base.data_vars))))
     resampling_method = (
         "average"
         if variable_type in ("reflectance", "probability")
@@ -344,21 +376,21 @@ def generic_multiscales(
         )
 
     spatial_levels: dict[str, dict[str, list[float] | list[int]]] = {
-        coarsest_dataset_key: {
-            "spatial:shape": coarse_base.attrs["spatial:shape"],
-            "spatial:transform": coarse_base.attrs["spatial:transform"],
+        finest_dataset_key: {
+            "spatial:shape": fine_base.attrs["spatial:shape"],
+            "spatial:transform": fine_base.attrs["spatial:transform"],
         }
     }
 
     # predefined layout asset
     layout_: list[dict[str, Any]] = [
         {
-            "asset": coarsest_dataset_key,
-            **spatial_levels[coarsest_dataset_key],
+            "asset": finest_dataset_key,
+            **spatial_levels[finest_dataset_key],
         }
     ]
 
-    dst_processed_groups: dict[str, Any] = {f"{base_path}/{coarsest_dataset_key}": coarse_base}
+    dst_processed_groups: dict[str, Any] = {f"{base_path}/{finest_dataset_key}": fine_base}
 
     # iterate over source, dest pairs: (60, 120), (120, 360), ...
     for source_level, dest_level in pairwise(scale_levels):
@@ -460,13 +492,23 @@ def generic_multiscales(
     ms: MultiscalesAttrs = {"layout": layout, "resampling_method": resampling_method}
 
     # add geozarr attrs to base of /multiscales
-    coarse_base_spatial = grid_spatial_attrs(
-        transform=coarse_base.rio.transform(recalc=True),
-        shape=(coarse_base.sizes["y"], coarse_base.sizes["x"]),
+    fine_base_spatial = grid_spatial_attrs(
+        transform=fine_base.rio.transform(recalc=True),
+        shape=(fine_base.sizes["y"], fine_base.sizes["x"]),
     )
 
-    conv = utils.build_convention_attrs(multiscales=ms, spatial=coarse_base_spatial, crs=crs)
+    conv = utils.build_convention_attrs(multiscales=ms, spatial=fine_base_spatial, crs=crs)
     root_rw[base_path].attrs.update(cast("dict[str, JSON]", conv))
+
+    # Add `additional_attributes` to every level in one place. The finest level and
+    # levels reused from the source were written before this function ran, so the
+    # arrays on disk are updated as well as the in-memory datasets.
+    if additional_attributes is not None:
+        for level_path, level_ds in dst_processed_groups.items():
+            for data_var in level_ds.data_vars:
+                level_ds[data_var].attrs.update(additional_attributes)
+                level_array = root_rw[f"{level_path.lstrip('/')}/{data_var}"]
+                level_array.attrs.update(cast("dict[str, JSON]", additional_attributes))
 
     # add it as none here to be recognized later and can be created as a zarr root with necessary metadata
     dst_processed_groups[base_path] = None
@@ -674,58 +716,36 @@ def create_multiscale_from_datatree(
         )
         processed_groups[group_path] = ds_out
 
-    # cld and snw
-    cld_snw_processed_groups: dict[str, Any] = {
-        "r20m": processed_groups["/quality/probability/r20m"],
-    }
-    ms_cld_snw_classification_processed_groups = generic_multiscales(
-        base_path="/quality/probability",
-        src_processed_groups=cld_snw_processed_groups,
-        output_path=output_path,
-        output_group=output_group,
-        scale_levels=(20, 60, 120, 360, 720),
-        coarsest_dataset_key="r20m",
-        enable_sharding=enable_sharding,
-        crs=crs,
-        scale_offset_codec=scale_offset_codec,
-    )
-    processed_groups.update(ms_cld_snw_classification_processed_groups)
+    # iterate over auxiliary multisacles to generate non-measurement MS
+    for base_path, finest_key, scale_levels, attrs, product_levels in _AUX_MULTISCALES:
+        # product levels defines L2A or L1C to differentiate between cld/snw & l2a_classification which is L2A specific and l1c_classification which runs for both
+        if product_levels is not None and s2_type not in product_levels:
+            continue
+        src_path = f"{base_path}/{finest_key}"
+        if src_path not in processed_groups:
+            raise KeyError(
+                f"Group {src_path!r} is required to build the multiscales of {base_path!r} "
+                f"(product level {s2_type}), but it is missing from the input DataTree."
+            )
 
-    # l1c_classification
-    l1c_classification_processed_groups: dict[str, Any] = {
-        "r60m": processed_groups["/conditions/mask/l1c_classification/r60m"],
-    }
-    ms_l1c_classification_processed_groups = generic_multiscales(
-        base_path="/conditions/mask/l1c_classification",
-        src_processed_groups=l1c_classification_processed_groups,
-        output_path=output_path,
-        output_group=output_group,
-        scale_levels=(60, 120, 360, 720),
-        coarsest_dataset_key="r60m",
-        enable_sharding=enable_sharding,
-        crs=crs,
-        scale_offset_codec=scale_offset_codec,
-    )
-    processed_groups.update(ms_l1c_classification_processed_groups)
+        log.info("Adding multiscales for S2 auxiliary group", base_path=base_path)
+        processed_groups.update(
+            generic_multiscales(
+                base_path=base_path,
+                src_processed_groups={finest_key: processed_groups[src_path]},
+                output_path=output_path,
+                output_group=output_group,
+                scale_levels=scale_levels,
+                finest_dataset_key=finest_key,
+                enable_sharding=enable_sharding,
+                crs=crs,
+                scale_offset_codec=scale_offset_codec,
+                additional_attributes=attrs,
+            )
+        )
 
-    # l2a_classification
-    l2a_classification_processed_groups: dict[str, Any] = {
-        "r20m": processed_groups["/conditions/mask/l2a_classification/r20m"],
-    }
-    ms_l2a_classification_processed_groups = generic_multiscales(
-        base_path="/conditions/mask/l2a_classification",
-        src_processed_groups=l2a_classification_processed_groups,
-        output_path=output_path,
-        output_group=output_group,
-        scale_levels=(20, 60, 120, 360, 720),
-        coarsest_dataset_key="r20m",
-        enable_sharding=enable_sharding,
-        crs=crs,
-        scale_offset_codec=scale_offset_codec,
-    )
-    processed_groups.update(ms_l2a_classification_processed_groups)
-
-    # multiscales for "/measurements/reflectance"
+    # generate multiscales for "/measurements/reflectance"
+    log.info("Adding multiscales for S2: Measurements in '/measurements/reflectance/'")
     measurement_processed_groups: dict[str, Any] = {
         "r10m": processed_groups["/measurements/reflectance/r10m"],
         "r20m": processed_groups["/measurements/reflectance/r20m"],
@@ -737,7 +757,7 @@ def create_multiscale_from_datatree(
         output_path=output_path,
         output_group=output_group,
         scale_levels=(10, 20, 60, 120, 360, 720),
-        coarsest_dataset_key="r10m",
+        finest_dataset_key="r10m",
         enable_sharding=enable_sharding,
         crs=crs,
         scale_offset_codec=scale_offset_codec,
@@ -821,241 +841,6 @@ def calculate_simple_shard_dimensions(
                     shards.append(chunk_size)
 
     return tuple(shards)
-
-
-def add_multiscales_metadata_to_parent(
-    group: zarr.Group,
-    res_groups: Mapping[str, xr.Dataset],
-) -> None:
-    """Add GeoZarr-compliant multiscales metadata to parent group.
-
-    Returns ``None`` in all cases: metadata is written directly to ``group``
-    via ``group.attrs.update`` rather than returned as a DataTree.
-    """
-    # Sort by resolution (finest to coarsest)
-    res_order = {
-        "r10m": 10,
-        "r20m": 20,
-        "r60m": 60,
-        "r120m": 120,
-        "r360m": 360,
-        "r720m": 720,
-    }
-
-    all_resolutions = sorted(set(res_groups.keys()), key=lambda x: res_order.get(x, 999))
-
-    if len(all_resolutions) < 2:
-        log.info(
-            "Skipping {} - only one resolution available",
-            base_path=group.path,
-        )
-        return
-
-    # Get CRS and bounds from first available dataset (load from output path)
-    first_res = all_resolutions[0]
-    first_dataset = res_groups[first_res]
-
-    # Get CRS and bounds
-    native_crs = first_dataset.rio.crs if hasattr(first_dataset, "rio") else None
-    if native_crs is None:
-        log.info("No CRS found, skipping multiscales metadata", base_path=group.path)
-        return
-
-    # Calculate bounds directly from coordinates for consistency with the data arrays
-    if "x" not in first_dataset.coords or "y" not in first_dataset.coords:
-        log.error(
-            "Missing x/y coordinates in dataset, cannot determine bounds", base_path=group.path
-        )
-        return
-
-    native_bounds = _bbox_from_coordinates(first_dataset)
-
-    # Create overview_levels structure following the multiscales v1.0 specification
-    overview_levels: list[OverviewLevelJSON] = []
-    for res_name in all_resolutions:
-        # Use resolution order for consistent scale calculations
-        res_meters = res_order[res_name]
-
-        dataset = res_groups[res_name]
-
-        # Defensive guard retained for runtime safety even though the typed
-        # contract (Mapping[str, xr.Dataset]) means mypy proves it unreachable.
-        if dataset is None:
-            continue
-
-        # Get first data variable to extract dimensions
-        first_var = next(iter(dataset.data_vars.values()))
-        height, width = first_var.shape[-2:]
-
-        transform = _preferred_spatial_transform(dataset)
-
-        # Calculate zoom level (higher resolution = higher zoom)
-        tile_width = 256
-        zoom_for_width = max(0, int(np.ceil(np.log2(width / tile_width))))
-        zoom_for_height = max(0, int(np.ceil(np.log2(height / tile_width))))
-        zoom = max(zoom_for_width, zoom_for_height)
-
-        # Calculate relative scale and translation vs parent resolution
-        finest_res_meters = res_order[all_resolutions[0]]
-
-        # Fix for issue #114: Translation values should be 0
-        relative_translation = 0.0
-
-        # Calculate proper relative scale based on actual parent-child dimension ratios
-        if res_name == all_resolutions[0]:  # Base resolution
-            relative_scale = 1.0
-        else:
-            # Define derivation chain to find parent resolution
-            derivation_chain = {
-                "r10m": None,
-                "r20m": "r10m",
-                "r60m": "r10m",
-                "r120m": "r60m",
-                "r360m": "r120m",
-                "r720m": "r360m",
-            }
-
-            parent_res = derivation_chain.get(res_name)
-            if parent_res and parent_res in res_groups:
-                # Get actual dimensions of parent and child
-                parent_dataset = res_groups[parent_res]
-                parent_var = next(iter(parent_dataset.data_vars.values()))
-                parent_height, parent_width = parent_var.shape[-2:]
-
-                # Current (child) dimensions
-                child_height, child_width = height, width
-
-                # Calculate actual scale ratio based on dimensions
-                # Use the larger of the two ratios to be conservative
-                scale_x = parent_width / child_width if child_width > 0 else 1.0
-                scale_y = parent_height / child_height if child_height > 0 else 1.0
-                relative_scale = max(scale_x, scale_y)
-
-                log.info(
-                    "Calculated dynamic scale ratio",
-                    level=res_name,
-                    parent=parent_res,
-                    parent_dims=(parent_height, parent_width),
-                    child_dims=(child_height, child_width),
-                    scale_x=scale_x,
-                    scale_y=scale_y,
-                    relative_scale=relative_scale,
-                )
-            else:
-                # Fallback to absolute resolution ratio
-                relative_scale = res_meters / finest_res_meters
-                log.warning(
-                    "Using fallback scale calculation",
-                    level=res_name,
-                    relative_scale=relative_scale,
-                )
-
-        # Get chunks in the correct format
-        var_chunks = dataset.data_vars[first_var.name].chunks
-        if var_chunks is not None:
-            chunks = tuple(tuple(int(c) for c in chunk_dim) for chunk_dim in var_chunks)
-        else:
-            chunks = None
-            log.warning(
-                "Could not determine chunking information for overview level; 'chunks' will be set to None",
-                level=res_name,
-                variable=str(first_var.name),
-            )
-
-        layout_entry: OverviewLevelJSON = {
-            "level": res_name,  # Use string-based level name
-            "zoom": zoom,
-            "width": width,
-            "height": height,
-            "translation_relative": relative_translation,
-            "scale_absolute": res_meters,
-            "scale_relative": relative_scale,
-            "spatial_transform": None,
-            "chunks": chunks,
-            "spatial_shape": (height, width),
-        }
-
-        # The minispec requires spatial:transform on every layout entry, so it
-        # is kept even when degenerate (e.g. all-zero coordinates).
-        if transform is not None:
-            layout_entry["spatial_transform"] = transform
-
-        overview_levels.append(layout_entry)
-
-    if len(overview_levels) < 2:
-        log.info("    Could not create overview levels for {}", base_path=group.path)
-        return
-
-    layout: list[zcm.ScaleLevel] | MISSING = MISSING
-
-    layout = []
-
-    # Define the correct derivation chain
-    derivation_chain = {
-        "r10m": None,  # base resolution
-        "r20m": "r10m",
-        "r60m": "r10m",
-        "r120m": "r60m",
-        "r360m": "r120m",
-        "r720m": "r360m",
-    }
-
-    for i, overview_level in enumerate(overview_levels):
-        # Create scale level with required fields
-        asset = str(overview_level["level"])
-
-        # Build complete dict for ScaleLevel initialization
-        scale_level_data: dict[str, Any] = {"asset": asset}
-
-        if i > 0:  # Not the first (base) resolution
-            derived_from = derivation_chain.get(asset, str(all_resolutions[0]))
-            multiscale_transform = zcm.Transform(
-                scale=(overview_level["scale_relative"],) * 2,
-                translation=(overview_level["translation_relative"],) * 2,
-            )
-            scale_level_data["derived_from"] = derived_from
-            scale_level_data["transform"] = multiscale_transform
-
-        # Add spatial properties
-        assert "spatial_shape" in overview_level  # always populated by the producer above
-        scale_level_data["spatial:shape"] = overview_level["spatial_shape"]
-        if "spatial_transform" in overview_level:
-            spatial_transform = overview_level["spatial_transform"]
-            # The minispec requires spatial:transform on every layout entry,
-            # so it is written even when degenerate (e.g. all-zero coordinates).
-            if spatial_transform is not None:
-                scale_level_data["spatial:transform"] = spatial_transform
-
-        scale_level = zcm.ScaleLevel(**scale_level_data)
-        layout.append(scale_level)
-
-    # Validate + serialize the multiscales block via the project model (which
-    # also covers the ZCM/TMS duality), then hand all three conventions to
-    # zarr-cm, which validates each and emits the matching CMOs in order
-    # (multiscales, spatial, proj).
-    multiscales_data = cast(
-        "MultiscalesAttrs",
-        MultiscaleMeta(layout=tuple(layout), resampling_method="average").model_dump(),
-    )
-
-    attrs_to_write: dict[str, Any] = {}
-    if native_crs and native_bounds:
-        attrs_to_write.update(
-            utils.build_convention_attrs(
-                multiscales=multiscales_data,
-                spatial={
-                    "spatial:dimensions": ["y", "x"],
-                    "spatial:bbox": list(native_bounds),  # [xmin, ymin, xmax, ymax]
-                    "spatial:registration": "pixel",
-                },
-                crs=native_crs,
-            )
-        )
-
-    # Write attributes directly to the zarr group
-    group.attrs.update(attrs_to_write)
-
-    log.info("Added %s multiscale levels to %s", len(overview_levels), group.path)
 
 
 def create_downsampled_resolution_group(source_dataset: xr.Dataset, factor: int) -> xr.Dataset:

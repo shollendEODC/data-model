@@ -181,13 +181,16 @@ def determine_variable_type(
     Returns:
         Variable type string
     """
+
+    # Scene classifications for l2a_classification and l1c_classification
+    if (
+        var_name == "scl" or var_name == "b00"
+    ):  # Scene Classification Layer in l2a_classification AND in l1c_classification
+        return "classification"
+
     # Spectral bands
     if var_name.startswith("b") and (var_name[1:].isdigit() or var_name == "b8a"):
         return "reflectance"
-
-    # Quality data
-    if var_name == "scl":  # Scene Classification Layer
-        return "classification"
 
     if var_name in ["cld", "snw"]:  # Probability data
         return "probability"

@@ -304,6 +304,8 @@ class TestDetermineVariableType:
             ("b8a", "reflectance"),
             # Classification data
             ("scl", "classification"),
+            # L1C cloud bitmask: named like a band, but must not be averaged
+            ("b00", "classification"),
             # Probability data
             ("cld", "probability"),
             ("snw", "probability"),
