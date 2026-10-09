@@ -19,7 +19,7 @@ from eopf_geozarr.conversion.utils import ZARR_FORMAT
 from eopf_geozarr.data_api.s1 import Sentinel1Root
 from eopf_geozarr.data_api.s2 import Sentinel2Root
 
-from .s2_multiscale import create_multiscale_from_datatree
+from .s2_multiscale import _AUX_MULTISCALES, S2Type, create_multiscale_from_datatree
 
 if TYPE_CHECKING:
     from collections.abc import Hashable, Mapping
@@ -303,6 +303,7 @@ def simple_root_consolidation(
     scale_offset_codec: bool = False,
 ) -> None:
     """Simple root-level metadata consolidation with proper zarr group creation."""
+
     # create missing intermediary groups (/conditions, /quality, etc.)
     # using the keys of the datasets dict
     missing_groups = set()
@@ -382,7 +383,17 @@ def simple_root_consolidation(
         )
 
     # consolidate reflectance group metadata
+    # add consolidation for other MS arrays
     zarr.consolidate_metadata(output_path + "/measurements/reflectance", zarr_format=ZARR_FORMAT)
+
+    # also cosnolidate the non-measuremetn MS
+    if dt_input is not None:
+        s2_type = S2Type.from_datatree(dt_input)
+        for ms_group_path, _, _, _, product_levels in _AUX_MULTISCALES:
+            if product_levels is not None and s2_type not in product_levels:
+                continue
+            print(output_path + ms_group_path)
+            zarr.consolidate_metadata(output_path + ms_group_path, zarr_format=ZARR_FORMAT)
 
     # consolidate root group metadata
     zarr.consolidate_metadata(output_path, zarr_format=ZARR_FORMAT)
