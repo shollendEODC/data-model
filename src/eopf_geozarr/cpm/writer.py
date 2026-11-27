@@ -43,7 +43,6 @@ from typing import TYPE_CHECKING, Any
 import structlog
 from eopf.exceptions.errors import EOStoreProductAlreadyExistsError
 from eopf.store.abstract import EOWriter
-from eopf.store.writer_registry import EOWriterRegistry
 
 from eopf_geozarr.conversion import create_geozarr_dataset
 from eopf_geozarr.cpm.routing import (
@@ -94,6 +93,8 @@ class GeoZarrWriter(EOWriter):
     parameter of the underlying pipelines.
     """
 
+    DISCOVERABLE_BY_TARGET = False
+    # PRIORITY = 0                   # optional; only matters for target-based discovery
     EXTENSIONS = (".zarr",)
     DEFAULT_EXTENSION = ".zarr"
     ALLOWED_MODE = _SUPPORTED_MODES
@@ -469,12 +470,6 @@ class GeoZarrWriter(EOWriter):
         return path_str
 
 
-def register() -> None:
-    """Register the ``geozarr`` engine with CPM's writer registry (idempotent)."""
-    if not EOWriterRegistry.contains(ENGINE_NAME):
-        EOWriterRegistry.register(ENGINE_NAME, discoverable_by_target=False)(GeoZarrWriter)
-
-
 def get_cli_command() -> click.Command:
     """
     Build the ``eopf convert-geozarr`` click command.
@@ -580,7 +575,6 @@ def get_cli_command() -> click.Command:
         stage_source: bool,
         stage_output: bool,
     ) -> None:
-        register()
         target_store_kwargs: dict[str, Any] = {"engine": ENGINE_NAME}
         if spatial_chunk is not None:
             target_store_kwargs["spatial_chunk"] = spatial_chunk
@@ -613,6 +607,3 @@ def get_cli_command() -> click.Command:
         )
 
     return convert_geozarr
-
-
-register()

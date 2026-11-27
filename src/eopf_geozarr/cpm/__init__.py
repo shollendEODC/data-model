@@ -17,12 +17,12 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import click
 
-    from eopf_geozarr.cpm.writer import GeoZarrWriter, register
+    from eopf_geozarr.cpm.writer import GeoZarrWriter
 
 #: Engine name used with ``write_datatree(..., engine=ENGINE_NAME)``.
 ENGINE_NAME = "geozarr"
 
-__all__ = ["ENGINE_NAME", "GeoZarrWriter", "get_cli_command", "register"]
+__all__ = ["ENGINE_NAME", "GeoZarrWriter", "get_cli_command"]
 
 
 def _import_writer() -> Any:

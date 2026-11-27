@@ -70,7 +70,9 @@ dependencies = [
 # The GeoZarr driver for EOPF CPM (eopf_geozarr.cpm): registers the "geozarr"
 # engine in CPM's writer registry and the `eopf convert-geozarr` CLI command.
 # eopf 3.x requires Python >= 3.13, so the extra is empty on older interpreters.
-cpm = ["eopf>=3.0.0; python_version >= '3.13'",
+cpm = ["eopf==3.1.0rc3; python_version >= '3.13'",
+       # eopf 3.1 moved the SAFE reader (engine="safe") into this separate package.
+       "eopf-safe==1.0.0rc1; python_version >= '3.13'",
        # eopf imports defusedxml for Sentinel-1 SAFE reading but only declares it under its "tests" extra.
        "defusedxml; python_version >= '3.13'",
        # eopf imports scipy (eopf.computing.utils) but only declares it under its "tests" extra.
@@ -123,6 +125,8 @@ eopf-geozarr = "eopf_geozarr.cli:main"
 # driver adds `eopf convert-geozarr` when eopf-geozarr is installed next to eopf.
 [project.entry-points."eopf.cli"]
 convert-geozarr = "eopf_geozarr.cpm:get_cli_command"
+[project.entry-points."eopf_writers"]
+geozarr = "eopf_geozarr.cpm.writer:GeoZarrWriter"
 
 # Note: setuptools_scm configuration disabled in favor of release-please managed versioning
 # [tool.setuptools_scm]
